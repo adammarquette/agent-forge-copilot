@@ -1,4 +1,4 @@
-# ARCHITECTURE.md — AgentForge Clinical Co-Pilot (Cardiology)
+# ARCHITECTURE — AgentForge Clinical Co-Pilot (Cardiology)
 
 **Product:** AgentForge Clinical Co-Pilot — an AI agent embedded in OpenEMR for the outpatient cardiologist.
 **Repos:** `agent-forge` (OpenEMR v8 fork — audited base + thin module shim) · `agent-forge-copilot` (.NET sidecar).
@@ -324,16 +324,41 @@ citation + domain-constraint gate is mandatory across any provider and is the qu
 
 ---
 
-## 13. Deployment (Railway)
+## 13. Deployment Environments
 
-- **Two services**: OpenEMR (PHP) + .NET sidecar, both on Railway; public URL submitted each checkpoint.
-- **SMART client registration** between them (dynamic client registration endpoint confirmed).
-- **TLS every hop**; no PHI in URLs, logs, or telemetry; cross-origin iframe hardening (CSP `frame-ancestors`,
+**Deployment target is a per-environment decision, not an architectural one.** Both services (OpenEMR PHP +
+.NET sidecar) are containers that integrate over standard HTTPS/FHIR/OAuth, so the *same build* runs in either
+environment; what changes is the host and its compliance controls. Two environments (D15):
+
+### 13.1 Development / demo — Railway
+- **Both services on Railway**; public URL submitted each sprint checkpoint. Per the case study, the final
+  agent deploys to the **same infrastructure** as the audited app — so Railway is the sprint target end-to-end.
+- **Synthetic/demo data only → no BAA required** (privacy is not in scope here, by policy). This is the
+  explicit reason Railway is acceptable for dev: no PHI ever touches it.
+- Fast to stand up, cheap, good DX — the right call when the constraint is iteration speed, not compliance.
+- **Hard line:** if this environment cannot hold PHI, then no real PHI is ever introduced to it — enforced by
+  policy, not just intent.
+
+### 13.2 Production — HIPAA-eligible cloud (default: AWS)
+- **PHI changes the host.** Production runs on a HIPAA-eligible provider under a signed BAA. AWS is the default:
+  the **BAA is free and self-serve via AWS Artifact**, and PHI is confined to **HIPAA-eligible services** —
+  e.g. ECS/EKS or EC2 for the sidecar + OpenEMR, RDS (MariaDB/MySQL) for the database, KMS for keys, CloudWatch
+  for logs. Suits the smaller/self-serve deployments this product targets first.
+- **Railway is viable for prod too, but gated:** its HIPAA BAA is **Enterprise-only (~$1k/mo min)** — higher
+  friction than AWS Artifact, so AWS is the lower-friction default. (See `PRD.md` §11 / §15.1.)
+- **Portable by design:** because integration is over standard FHIR/OAuth, the sidecar can also deploy **into
+  the practice's existing OpenEMR environment** (their cloud or on-prem) — often the real-world case, since the
+  practice already holds the PHI trust boundary. Compliance posture (which cloud, which BAA, which LLM path) is
+  a per-deployment config, not a code change.
+
+### 13.3 Constant across environments
+- **Two services** with **SMART dynamic client registration** between them (confirmed in fork).
+- **TLS every hop**; no PHI in URLs, logs, or telemetry; cross-origin iFrame hardening (CSP `frame-ancestors`,
   cookie `SameSite`/partitioning).
-- **HIPAA posture:** demo data only → **no BAA required now**. Production PHI on Railway requires its
-  Enterprise BAA (~$1k/mo); lower-friction target is AWS-under-BAA (free, self-serve via Artifact). See
-  `PRD.md` §11 / §15.1.
-- `/ready` gates traffic on real dependency reachability; documented rollback.
+- Separate `/health` + `/ready`; `/ready` gates traffic on real dependency reachability; documented rollback.
+- **LLM path follows the environment:** dev uses the assumed-BAA provider on demo data; prod pairs a real,
+  executed BAA with the model provider (or an in-VPC/air-gapped model via the `ILlmProvider` seam) so PHI
+  egress is controlled. **The environment boundary and the model boundary move together.**
 
 ---
 
@@ -376,6 +401,7 @@ citation + domain-constraint gate is mandatory across any provider and is the qu
 | **D12** | **One LLM provider in v1 behind ILlmProvider** | Build 3-tier model zoo now | Sprint scope; abstraction preserved, others described |
 | **D13** | **No write-back in MVP** | Gated draft write | Removes auth surface + cert questions for zero required credit |
 | **D14** | **Morning Triage batch = Phase-2, not v1** | Build batch triage in v1 | Keeps v1 conversational-agent-first (case-study requirement); batch reuses the v1 pipeline once trusted |
+| **D15** | **Railway for dev (demo data), HIPAA-eligible cloud (AWS) for prod** | Single environment for both | Dev optimizes iteration speed with zero PHI; prod optimizes compliance under BAA. Same container both ways — host is a per-env decision, not architectural |
 
 ---
 
