@@ -1,4 +1,4 @@
-# USERS.md — Target User, Workflow & Use Cases
+# USERS — Target User, Workflow & Use Cases
 
 **Product:** AgentForge Clinical Co-Pilot for Cardiology (OpenEMR fork)
 **Status:** v1.0 — source-of-truth for `ARCHITECTURE.md`. Every agent capability must trace to a use case here.
