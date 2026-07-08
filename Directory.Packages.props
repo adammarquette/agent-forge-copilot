@@ -22,6 +22,15 @@
     <!-- ILogger abstraction, no hard dependency on a concrete provider -->
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
 
+    <!-- Composition root plumbing for the integration test host (real HttpClient, real config
+         binding from environment variables - never hard-coded QA credentials/URLs) -->
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.9" />
+
     <!-- Test infrastructure (both test projects) -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
