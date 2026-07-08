@@ -15,7 +15,7 @@ namespace GauntletAI.AgentForge.Agent;
 public sealed class AgentOrchestrator(
     ILlmProvider llmProvider,
     IMcpToolDispatcher toolDispatcher,
-    ILogger<AgentOrchestrator> logger)
+    ILogger<AgentOrchestrator> logger) : IAgentOrchestrator
 {
     /// <summary>
     /// Safety bound on tool-call rounds within a single turn. NFR-REL-1's full graceful-degradation
