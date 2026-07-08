@@ -84,6 +84,21 @@ public sealed class SourceAttributionEngineTests
     }
 
     [Fact]
+    public void Verify_UncitedClinicalValueOnALineThatHappensToContainTheWordNo_StillSuppressesIt()
+    {
+        // Regression: the bare "no " gap-indicator phrase must not swallow a real, uncited
+        // clinical claim just because "no" appears somewhere earlier in the sentence (e.g. as
+        // part of "no significant"). Only a line that is *actually reporting an absence* should
+        // be exempted - this line asserts a specific, elevated potassium value with no citation.
+        const string answer = "No significant change, but her potassium is 6.2 today.";
+
+        var result = _sut.Verify(answer, []);
+
+        result.Passed.Should().BeFalse();
+        result.SuppressedClaims.Should().ContainSingle().Which.Line.Should().Be(answer);
+    }
+
+    [Fact]
     public void Verify_EmptyAnswer_ReturnsPassedTrueWithEmptyAnswer()
     {
         var result = _sut.Verify(string.Empty, []);

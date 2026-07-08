@@ -14,6 +14,12 @@ namespace GauntletAI.AgentForge.Verification;
 /// definition, so it must not be treated the same as an uncited claim.
 /// </para>
 /// <para>
+/// The gap-vs-claim check runs per clause (split on commas, semicolons, and " but "), not per
+/// whole line, so a line that both reports a gap and asserts an unrelated uncited claim ("No
+/// significant change, but her potassium is 6.2 today.") doesn't let the second clause ride along
+/// on the first clause's exemption.
+/// </para>
+/// <para>
 /// <b>Known limitation</b> (ARCHITECTURE.md §9.3's framing applied here): both keyword lists are a
 /// deliberately narrow, reviewable heuristic, not real NLP claim extraction - a claim phrased
 /// without any listed keyword can still slip through uncited, and a gap statement using unlisted
@@ -77,6 +83,9 @@ public sealed class SourceAttributionEngine : ISourceAttributionEngine
         return new AttributionResult(suppressed.Count == 0, string.Join('\n', keptLines), suppressed);
     }
 
+    /// <summary>Clause boundaries a single line gets split on before the gap-vs-claim check.</summary>
+    private static readonly string[] ClauseDelimiters = [",", ";", " but "];
+
     private static string? Evaluate(string line, HashSet<string> availableCitations)
     {
         var matches = CitationPattern.Matches(line);
@@ -94,15 +103,22 @@ public sealed class SourceAttributionEngine : ISourceAttributionEngine
             return null;
         }
 
-        var lowerLine = line.ToLowerInvariant();
-        if (GapIndicatorPhrases.Any(lowerLine.Contains))
+        // Evaluated per clause, not per whole line: a single line can both report a gap and
+        // assert an unrelated, uncited claim ("No significant change, but her potassium is 6.2
+        // today.") - checking the gap phrase against the entire line would let the second clause
+        // ride along on the first clause's exemption.
+        foreach (var clause in line.Split(ClauseDelimiters, StringSplitOptions.None))
         {
-            return null;
-        }
+            var lowerClause = clause.ToLowerInvariant();
+            if (GapIndicatorPhrases.Any(lowerClause.Contains))
+            {
+                continue;
+            }
 
-        if (ClinicalFactKeywords.Any(lowerLine.Contains))
-        {
-            return "asserts a clinical value with no citation";
+            if (ClinicalFactKeywords.Any(lowerClause.Contains))
+            {
+                return "asserts a clinical value with no citation";
+            }
         }
 
         return null;
