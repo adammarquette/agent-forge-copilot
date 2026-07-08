@@ -1,0 +1,79 @@
+using FluentAssertions;
+using GauntletAI.AgentForge.Llm;
+using GauntletAI.AgentForge.Llm.Anthropic;
+
+namespace GauntletAI.AgentForge.UnitTests.Llm.Anthropic;
+
+public sealed class AnthropicRequestMapperTests
+{
+    [Fact]
+    public void Map_ValidRequest_MapsModelSystemPromptMaxTokensAndTemperature()
+    {
+        var request = new LlmRequest(
+            SystemPrompt: "You are a cardiology co-pilot.",
+            Messages: [],
+            Temperature: 0.2,
+            MaxOutputTokens: 2048);
+
+        var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
+
+        wire.Model.Should().Be("claude-sonnet-5");
+        wire.System.Should().Be("You are a cardiology co-pilot.");
+        wire.MaxTokens.Should().Be(2048);
+        wire.Temperature.Should().Be(0.2);
+    }
+
+    [Fact]
+    public void Map_MessagesWithBothRoles_MapsToLowercaseWireRoleStrings()
+    {
+        var request = new LlmRequest(
+            SystemPrompt: "system",
+            Messages:
+            [
+                new LlmMessage(LlmRole.User, "Is her INR therapeutic?"),
+                new LlmMessage(LlmRole.Assistant, "Her most recent INR was 2.3."),
+            ]);
+
+        var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
+
+        wire.Messages.Should().HaveCount(2);
+        wire.Messages[0].Role.Should().Be("user");
+        wire.Messages[0].Content.Should().Be("Is her INR therapeutic?");
+        wire.Messages[1].Role.Should().Be("assistant");
+        wire.Messages[1].Content.Should().Be("Her most recent INR was 2.3.");
+    }
+
+    [Fact]
+    public void Map_NoToolsOffered_WireToolsIsNull()
+    {
+        var request = new LlmRequest("system", [], Tools: null);
+
+        var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
+
+        wire.Tools.Should().BeNull();
+    }
+
+    [Fact]
+    public void Map_ToolsOffered_MapsNameDescriptionAndParsedInputSchema()
+    {
+        var request = new LlmRequest(
+            "system",
+            [],
+            Tools:
+            [
+                new LlmToolDefinition(
+                    "get_labs",
+                    "Fetches lab results for the patient in context.",
+                    """{"type":"object","properties":{"patientId":{"type":"string"}},"required":["patientId"]}"""),
+            ]);
+
+        var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
+
+        wire.Tools.Should().ContainSingle();
+        var tool = wire.Tools![0];
+        tool.Name.Should().Be("get_labs");
+        tool.Description.Should().Be("Fetches lab results for the patient in context.");
+        tool.InputSchema["type"]!.GetValue<string>().Should().Be("object");
+        tool.InputSchema["required"]![0]!.GetValue<string>().Should().Be("patientId");
+    }
+}
