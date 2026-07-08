@@ -4,7 +4,7 @@ namespace GauntletAI.AgentForge.Integration.OpenEmr.Auth;
 /// Orchestrates the SMART EHR launch token exchange (INTERFACE_CONTROL.md Interface A.3) on top
 /// of the raw <see cref="IOpenEmrAuthApi"/> endpoint.
 /// </summary>
-public sealed class OpenEmrAuthClient(IOpenEmrAuthApi api)
+public sealed class OpenEmrAuthClient(IOpenEmrAuthApi api) : IOpenEmrAuthClient
 {
     /// <summary>
     /// Exchanges an authorization code for an access token using the authorization_code grant
