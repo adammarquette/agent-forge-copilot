@@ -28,6 +28,9 @@
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
 
+    <!-- JUnit XML test reports so failed tests surface inline in the MR (CI-SETUP.md §5) -->
+    <PackageVersion Include="JunitXml.TestLogger" Version="8.0.0" />
+
     <!-- Mocking (unit tier only, per ENGINEERING_STANDARDS.md §8.1) -->
     <PackageVersion Include="FakeItEasy" Version="9.0.1" />
 

@@ -12,6 +12,7 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="JunitXml.TestLogger" />
   </ItemGroup>
 
   <ItemGroup>

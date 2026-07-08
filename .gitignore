@@ -424,6 +424,10 @@ autom4te.cache/
 tarballs/
 test-results/
 
+# dotnet test output (trx/junit) - the exact directory name `dotnet test` creates,
+# distinct from the lowercase test-results/ pattern above.
+TestResults/
+
 # content below from: https://github.com/github/gitignore/blob/main/Global/macOS.gitignore
 # General
 .DS_Store
