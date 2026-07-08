@@ -28,7 +28,7 @@ public sealed class ChatSessionCoordinatorTests
         string? tokenDuringOrchestratorCall = null;
         A.CallTo(() => _orchestrator.StartBriefAsync("default", "123", A<CancellationToken>._))
             .Invokes(() => tokenDuringOrchestratorCall = _tokenProvider.AccessToken)
-            .Returns(Task.FromResult(new AgentTurnResult("brief text", ConversationState.Start("default", "123"))));
+            .Returns(Task.FromResult(new AgentTurnResult("brief text", ConversationState.Start("default", "123"), [])));
 
         await _sut.RequestBriefAsync("session-1", _session, CancellationToken.None);
 
@@ -43,7 +43,7 @@ public sealed class ChatSessionCoordinatorTests
             Messages = [LlmMessage.FromText(LlmRole.Assistant, "brief text")],
         };
         A.CallTo(() => _orchestrator.StartBriefAsync("default", "123", A<CancellationToken>._))
-            .Returns(Task.FromResult(new AgentTurnResult("brief text", finalState)));
+            .Returns(Task.FromResult(new AgentTurnResult("brief text", finalState, [])));
 
         await _sut.RequestBriefAsync("session-1", _session, CancellationToken.None);
 
@@ -54,7 +54,7 @@ public sealed class ChatSessionCoordinatorTests
     public async Task RequestBriefAsync_OrchestratorReturnsAResult_AppendsABriefMessageToTheOutboxAndReturnsIt()
     {
         A.CallTo(() => _orchestrator.StartBriefAsync("default", "123", A<CancellationToken>._))
-            .Returns(Task.FromResult(new AgentTurnResult("brief text", ConversationState.Start("default", "123"))));
+            .Returns(Task.FromResult(new AgentTurnResult("brief text", ConversationState.Start("default", "123"), [])));
         var appended = new ChatMessage(1, "brief", """{"answer":"brief text"}""");
         A.CallTo(() => _outbox.Append("session-1", "brief", A<string>.That.Contains("brief text")))
             .Returns(appended);
@@ -69,7 +69,7 @@ public sealed class ChatSessionCoordinatorTests
     {
         A.CallTo(() => _conversationStore.TryGet("session-1")).Returns(null);
         A.CallTo(() => _orchestrator.AskFollowUpAsync(A<ConversationState>._, "Is her INR therapeutic?", A<CancellationToken>._))
-            .Returns(Task.FromResult(new AgentTurnResult("Yes.", ConversationState.Start("default", "123"))));
+            .Returns(Task.FromResult(new AgentTurnResult("Yes.", ConversationState.Start("default", "123"), [])));
 
         await _sut.AskFollowUpAsync("session-1", _session, "Is her INR therapeutic?", CancellationToken.None);
 
@@ -88,7 +88,7 @@ public sealed class ChatSessionCoordinatorTests
         };
         A.CallTo(() => _conversationStore.TryGet("session-1")).Returns(priorState);
         A.CallTo(() => _orchestrator.AskFollowUpAsync(priorState, "When was it drawn?", A<CancellationToken>._))
-            .Returns(Task.FromResult(new AgentTurnResult("Last week.", priorState)));
+            .Returns(Task.FromResult(new AgentTurnResult("Last week.", priorState, [])));
 
         await _sut.AskFollowUpAsync("session-1", _session, "When was it drawn?", CancellationToken.None);
 
@@ -101,7 +101,7 @@ public sealed class ChatSessionCoordinatorTests
     {
         A.CallTo(() => _conversationStore.TryGet("session-1")).Returns(null);
         A.CallTo(() => _orchestrator.AskFollowUpAsync(A<ConversationState>._, A<string>._, A<CancellationToken>._))
-            .Returns(Task.FromResult(new AgentTurnResult("Yes.", ConversationState.Start("default", "123"))));
+            .Returns(Task.FromResult(new AgentTurnResult("Yes.", ConversationState.Start("default", "123"), [])));
         var appended = new ChatMessage(2, "answer", """{"answer":"Yes."}""");
         A.CallTo(() => _outbox.Append("session-1", "answer", A<string>._)).Returns(appended);
 

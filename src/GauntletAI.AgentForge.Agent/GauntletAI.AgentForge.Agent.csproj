@@ -7,6 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\GauntletAI.AgentForge.Llm\GauntletAI.AgentForge.Llm.csproj" />
     <ProjectReference Include="..\GauntletAI.AgentForge.Mcp\GauntletAI.AgentForge.Mcp.csproj" />
+    <ProjectReference Include="..\GauntletAI.AgentForge.Verification\GauntletAI.AgentForge.Verification.csproj" />
   </ItemGroup>
 
 </Project>
