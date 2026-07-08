@@ -1,0 +1,42 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Typed OpenEMR FHIR/REST clients (ENGINEERING_STANDARDS.md §2) -->
+    <PackageVersion Include="Refit" Version="13.1.0" />
+    <PackageVersion Include="Refit.HttpClientFactory" Version="13.1.0" />
+
+    <!-- Streaming the fast-core-then-defer answer to the iFrame SPA -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.9" />
+
+    <!-- Transient-fault handling on every outbound OpenEMR/LLM call -->
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.7.0" />
+
+    <!-- Strongly-typed configuration (Options pattern) -->
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.9" />
+
+    <!-- ILogger abstraction, no hard dependency on a concrete provider -->
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
+
+    <!-- Test infrastructure (both test projects) -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
+
+    <!-- Mocking (unit tier only, per ENGINEERING_STANDARDS.md §8.1) -->
+    <PackageVersion Include="FakeItEasy" Version="9.0.1" />
+
+    <!--
+      FluentAssertions: pinned below 8.0.0. v8+ (Jan 2025) is commercially licensed
+      ($130/dev/yr); 7.x and earlier remain Apache-2.0. Do not raise this floor without
+      confirming license terms (ENGINEERING_STANDARDS.md §2).
+    -->
+    <PackageVersion Include="FluentAssertions" Version="7.2.2" />
+  </ItemGroup>
+
+</Project>

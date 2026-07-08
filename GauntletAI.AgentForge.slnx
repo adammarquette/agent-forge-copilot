@@ -1,2 +1,13 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GauntletAI.AgentForge.Agent/GauntletAI.AgentForge.Agent.csproj" />
+    <Project Path="src/GauntletAI.AgentForge.Api/GauntletAI.AgentForge.Api.csproj" />
+    <Project Path="src/GauntletAI.AgentForge.Integration.OpenEmr/GauntletAI.AgentForge.Integration.OpenEmr.csproj" />
+    <Project Path="src/GauntletAI.AgentForge.Llm/GauntletAI.AgentForge.Llm.csproj" />
+    <Project Path="src/GauntletAI.AgentForge.Verification/GauntletAI.AgentForge.Verification.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GauntletAI.AgentForge.IntegrationTests/GauntletAI.AgentForge.IntegrationTests.csproj" />
+    <Project Path="tests/GauntletAI.AgentForge.UnitTests/GauntletAI.AgentForge.UnitTests.csproj" />
+  </Folder>
 </Solution>
