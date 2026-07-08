@@ -19,10 +19,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- ISession and other ASP.NET Core abstractions for testing the BFF (Epic 3) -
+         part of the shared framework, not a NuGet package, for a non-Sdk.Web project. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Integration.OpenEmr\GauntletAI.AgentForge.Integration.OpenEmr.csproj" />
     <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Llm\GauntletAI.AgentForge.Llm.csproj" />
     <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Mcp\GauntletAI.AgentForge.Mcp.csproj" />
     <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Agent\GauntletAI.AgentForge.Agent.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Api\GauntletAI.AgentForge.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>

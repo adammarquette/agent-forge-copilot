@@ -1,3 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <ItemGroup>
+    <PackageReference Include="Refit.HttpClientFactory" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GauntletAI.AgentForge.Integration.OpenEmr\GauntletAI.AgentForge.Integration.OpenEmr.csproj" />
+    <ProjectReference Include="..\GauntletAI.AgentForge.Llm\GauntletAI.AgentForge.Llm.csproj" />
+    <ProjectReference Include="..\GauntletAI.AgentForge.Mcp\GauntletAI.AgentForge.Mcp.csproj" />
+    <ProjectReference Include="..\GauntletAI.AgentForge.Agent\GauntletAI.AgentForge.Agent.csproj" />
+  </ItemGroup>
+
 </Project>
