@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# TEST stage - unit tests (fully mocked) + integration tests (real QA OpenEMR).
+# TEST stage - unit tests (fully mocked) + integration tests (real OpenEMR).
 # Both consume the build artifacts and run with --no-build.
 # -----------------------------------------------------------------------------
 
@@ -32,20 +32,26 @@ unit-tests:
           --logger "junit;LogFilePath=TestResults/{assembly}.junit.xml"
       done
 
-# Integration tests exercise a real deployed OpenEMR (FHIR/OAuth/SMART) in the QA
-# environment - per ENGINEERING_STANDARDS.md §8.2 / tests/AGENTS.md, nothing here is
-# mocked and there is no throwaway service container: the sidecar talks to OpenEMR only
-# over FHIR (ARCHITECTURE.md - FHIR-first, no direct DB access in v1), so the target is
-# a stable QA URL, not a fresh MySQL instance spun up per pipeline run.
+# Integration tests exercise the real deployed OpenEMR (FHIR/OAuth/SMART) in the
+# single Railway "development" environment - per ENGINEERING_STANDARDS.md §8.2 /
+# tests/AGENTS.md, nothing here is mocked and there is no throwaway service container:
+# the sidecar talks to OpenEMR only over FHIR (ARCHITECTURE.md - FHIR-first, no direct
+# DB access in v1), so the target is a stable URL, not a fresh MySQL instance per run.
 #
-# QA endpoint + OAuth client configuration is supplied via protected/masked GitLab
-# CI/CD variables (Options-pattern env vars, e.g. OpenEmr__BaseUrl, OpenEmr__Site,
-# OpenEmr__OAuth__ClientId) once Epic 2 (OpenEMR Integration: Auth & FHIR Client) lands
-# and a QA deployment exists. Until then this job runs against whatever integration
-# tests exist and is expected to fail loudly rather than silently pass, per
-# NFR-REL-2's "meaningful check, not an unconditional 200" philosophy.
+# Endpoint + OAuth client + test-fixture config is supplied via protected/masked GitLab
+# CI/CD variables (Options-pattern env vars the fixtures read directly):
+#   OpenEmrQa__BaseUrl, OpenEmrQa__Site, OpenEmrQa__TestPatientId,
+#   OpenEmrQa__TestAccessToken, LlmQa__ApiKey, LlmQa__Model
+# (see documentation/RAILWAY.md). The fixtures throw on startup if these are missing,
+# which is intentional - a meaningful check, not an unconditional 200 (NFR-REL-2).
+#
+# The `rules` below gate the job on OpenEmrQa__BaseUrl: until that variable is set the
+# job is simply not added to the pipeline (keeping the pipeline green), and it activates
+# automatically once the QA variables are configured. Set OpenEmrQa__BaseUrl last.
 integration-tests:
   <<: *test_template
+  rules:
+    - if: '$OpenEmrQa__BaseUrl'
   script:
     - |
       set -e
