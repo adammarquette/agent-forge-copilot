@@ -99,3 +99,10 @@ app.MapLaunchEndpoints();
 app.MapHub<ChatHub>("/hubs/chat");
 
 app.Run();
+
+/// <summary>
+/// Top-level statements generate an internal Program class; this partial declaration makes it
+/// accessible to <c>WebApplicationFactory&lt;Program&gt;</c> from the integration test assembly
+/// (standard ASP.NET Core testability convention - no behavior change).
+/// </summary>
+public partial class Program;
