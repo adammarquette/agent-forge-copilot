@@ -13,4 +13,7 @@ public interface IMcpToolServer
 
     /// <summary>Lab Observations (INR, K+, Cr, lipids, BNP) with values, units, dates, reference ranges.</summary>
     Task<LabsResult> GetLabsAsync(GetLabsRequest request, CancellationToken cancellationToken);
+
+    /// <summary>Vital-signs Observations (BP, HR).</summary>
+    Task<VitalsResult> GetVitalsAsync(GetVitalsRequest request, CancellationToken cancellationToken);
 }

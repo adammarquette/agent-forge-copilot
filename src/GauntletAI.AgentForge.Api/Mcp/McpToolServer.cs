@@ -62,4 +62,19 @@ public sealed class McpToolServer(
 
         return new LabsResult(labs);
     }
+
+    /// <inheritdoc />
+    public async Task<VitalsResult> GetVitalsAsync(GetVitalsRequest request, CancellationToken cancellationToken)
+    {
+        const string toolName = "get_vitals";
+        McpToolContract.Validate(toolName, request);
+
+        var vitals = await fhirClient.GetObservationsAsync(
+            request.Site, request.PatientId, "vital-signs", request.SinceDate, cancellationToken)
+            .ConfigureAwait(false);
+
+        McpToolServerLog.ResultCountCompleted(logger, toolName, correlationIdAccessor.CorrelationId, vitals.Count);
+
+        return new VitalsResult(vitals);
+    }
 }
