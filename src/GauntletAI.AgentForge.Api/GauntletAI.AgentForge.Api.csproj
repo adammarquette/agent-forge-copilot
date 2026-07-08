@@ -1,3 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <!-- Microsoft.Extensions.Logging.Abstractions is provided transitively by the ASP.NET Core
+       shared framework (Sdk.Web) - an explicit PackageReference is pruned/rejected by NuGet. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\GauntletAI.AgentForge.Integration.OpenEmr\GauntletAI.AgentForge.Integration.OpenEmr.csproj" />
+  </ItemGroup>
+
 </Project>
