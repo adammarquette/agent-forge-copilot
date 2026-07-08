@@ -1,0 +1,13 @@
+namespace GauntletAI.AgentForge.Api.Mcp;
+
+/// <summary>
+/// Read-only, narrowly-scoped FHIR tools exposed to the agent orchestrator (Epic 5)
+/// (ARCHITECTURE.md §8.1, D2). Every tool takes a bounded, minimum-necessary input (patient id,
+/// bounded date window) - none of them support a whole-chart or cross-patient read.
+/// </summary>
+public interface IMcpToolServer
+{
+    /// <summary>Demographics + active problems + active meds + allergies, one bounded bundle.</summary>
+    Task<PatientSummaryResult> GetPatientSummaryAsync(
+        GetPatientSummaryRequest request, CancellationToken cancellationToken);
+}
