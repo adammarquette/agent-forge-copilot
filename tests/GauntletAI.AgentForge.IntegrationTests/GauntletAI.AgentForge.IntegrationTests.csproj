@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Integration.OpenEmr\GauntletAI.AgentForge.Integration.OpenEmr.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Api\GauntletAI.AgentForge.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>
