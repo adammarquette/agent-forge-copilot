@@ -10,15 +10,35 @@ public static class AnthropicRequestMapper
         Model: model,
         MaxTokens: request.MaxOutputTokens,
         System: request.SystemPrompt,
-        Messages: [.. request.Messages.Select(m => new AnthropicMessage(MapRole(m.Role), m.Content))],
+        Messages: [.. request.Messages.Select(MapMessage)],
         Tools: request.Tools is null ? null : [.. request.Tools.Select(MapTool)],
         Temperature: request.Temperature);
+
+    private static AnthropicMessage MapMessage(LlmMessage message) =>
+        new(MapRole(message.Role), [.. message.Content.Select(MapContent)]);
 
     private static string MapRole(LlmRole role) => role switch
     {
         LlmRole.User => "user",
         LlmRole.Assistant => "assistant",
         _ => throw new ArgumentOutOfRangeException(nameof(role), role, "Unknown LlmRole."),
+    };
+
+    private static AnthropicRequestContentBlock MapContent(LlmContent content) => content switch
+    {
+        LlmTextContent text => new AnthropicRequestContentBlock(Type: "text", Text: text.Text),
+        LlmToolUseContent toolUse => new AnthropicRequestContentBlock(
+            Type: "tool_use",
+            Id: toolUse.Id,
+            Name: toolUse.ToolName,
+            Input: JsonNode.Parse(toolUse.ArgumentsJson)
+                ?? throw new InvalidOperationException($"Tool use '{toolUse.Id}' has a null ArgumentsJson.")),
+        LlmToolResultContent toolResult => new AnthropicRequestContentBlock(
+            Type: "tool_result",
+            ToolUseId: toolResult.ToolUseId,
+            ToolResultContent: toolResult.ResultJson,
+            IsError: toolResult.IsError),
+        _ => throw new ArgumentOutOfRangeException(nameof(content), content, "Unknown LlmContent type."),
     };
 
     private static AnthropicToolDefinition MapTool(LlmToolDefinition tool) => new(

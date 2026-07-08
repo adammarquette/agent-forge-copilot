@@ -30,17 +30,61 @@ public sealed class AnthropicRequestMapperTests
             SystemPrompt: "system",
             Messages:
             [
-                new LlmMessage(LlmRole.User, "Is her INR therapeutic?"),
-                new LlmMessage(LlmRole.Assistant, "Her most recent INR was 2.3."),
+                LlmMessage.FromText(LlmRole.User, "Is her INR therapeutic?"),
+                LlmMessage.FromText(LlmRole.Assistant, "Her most recent INR was 2.3."),
             ]);
 
         var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
 
         wire.Messages.Should().HaveCount(2);
         wire.Messages[0].Role.Should().Be("user");
-        wire.Messages[0].Content.Should().Be("Is her INR therapeutic?");
+        wire.Messages[0].Content.Should().ContainSingle().Which.Text.Should().Be("Is her INR therapeutic?");
         wire.Messages[1].Role.Should().Be("assistant");
-        wire.Messages[1].Content.Should().Be("Her most recent INR was 2.3.");
+        wire.Messages[1].Content.Should().ContainSingle().Which.Text.Should().Be("Her most recent INR was 2.3.");
+    }
+
+    [Fact]
+    public void Map_TextContent_MapsToTextBlock()
+    {
+        var request = new LlmRequest("system", [new LlmMessage(LlmRole.User, [new LlmTextContent("hello")])]);
+
+        var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
+
+        var block = wire.Messages[0].Content.Should().ContainSingle().Which;
+        block.Type.Should().Be("text");
+        block.Text.Should().Be("hello");
+    }
+
+    [Fact]
+    public void Map_ToolUseContent_MapsToToolUseBlockWithParsedInput()
+    {
+        var request = new LlmRequest(
+            "system",
+            [new LlmMessage(LlmRole.Assistant, [new LlmToolUseContent("toolu_1", "get_labs", """{"patientId":"1"}""")])]);
+
+        var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
+
+        var block = wire.Messages[0].Content.Should().ContainSingle().Which;
+        block.Type.Should().Be("tool_use");
+        block.Id.Should().Be("toolu_1");
+        block.Name.Should().Be("get_labs");
+        block.Input!["patientId"]!.GetValue<string>().Should().Be("1");
+    }
+
+    [Fact]
+    public void Map_ToolResultContent_MapsToToolResultBlock()
+    {
+        var request = new LlmRequest(
+            "system",
+            [new LlmMessage(LlmRole.User, [new LlmToolResultContent("toolu_1", """{"labs":[]}""", IsError: false)])]);
+
+        var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
+
+        var block = wire.Messages[0].Content.Should().ContainSingle().Which;
+        block.Type.Should().Be("tool_result");
+        block.ToolUseId.Should().Be("toolu_1");
+        block.ToolResultContent.Should().Be("""{"labs":[]}""");
+        block.IsError.Should().Be(false);
     }
 
     [Fact]

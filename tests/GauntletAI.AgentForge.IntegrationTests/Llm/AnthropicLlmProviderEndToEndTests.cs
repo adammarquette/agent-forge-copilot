@@ -20,7 +20,7 @@ public sealed class AnthropicLlmProviderEndToEndTests : IClassFixture<AnthropicQ
     {
         var request = new LlmRequest(
             SystemPrompt: "Reply with exactly one short sentence.",
-            Messages: [new LlmMessage(LlmRole.User, "Say hello.")],
+            Messages: [LlmMessage.FromText(LlmRole.User, "Say hello.")],
             MaxOutputTokens: 64);
 
         var response = await _fixture.Provider.CompleteAsync(request, CancellationToken.None);
@@ -40,7 +40,7 @@ public sealed class AnthropicLlmProviderEndToEndTests : IClassFixture<AnthropicQ
         // whether the live API actually accepts the shape we're sending.
         var request = new LlmRequest(
             SystemPrompt: "When asked about a patient's labs, you must call get_labs. Do not answer from your own knowledge.",
-            Messages: [new LlmMessage(LlmRole.User, "What is the patient's most recent INR?")],
+            Messages: [LlmMessage.FromText(LlmRole.User, "What is the patient's most recent INR?")],
             Tools:
             [
                 new LlmToolDefinition(

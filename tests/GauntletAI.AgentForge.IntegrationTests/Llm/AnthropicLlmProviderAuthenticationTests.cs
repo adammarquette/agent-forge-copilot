@@ -19,7 +19,7 @@ public sealed class AnthropicLlmProviderAuthenticationTests
     public async Task CompleteAsync_InvalidApiKey_RejectsWithUnauthorizedFromRealApi()
     {
         var provider = AnthropicQaFixture.BuildProviderWithInvalidKey(PlaceholderModel);
-        var request = new LlmRequest("system", [new LlmMessage(LlmRole.User, "hello")], MaxOutputTokens: 16);
+        var request = new LlmRequest("system", [LlmMessage.FromText(LlmRole.User, "hello")], MaxOutputTokens: 16);
 
         var act = () => provider.CompleteAsync(request, CancellationToken.None);
 
