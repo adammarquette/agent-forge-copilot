@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using GauntletAI.AgentForge.Llm;
+using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Logging;
 
@@ -18,6 +20,7 @@ public sealed class AgentOrchestrator(
     ILlmProvider llmProvider,
     IMcpToolDispatcher toolDispatcher,
     IClinicalResponseVerifier verifier,
+    IAgentForgeMetrics metrics,
     ILogger<AgentOrchestrator> logger) : IAgentOrchestrator
 {
     /// <summary>
@@ -51,17 +54,38 @@ public sealed class AgentOrchestrator(
 
     private async Task<AgentTurnResult> RunTurnAsync(ConversationState state, CancellationToken cancellationToken)
     {
+        using var activity = AgentForgeActivitySource.Instance.StartActivity("agent.turn");
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var result = await RunTurnCoreAsync(state, cancellationToken).ConfigureAwait(false);
+            metrics.RecordAgentTurn(succeeded: true, stopwatch.Elapsed);
+            return result;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            metrics.RecordAgentTurn(succeeded: false, stopwatch.Elapsed);
+            throw;
+        }
+    }
+
+    private async Task<AgentTurnResult> RunTurnCoreAsync(ConversationState state, CancellationToken cancellationToken)
+    {
         var messages = state.Messages;
         List<string> toolResultJsonThisTurn = [];
 
         for (var round = 0; round < MaxToolCallRounds; round++)
         {
+            using var llmActivity = AgentForgeActivitySource.Instance.StartActivity("llm.complete");
             var request = new LlmRequest(CardiologyProfile.SystemPrompt, messages, McpToolCatalog.AllTools);
             var response = await llmProvider.CompleteAsync(request, cancellationToken).ConfigureAwait(false);
+            metrics.RecordLlmUsage(response.Usage.InputTokens, response.Usage.OutputTokens, response.Usage.EstimatedCostUsd);
 
             if (response.StopReason != LlmStopReason.ToolUse || response.ToolCalls.Count == 0)
             {
                 var verification = verifier.Verify(response.Content, toolResultJsonThisTurn);
+                metrics.RecordVerificationResult(verification.Passed);
                 var verifiedMessages = messages.Append(
                     new LlmMessage(LlmRole.Assistant, [new LlmTextContent(verification.VerifiedAnswer)]));
 

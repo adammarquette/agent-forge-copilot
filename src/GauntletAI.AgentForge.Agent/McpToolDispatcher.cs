@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Mcp;
+using GauntletAI.AgentForge.Observability;
 using Microsoft.Extensions.Logging;
 
 namespace GauntletAI.AgentForge.Agent;
@@ -16,7 +18,8 @@ namespace GauntletAI.AgentForge.Agent;
 /// arguments, or a downstream contract failure all become an error result the model can see and
 /// react to, not a crash (NFR-REL-1 - one tool failing degrades one step, not the whole turn).
 /// </summary>
-public sealed class McpToolDispatcher(IMcpToolServer toolServer, ILogger<McpToolDispatcher> logger) : IMcpToolDispatcher
+public sealed class McpToolDispatcher(
+    IMcpToolServer toolServer, IAgentForgeMetrics metrics, ILogger<McpToolDispatcher> logger) : IMcpToolDispatcher
 {
     private static readonly JsonSerializerOptions ArgumentsJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly JsonSerializerOptions ResultJsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -34,9 +37,12 @@ public sealed class McpToolDispatcher(IMcpToolServer toolServer, ILogger<McpTool
     {
         DetectSuspiciousArgumentOverride(toolCall);
 
+        using var activity = AgentForgeActivitySource.Instance.StartActivity($"tool.{toolCall.ToolName}");
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             var resultJson = await ExecuteAsync(site, patientId, toolCall, cancellationToken).ConfigureAwait(false);
+            metrics.RecordToolCall(toolCall.ToolName, succeeded: true, stopwatch.Elapsed);
             return new LlmToolResultContent(toolCall.Id, resultJson);
         }
         catch (OperationCanceledException)
@@ -45,6 +51,8 @@ public sealed class McpToolDispatcher(IMcpToolServer toolServer, ILogger<McpTool
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            metrics.RecordToolCall(toolCall.ToolName, succeeded: false, stopwatch.Elapsed);
             return new LlmToolResultContent(toolCall.Id, SerializeError(ex.Message), IsError: true);
         }
     }

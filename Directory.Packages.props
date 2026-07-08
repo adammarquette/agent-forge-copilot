@@ -25,6 +25,21 @@
     <!-- ILogger abstraction, no hard dependency on a concrete provider -->
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
 
+    <!--
+      OpenTelemetry (Epic 9 - ARCHITECTURE.md §11 / ENGINEERING_STANDARDS.md §7): traces/metrics,
+      never a hard dependency on a specific backend. Prometheus.AspNetCore has stayed in beta
+      upstream for years (spec churn, not instability) - this is the accepted, standard way to
+      expose a /metrics scrape endpoint from an ASP.NET Core app; there is no stable release to
+      pin to instead.
+    -->
+    <PackageVersion Include="OpenTelemetry" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.16.0-beta.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.16.0" />
+
     <!-- Composition root plumbing for the integration test host (real HttpClient, real config
          binding from environment variables - never hard-coded QA credentials/URLs) -->
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.9" />

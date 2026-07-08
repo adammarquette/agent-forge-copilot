@@ -2,6 +2,7 @@ using FakeItEasy;
 using FluentAssertions;
 using GauntletAI.AgentForge.Agent;
 using GauntletAI.AgentForge.Llm;
+using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -12,6 +13,7 @@ public sealed class AgentOrchestratorTests
     private readonly ILlmProvider _llmProvider = A.Fake<ILlmProvider>();
     private readonly IMcpToolDispatcher _toolDispatcher = A.Fake<IMcpToolDispatcher>();
     private readonly IClinicalResponseVerifier _verifier = A.Fake<IClinicalResponseVerifier>();
+    private readonly IAgentForgeMetrics _metrics = A.Fake<IAgentForgeMetrics>();
     private readonly AgentOrchestrator _sut;
 
     public AgentOrchestratorTests()
@@ -21,7 +23,7 @@ public sealed class AgentOrchestratorTests
         A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._))
             .ReturnsLazily((string answer, IReadOnlyCollection<string> _) => new VerificationResult(true, answer, [], []));
 
-        _sut = new AgentOrchestrator(_llmProvider, _toolDispatcher, _verifier, NullLogger<AgentOrchestrator>.Instance);
+        _sut = new AgentOrchestrator(_llmProvider, _toolDispatcher, _verifier, _metrics, NullLogger<AgentOrchestrator>.Instance);
     }
 
     [Fact]
@@ -238,5 +240,55 @@ public sealed class AgentOrchestratorTests
         await _sut.StartBriefAsync("default", "1", CancellationToken.None);
 
         capturedToolJson.Should().BeEquivalentTo(["""{"a":1}""", """{"b":2}"""]);
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_CompletesSuccessfully_RecordsAnAgentTurnMetricTaggedSuccess()
+    {
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmResponse("ok", [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m))));
+
+        await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        A.CallTo(() => _metrics.RecordAgentTurn(true, A<TimeSpan>._)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_ExceedsMaxToolCallRounds_RecordsAnAgentTurnMetricTaggedFailure()
+    {
+        var call = new LlmToolCall("call_x", "get_labs", "{}");
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmResponse(string.Empty, [call], LlmStopReason.ToolUse, new LlmUsage(1, 1, 0m))));
+        A.CallTo(() => _toolDispatcher.DispatchAsync(A<string>._, A<string>._, A<LlmToolCall>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmToolResultContent("call_x", "{}")));
+
+        var act = () => _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        A.CallTo(() => _metrics.RecordAgentTurn(false, A<TimeSpan>._)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_Always_RecordsLlmUsageFromTheResponse()
+    {
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmResponse("ok", [], LlmStopReason.EndTurn, new LlmUsage(120, 45, 0.03m))));
+
+        await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        A.CallTo(() => _metrics.RecordLlmUsage(120, 45, 0.03m)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_VerifierReturnsAResult_RecordsTheVerificationOutcome()
+    {
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmResponse("Her INR is 9.0.", [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m))));
+        A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._))
+            .Returns(new VerificationResult(false, string.Empty, [new SuppressedClaim("Her INR is 9.0.", "no citation")], []));
+
+        await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        A.CallTo(() => _metrics.RecordVerificationResult(false)).MustHaveHappenedOnceExactly();
     }
 }

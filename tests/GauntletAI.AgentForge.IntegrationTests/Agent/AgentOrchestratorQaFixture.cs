@@ -3,6 +3,7 @@ using GauntletAI.AgentForge.Integration.OpenEmr.Fhir;
 using GauntletAI.AgentForge.IntegrationTests.Llm;
 using GauntletAI.AgentForge.IntegrationTests.Support;
 using GauntletAI.AgentForge.Mcp;
+using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -46,12 +47,13 @@ public sealed class AgentOrchestratorQaFixture
             fhirClient,
             new FixedCorrelationIdAccessor("qa-agent-orchestrator-test"),
             NullLogger<McpToolServer>.Instance);
-        var dispatcher = new McpToolDispatcher(toolServer, NullLogger<McpToolDispatcher>.Instance);
+        var metrics = new AgentForgeMetrics();
+        var dispatcher = new McpToolDispatcher(toolServer, metrics, NullLogger<McpToolDispatcher>.Instance);
         var verifier = new ClinicalResponseVerifier(
             new SourceAttributionEngine(),
             new CardiologyConstraintEngine(CardiologyConstraintRules.Default),
             NullLogger<ClinicalResponseVerifier>.Instance);
 
-        Orchestrator = new AgentOrchestrator(llm.Provider, dispatcher, verifier, NullLogger<AgentOrchestrator>.Instance);
+        Orchestrator = new AgentOrchestrator(llm.Provider, dispatcher, verifier, metrics, NullLogger<AgentOrchestrator>.Instance);
     }
 }

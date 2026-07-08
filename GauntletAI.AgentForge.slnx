@@ -5,6 +5,7 @@
     <Project Path="src/GauntletAI.AgentForge.Integration.OpenEmr/GauntletAI.AgentForge.Integration.OpenEmr.csproj" />
     <Project Path="src/GauntletAI.AgentForge.Llm/GauntletAI.AgentForge.Llm.csproj" />
     <Project Path="src/GauntletAI.AgentForge.Mcp/GauntletAI.AgentForge.Mcp.csproj" />
+    <Project Path="src/GauntletAI.AgentForge.Observability/GauntletAI.AgentForge.Observability.csproj" />
     <Project Path="src/GauntletAI.AgentForge.Verification/GauntletAI.AgentForge.Verification.csproj" />
   </Folder>
   <Folder Name="/tests/">
