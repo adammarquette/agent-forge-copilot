@@ -15,19 +15,19 @@ namespace GauntletAI.AgentForge.Agent;
 /// arguments, or a downstream contract failure all become an error result the model can see and
 /// react to, not a crash (NFR-REL-1 - one tool failing degrades one step, not the whole turn).
 /// </summary>
-public sealed class McpToolDispatcher(IMcpToolServer toolServer)
+public sealed class McpToolDispatcher(IMcpToolServer toolServer) : IMcpToolDispatcher
 {
     private static readonly JsonSerializerOptions ArgumentsJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly JsonSerializerOptions ResultJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    /// <summary>Executes <paramref name="call"/> and returns its result, linked back to the call's id.</summary>
+    /// <inheritdoc />
     public async Task<LlmToolResultContent> DispatchAsync(
-        string site, string patientId, LlmToolCall call, CancellationToken cancellationToken)
+        string site, string patientId, LlmToolCall toolCall, CancellationToken cancellationToken)
     {
         try
         {
-            var resultJson = await ExecuteAsync(site, patientId, call, cancellationToken).ConfigureAwait(false);
-            return new LlmToolResultContent(call.Id, resultJson);
+            var resultJson = await ExecuteAsync(site, patientId, toolCall, cancellationToken).ConfigureAwait(false);
+            return new LlmToolResultContent(toolCall.Id, resultJson);
         }
         catch (OperationCanceledException)
         {
@@ -35,7 +35,7 @@ public sealed class McpToolDispatcher(IMcpToolServer toolServer)
         }
         catch (Exception ex)
         {
-            return new LlmToolResultContent(call.Id, SerializeError(ex.Message), IsError: true);
+            return new LlmToolResultContent(toolCall.Id, SerializeError(ex.Message), IsError: true);
         }
     }
 
