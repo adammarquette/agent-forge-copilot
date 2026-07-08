@@ -10,10 +10,9 @@
     when: always
     paths:
       - "**/TestResults/*.trx"
-    # Uncomment once test projects reference the JunitXml.TestLogger package -
-    # this lights up the failed-test widget directly in the MR:
-    # reports:
-    #   junit: "**/TestResults/*.junit.xml"
+      - "**/TestResults/*.junit.xml"
+    reports:
+      junit: "**/TestResults/*.junit.xml"
     expire_in: 1 week
 
 unit-tests:
@@ -28,7 +27,9 @@ unit-tests:
       fi
       for proj in $projects; do
         echo "dotnet test $proj"
-        dotnet test "$proj" --no-build -c $BUILD_CONFIG --logger trx
+        dotnet test "$proj" --no-build -c $BUILD_CONFIG \
+          --logger trx \
+          --logger "junit;LogFilePath=TestResults/{assembly}.junit.xml"
       done
 
 # Integration tests exercise a real deployed OpenEMR (FHIR/OAuth/SMART) in the QA
@@ -55,5 +56,7 @@ integration-tests:
       fi
       for proj in $projects; do
         echo "dotnet test $proj"
-        dotnet test "$proj" --no-build -c $BUILD_CONFIG --logger trx
+        dotnet test "$proj" --no-build -c $BUILD_CONFIG \
+          --logger trx \
+          --logger "junit;LogFilePath=TestResults/{assembly}.junit.xml"
       done
