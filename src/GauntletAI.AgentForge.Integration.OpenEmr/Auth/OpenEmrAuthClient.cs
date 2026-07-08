@@ -40,4 +40,28 @@ public sealed class OpenEmrAuthClient(IOpenEmrAuthApi api)
         var request = new IntrospectionRequest { Token = accessToken, TokenTypeHint = "access_token" };
         return api.IntrospectAsync(site, request, cancellationToken);
     }
+
+    /// <summary>
+    /// Registers the sidecar as a public OAuth2 client (token_endpoint_auth_method "none" - PKCE
+    /// stands in for a client secret, since a browser-launched public client can't keep one).
+    /// Fixes grant_types to authorization_code + refresh_token and response_types to code; a
+    /// confidential-client registration path is not implemented (D12/v1 scope - one auth model).
+    /// </summary>
+    public Task<ClientRegistrationResponse> RegisterPublicClientAsync(
+        string site,
+        string clientName,
+        IReadOnlyList<string> redirectUris,
+        IReadOnlyList<string> scopes,
+        CancellationToken cancellationToken)
+    {
+        var request = new ClientRegistrationRequest(
+            ClientName: clientName,
+            RedirectUris: redirectUris,
+            GrantTypes: ["authorization_code", "refresh_token"],
+            ResponseTypes: ["code"],
+            TokenEndpointAuthMethod: "none",
+            Scope: string.Join(' ', scopes));
+
+        return api.RegisterClientAsync(site, request, cancellationToken);
+    }
 }

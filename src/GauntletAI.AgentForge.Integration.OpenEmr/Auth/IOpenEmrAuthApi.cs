@@ -22,4 +22,11 @@ public interface IOpenEmrAuthApi
         string site,
         [Body(BodySerializationMethod.UrlEncoded)] IntrospectionRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Dynamically registers the sidecar as an OAuth2 client (RFC 7591).</summary>
+    [Post("/oauth2/{site}/registration")]
+    Task<ClientRegistrationResponse> RegisterClientAsync(
+        string site,
+        [Body] ClientRegistrationRequest request,
+        CancellationToken cancellationToken = default);
 }
