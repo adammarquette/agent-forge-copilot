@@ -4,7 +4,7 @@ namespace GauntletAI.AgentForge.Integration.OpenEmr.Fhir;
 /// Ties <see cref="IOpenEmrFhirApi"/> to the per-resource mappers in this namespace, so callers
 /// (the MCP tool layer, Epic 4) get typed, cited records directly rather than raw FHIR JSON.
 /// </summary>
-public sealed class OpenEmrFhirClient(IOpenEmrFhirApi api)
+public sealed class OpenEmrFhirClient(IOpenEmrFhirApi api) : IOpenEmrFhirClient
 {
     /// <summary>Fetches one patient's demographics, or null if not found.</summary>
     public async Task<PatientRecord?> GetPatientAsync(string site, string patientId, CancellationToken cancellationToken)
@@ -39,9 +39,9 @@ public sealed class OpenEmrFhirClient(IOpenEmrFhirApi api)
 
     /// <summary>Fetches one patient's lab/vital observations, optionally scoped by category and/or since-date.</summary>
     public async Task<IReadOnlyList<ObservationRecord>> GetObservationsAsync(
-        string site, string patientId, string? category, string? date, CancellationToken cancellationToken)
+        string site, string patientId, string? category, string? dateFilter, CancellationToken cancellationToken)
     {
-        var json = await api.SearchObservationsAsync(site, patientId, category, date, cancellationToken).ConfigureAwait(false);
+        var json = await api.SearchObservationsAsync(site, patientId, category, dateFilter, cancellationToken).ConfigureAwait(false);
         return ObservationMapper.MapBundle(json);
     }
 
@@ -55,9 +55,9 @@ public sealed class OpenEmrFhirClient(IOpenEmrFhirApi api)
 
     /// <summary>Fetches one patient's encounters, optionally since a given date (the interval-change diff).</summary>
     public async Task<IReadOnlyList<EncounterRecord>> GetEncountersAsync(
-        string site, string patientId, string? date, CancellationToken cancellationToken)
+        string site, string patientId, string? dateFilter, CancellationToken cancellationToken)
     {
-        var json = await api.SearchEncountersAsync(site, patientId, date, cancellationToken).ConfigureAwait(false);
+        var json = await api.SearchEncountersAsync(site, patientId, dateFilter, cancellationToken).ConfigureAwait(false);
         return EncounterMapper.MapBundle(json);
     }
 
