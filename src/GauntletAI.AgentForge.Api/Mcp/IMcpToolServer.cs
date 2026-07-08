@@ -23,4 +23,8 @@ public interface IMcpToolServer
 
     /// <summary>DiagnosticReport / DocumentReference narrative (echo/EF, device), with source ref.</summary>
     Task<DocumentsResult> GetDocumentsAsync(GetDocumentsRequest request, CancellationToken cancellationToken);
+
+    /// <summary>Medication changes, new labs, and interval encounters since a given date.</summary>
+    Task<IntervalChangesResult> GetIntervalChangesAsync(
+        GetIntervalChangesRequest request, CancellationToken cancellationToken);
 }

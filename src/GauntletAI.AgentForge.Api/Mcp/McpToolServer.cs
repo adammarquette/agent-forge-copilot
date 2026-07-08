@@ -127,4 +127,40 @@ public sealed class McpToolServer(
 
         return new DocumentsResult(documents);
     }
+
+    /// <inheritdoc />
+    public async Task<IntervalChangesResult> GetIntervalChangesAsync(
+        GetIntervalChangesRequest request, CancellationToken cancellationToken)
+    {
+        const string toolName = "get_interval_changes";
+        McpToolContract.Validate(toolName, request);
+
+        var medicationsTask = fhirClient.GetMedicationRequestsAsync(request.Site, request.PatientId, cancellationToken);
+        var labsTask = fhirClient.GetObservationsAsync(
+            request.Site, request.PatientId, "laboratory", request.SinceDate, cancellationToken);
+        var encountersTask = fhirClient.GetEncountersAsync(
+            request.Site, request.PatientId, request.SinceDate, cancellationToken);
+
+        await Task.WhenAll(medicationsTask, labsTask, encountersTask).ConfigureAwait(false);
+
+        var sinceDate = McpDateFilter.ExtractDate(request.SinceDate);
+        var medicationChanges = (await medicationsTask.ConfigureAwait(false))
+            .Where(m => m.AuthoredOn is not null && m.AuthoredOn >= sinceDate)
+            .ToList();
+
+        var result = new IntervalChangesResult(
+            medicationChanges,
+            await labsTask.ConfigureAwait(false),
+            await encountersTask.ConfigureAwait(false));
+
+        McpToolServerLog.IntervalChangesCompleted(
+            logger,
+            toolName,
+            correlationIdAccessor.CorrelationId,
+            result.MedicationChanges.Count,
+            result.NewLabs.Count,
+            result.IntervalEncounters.Count);
+
+        return result;
+    }
 }
