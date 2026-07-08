@@ -15,4 +15,11 @@ public interface IOpenEmrAuthApi
         string site,
         [Body(BodySerializationMethod.UrlEncoded)] TokenRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Validates a token and returns its active claims (RFC 7662).</summary>
+    [Post("/oauth2/{site}/introspect")]
+    Task<IntrospectionResponse> IntrospectAsync(
+        string site,
+        [Body(BodySerializationMethod.UrlEncoded)] IntrospectionRequest request,
+        CancellationToken cancellationToken = default);
 }

@@ -32,4 +32,12 @@ public sealed class OpenEmrAuthClient(IOpenEmrAuthApi api)
 
         return api.ExchangeTokenAsync(site, request, cancellationToken);
     }
+
+    /// <summary>Validates <paramref name="accessToken"/> and returns its active claims.</summary>
+    public Task<IntrospectionResponse> IntrospectAsync(
+        string site, string accessToken, CancellationToken cancellationToken)
+    {
+        var request = new IntrospectionRequest { Token = accessToken, TokenTypeHint = "access_token" };
+        return api.IntrospectAsync(site, request, cancellationToken);
+    }
 }
