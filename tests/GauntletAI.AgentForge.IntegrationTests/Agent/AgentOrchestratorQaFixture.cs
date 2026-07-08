@@ -46,7 +46,7 @@ public sealed class AgentOrchestratorQaFixture
             fhirClient,
             new FixedCorrelationIdAccessor("qa-agent-orchestrator-test"),
             NullLogger<McpToolServer>.Instance);
-        var dispatcher = new McpToolDispatcher(toolServer);
+        var dispatcher = new McpToolDispatcher(toolServer, NullLogger<McpToolDispatcher>.Instance);
         var verifier = new ClinicalResponseVerifier(
             new SourceAttributionEngine(),
             new CardiologyConstraintEngine(CardiologyConstraintRules.Default),

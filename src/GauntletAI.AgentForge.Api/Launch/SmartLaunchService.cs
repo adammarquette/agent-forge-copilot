@@ -71,7 +71,18 @@ public sealed class SmartLaunchService(
                 "and cannot proceed without one (INTERFACE_CONTROL.md A.3).");
         }
 
-        return new PatientSessionContext(token.AccessToken, options.Site, token.Patient);
+        // FR-AUTH-4: every patient-data access must be attributable to who made it. A session with
+        // no clinician identity could never be audited, so it must not be allowed to start.
+        var introspection = await authClient.IntrospectAsync(options.Site, token.AccessToken, cancellationToken)
+            .ConfigureAwait(false);
+        if (string.IsNullOrEmpty(introspection.Subject))
+        {
+            throw new SmartLaunchException(
+                "Token introspection returned no subject claim - cannot establish an audited clinician " +
+                "identity for this session (FR-AUTH-4).");
+        }
+
+        return new PatientSessionContext(token.AccessToken, options.Site, token.Patient, introspection.Subject);
     }
 
     private string BuildCallbackUri() => $"{bffOptions.Value.PublicBaseUrl.TrimEnd('/')}{bffOptions.Value.CallbackPath}";

@@ -28,8 +28,10 @@ public sealed class AuthHandlerTests
     }
 
     [Fact]
-    public async Task SendAsync_TokenProviderReturnsNull_DoesNotAttachAuthorizationHeader()
+    public async Task SendAsync_TokenProviderReturnsNull_ThrowsRatherThanSendingAnUnauthenticatedRequest()
     {
+        // FR-AUTH-1: "an unauthenticated request is rejected before any tool runs" - rejected by
+        // *this* layer, deterministically, not left to OpenEMR's own 401 to catch after the fact.
         var tokenProvider = A.Fake<IAccessTokenProvider>();
         A.CallTo(() => tokenProvider.GetAccessTokenAsync(A<CancellationToken>._))
             .ReturnsLazily(() => ValueTask.FromResult<string?>(null));
@@ -37,11 +39,12 @@ public sealed class AuthHandlerTests
         var handler = new AuthHandler(tokenProvider) { InnerHandler = capturing };
         using var invoker = new HttpMessageInvoker(handler);
 
-        await invoker.SendAsync(
+        var act = () => invoker.SendAsync(
             new HttpRequestMessage(HttpMethod.Get, "https://emr.example.org/apis/default/fhir/Patient/1"),
             CancellationToken.None);
 
-        capturing.LastRequest!.Headers.Authorization.Should().BeNull();
+        await act.Should().ThrowAsync<UnauthenticatedRequestException>();
+        capturing.LastRequest.Should().BeNull("the outbound call must never be attempted without a token");
     }
 
     [Fact]

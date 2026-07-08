@@ -67,12 +67,15 @@ public sealed class SmartLaunchServiceTests
                 "default", "auth-code", "https://sidecar.example.org/callback", "sidecar-client",
                 pending.CodeVerifier, null, A<CancellationToken>._))
             .Returns(Task.FromResult(new TokenResponse("access-token-abc", "Bearer", 3600, "patient/patient.read", null, "patient-123", null)));
+        A.CallTo(() => _authClient.IntrospectAsync("default", "access-token-abc", A<CancellationToken>._))
+            .Returns(Task.FromResult(new IntrospectionResponse(true, "patient/patient.read", "sidecar-client", null, "dr-jones", "patient-123")));
 
         var result = await _sut.CompleteLaunchAsync("auth-code", pending.State, pending, CancellationToken.None);
 
         result.AccessToken.Should().Be("access-token-abc");
         result.Site.Should().Be("default");
         result.PatientId.Should().Be("patient-123");
+        result.ClinicianIdentity.Should().Be("dr-jones");
     }
 
     [Fact]
@@ -84,6 +87,23 @@ public sealed class SmartLaunchServiceTests
         A.CallTo(() => _authClient.ExchangeAuthorizationCodeAsync(
                 A<string>._, A<string>._, A<string>._, A<string>._, A<string>._, A<string?>._, A<CancellationToken>._))
             .Returns(Task.FromResult(new TokenResponse("access-token-abc", "Bearer", 3600, "patient/patient.read", null, Patient: null, null)));
+
+        var act = () => _sut.CompleteLaunchAsync("auth-code", pending.State, pending, CancellationToken.None);
+
+        await act.Should().ThrowAsync<SmartLaunchException>();
+    }
+
+    [Fact]
+    public async Task CompleteLaunchAsync_IntrospectionReturnsNoSubject_ThrowsRatherThanStartingAnUnauditableSession()
+    {
+        // FR-AUTH-4: every patient-data access must be attributable to who accessed it - a session
+        // with no clinician identity could never be audited, so it must not be allowed to start.
+        var (_, pending) = _sut.BeginLaunch("launch-token-abc");
+        A.CallTo(() => _authClient.ExchangeAuthorizationCodeAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<string>._, A<string?>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new TokenResponse("access-token-abc", "Bearer", 3600, "patient/patient.read", null, "patient-123", null)));
+        A.CallTo(() => _authClient.IntrospectAsync(A<string>._, A<string>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new IntrospectionResponse(true, "patient/patient.read", "sidecar-client", null, Subject: null, "patient-123")));
 
         var act = () => _sut.CompleteLaunchAsync("auth-code", pending.State, pending, CancellationToken.None);
 

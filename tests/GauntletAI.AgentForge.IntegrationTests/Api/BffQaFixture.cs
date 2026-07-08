@@ -98,7 +98,8 @@ public sealed class BffQaFixture : WebApplicationFactory<global::Program>
 
         var query = $"?accessToken={Uri.EscapeDataString(OpenEmr.Options.TestAccessToken!)}" +
             $"&site={Uri.EscapeDataString(OpenEmr.Options.Site)}" +
-            $"&patientId={Uri.EscapeDataString(OpenEmr.Options.TestPatientId!)}";
+            $"&patientId={Uri.EscapeDataString(OpenEmr.Options.TestPatientId!)}" +
+            "&clinicianIdentity=qa-test-clinician";
         var response = await client.PostAsync(SeedSessionStartupFilter.SeedSessionPath + query, content: null, cancellationToken)
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();

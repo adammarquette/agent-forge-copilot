@@ -9,6 +9,7 @@ using GauntletAI.AgentForge.Integration.OpenEmr.Http;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Llm.Anthropic;
 using GauntletAI.AgentForge.Mcp;
+using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Options;
 using Refit;
 
@@ -34,6 +35,9 @@ builder.Services.AddScoped<ScopedAccessTokenProvider>();
 builder.Services.AddScoped<IScopedAccessTokenProvider>(sp => sp.GetRequiredService<ScopedAccessTokenProvider>());
 builder.Services.AddScoped<IAccessTokenProvider>(sp => sp.GetRequiredService<ScopedAccessTokenProvider>());
 builder.Services.AddScoped<ICorrelationIdAccessor, MutableCorrelationIdAccessor>();
+builder.Services.AddScoped<ScopedClinicianIdentityAccessor>();
+builder.Services.AddScoped<IScopedClinicianIdentityAccessor>(sp => sp.GetRequiredService<ScopedClinicianIdentityAccessor>());
+builder.Services.AddScoped<IClinicianIdentityAccessor>(sp => sp.GetRequiredService<ScopedClinicianIdentityAccessor>());
 
 // Single-instance in-memory stores (v1 deployment assumption - see their own doc comments).
 builder.Services.AddSingleton<IConversationStateStore, InMemoryConversationStateStore>();
@@ -62,9 +66,27 @@ builder.Services.AddRefitClient<IAnthropicMessagesApi>()
 
 builder.Services.AddScoped<IOpenEmrAuthClient, OpenEmrAuthClient>();
 builder.Services.AddScoped<IOpenEmrFhirClient, OpenEmrFhirClient>();
-builder.Services.AddScoped<IMcpToolServer, McpToolServer>();
+
+// AuditingMcpToolServer decorates the real tool server with the access-audit trail (FR-AUTH-4) -
+// registered as IMcpToolServer so every consumer gets the audited version without knowing it.
+builder.Services.AddScoped<McpToolServer>();
+builder.Services.AddScoped<IMcpToolServer>(sp => new AuditingMcpToolServer(
+    sp.GetRequiredService<McpToolServer>(),
+    sp.GetRequiredService<IClinicianIdentityAccessor>(),
+    sp.GetRequiredService<ICorrelationIdAccessor>(),
+    sp.GetRequiredService<ILogger<AuditingMcpToolServer>>()));
+
 builder.Services.AddScoped<IMcpToolDispatcher, McpToolDispatcher>();
 builder.Services.AddScoped<ILlmProvider, AnthropicLlmProvider>();
+
+// Stateless (no per-request data of their own), so a single shared instance is fine. Missing since
+// Epic 7 first wired the verifier into AgentOrchestrator - the app never actually booted with that
+// change in place until this was added; caught by a Program.cs smoke test during Epic 8's work.
+builder.Services.AddSingleton<ISourceAttributionEngine, SourceAttributionEngine>();
+builder.Services.AddSingleton(sp => new CardiologyConstraintEngine(
+    CardiologyConstraintRules.Default, sp.GetRequiredService<ILogger<CardiologyConstraintEngine>>()));
+builder.Services.AddSingleton<IClinicalResponseVerifier, ClinicalResponseVerifier>();
+
 builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 
 builder.Services.AddScoped<SmartLaunchService>();

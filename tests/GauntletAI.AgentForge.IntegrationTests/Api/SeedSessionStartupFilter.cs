@@ -36,7 +36,8 @@ internal sealed class SeedSessionStartupFilter : IStartupFilter
             var session = new PatientSessionContext(
                 context.Request.Query["accessToken"].ToString(),
                 context.Request.Query["site"].ToString(),
-                context.Request.Query["patientId"].ToString());
+                context.Request.Query["patientId"].ToString(),
+                context.Request.Query["clinicianIdentity"].ToString());
             context.Session.SavePatientSession(session);
             await context.Session.CommitAsync(context.RequestAborted).ConfigureAwait(false);
 

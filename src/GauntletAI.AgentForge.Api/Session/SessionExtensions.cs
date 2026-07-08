@@ -11,6 +11,7 @@ public static class SessionExtensions
     private const string AccessTokenKey = "patient-session.access-token";
     private const string SiteKey = "patient-session.site";
     private const string PatientIdKey = "patient-session.patient-id";
+    private const string ClinicianIdentityKey = "patient-session.clinician-identity";
 
     /// <summary>Saves <paramref name="context"/> into <paramref name="session"/>.</summary>
     public static void SavePatientSession(this ISession session, PatientSessionContext context)
@@ -18,6 +19,7 @@ public static class SessionExtensions
         session.SetString(AccessTokenKey, context.AccessToken);
         session.SetString(SiteKey, context.Site);
         session.SetString(PatientIdKey, context.PatientId);
+        session.SetString(ClinicianIdentityKey, context.ClinicianIdentity);
     }
 
     /// <summary>
@@ -30,13 +32,15 @@ public static class SessionExtensions
         var accessToken = session.GetString(AccessTokenKey);
         var site = session.GetString(SiteKey);
         var patientId = session.GetString(PatientIdKey);
+        var clinicianIdentity = session.GetString(ClinicianIdentityKey);
 
-        if (string.IsNullOrEmpty(accessToken) || string.IsNullOrEmpty(site) || string.IsNullOrEmpty(patientId))
+        if (string.IsNullOrEmpty(accessToken) || string.IsNullOrEmpty(site) ||
+            string.IsNullOrEmpty(patientId) || string.IsNullOrEmpty(clinicianIdentity))
         {
             return null;
         }
 
-        return new PatientSessionContext(accessToken, site, patientId);
+        return new PatientSessionContext(accessToken, site, patientId, clinicianIdentity);
     }
 
     /// <summary>Removes the patient session from <paramref name="session"/>, if present.</summary>
@@ -45,5 +49,6 @@ public static class SessionExtensions
         session.Remove(AccessTokenKey);
         session.Remove(SiteKey);
         session.Remove(PatientIdKey);
+        session.Remove(ClinicianIdentityKey);
     }
 }

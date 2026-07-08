@@ -15,11 +15,12 @@ public sealed class ChatSessionCoordinatorTests
     private readonly IConversationStateStore _conversationStore = A.Fake<IConversationStateStore>();
     private readonly IChatMessageOutbox _outbox = A.Fake<IChatMessageOutbox>();
     private readonly IScopedAccessTokenProvider _tokenProvider = A.Fake<IScopedAccessTokenProvider>();
+    private readonly IScopedClinicianIdentityAccessor _clinicianIdentityAccessor = A.Fake<IScopedClinicianIdentityAccessor>();
     private readonly ChatSessionCoordinator _sut;
-    private readonly PatientSessionContext _session = new("token-abc", "default", "123");
+    private readonly PatientSessionContext _session = new("token-abc", "default", "123", "dr-jones");
 
     public ChatSessionCoordinatorTests() =>
-        _sut = new ChatSessionCoordinator(_orchestrator, _conversationStore, _outbox, _tokenProvider);
+        _sut = new ChatSessionCoordinator(_orchestrator, _conversationStore, _outbox, _tokenProvider, _clinicianIdentityAccessor);
 
     [Fact]
     public async Task RequestBriefAsync_ValidSession_SetsScopedAccessTokenBeforeCallingTheOrchestrator()
@@ -35,6 +36,21 @@ public sealed class ChatSessionCoordinatorTests
         await _sut.RequestBriefAsync("session-1", _session, CancellationToken.None);
 
         tokenDuringOrchestratorCall.Should().Be("token-abc");
+    }
+
+    [Fact]
+    public async Task RequestBriefAsync_ValidSession_SetsScopedClinicianIdentityBeforeCallingTheOrchestrator()
+    {
+        // FR-AUTH-4: the clinician identity must be in scope before any tool call runs, so the
+        // MCP audit log can attribute every access this turn makes to who actually made it.
+        string? identityDuringOrchestratorCall = null;
+        A.CallTo(() => _orchestrator.StartBriefAsync("default", "123", A<CancellationToken>._))
+            .Invokes(() => identityDuringOrchestratorCall = _clinicianIdentityAccessor.ClinicianIdentity)
+            .Returns(Task.FromResult(new AgentTurnResult("brief text", ConversationState.Start("default", "123"), [])));
+
+        await _sut.RequestBriefAsync("session-1", _session, CancellationToken.None);
+
+        identityDuringOrchestratorCall.Should().Be("dr-jones");
     }
 
     [Fact]
