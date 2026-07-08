@@ -33,6 +33,13 @@ public sealed class OpenEmrQaFixture
     /// </summary>
     public IOpenEmrFhirApi UnauthenticatedFhirApi { get; }
 
+    /// <summary>
+    /// Real FHIR client carrying <see cref="QaOpenEmrOptions.SecondTestAccessToken"/> as its bearer
+    /// token - a second, distinct clinician identity for the cross-identity entitlement tests. Only
+    /// usable when that optional config is set.
+    /// </summary>
+    public IOpenEmrFhirApi SecondFhirApi { get; }
+
     public OpenEmrQaFixture()
     {
         var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
@@ -55,6 +62,8 @@ public sealed class OpenEmrQaFixture
             Site = site,
             TestAccessToken = section["TestAccessToken"],
             TestPatientId = section["TestPatientId"],
+            SecondTestAccessToken = section["SecondTestAccessToken"],
+            SecondTestPatientId = section["SecondTestPatientId"],
         };
 
         var authHttpClient = new HttpClient { BaseAddress = new Uri(Options.BaseUrl) };
@@ -71,5 +80,14 @@ public sealed class OpenEmrQaFixture
         }
 
         FhirApi = RestService.For<IOpenEmrFhirApi>(fhirHttpClient);
+
+        var secondFhirHttpClient = new HttpClient { BaseAddress = new Uri(Options.BaseUrl) };
+        if (!string.IsNullOrEmpty(Options.SecondTestAccessToken))
+        {
+            secondFhirHttpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", Options.SecondTestAccessToken);
+        }
+
+        SecondFhirApi = RestService.For<IOpenEmrFhirApi>(secondFhirHttpClient);
     }
 }
