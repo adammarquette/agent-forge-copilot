@@ -1,0 +1,17 @@
+# -----------------------------------------------------------------------------
+# DEPLOY stage — main only, manual gate, unreachable unless all tests passed.
+# -----------------------------------------------------------------------------
+deploy:
+  stage: deploy
+  interruptible: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual              # click-to-run in the pipeline UI
+  environment:
+    name: production
+  script:
+    - echo "🚀 Deploying Agent Forge Copilot ($CI_COMMIT_SHORT_SHA)..."
+    # TODO: replace with your real deployment, e.g.:
+    #   - dotnet publish $SOLUTION -c $BUILD_CONFIG -o publish/
+    #   - scp/rsync/docker build+push/helm upgrade ...
+    - echo "TODO — deployment script not wired up yet"
