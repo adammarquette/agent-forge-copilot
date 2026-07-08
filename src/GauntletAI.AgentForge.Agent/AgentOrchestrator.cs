@@ -1,4 +1,5 @@
 using GauntletAI.AgentForge.Llm;
+using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Logging;
 
 namespace GauntletAI.AgentForge.Agent;
@@ -7,14 +8,16 @@ namespace GauntletAI.AgentForge.Agent;
 /// The multi-turn agent loop (ARCHITECTURE.md §8, D9). Turn 1 plans a bounded set of parallel
 /// tool calls for the initial brief; follow-up turns maintain history so the model can resolve
 /// references ("her", "that lab") and chain tools when one result is needed before the next call.
-/// This is orchestration only - grounding discipline and refusal boundaries live in
-/// <see cref="CardiologyProfile"/> (the prompt), patient-scoping enforcement lives in
-/// <see cref="McpToolCatalog"/> and the tool dispatcher (below the model), and claim verification
-/// is Epic 7's job, not this class's.
+/// Grounding discipline and refusal boundaries live in <see cref="CardiologyProfile"/> (the
+/// prompt); patient-scoping enforcement lives in <see cref="McpToolCatalog"/> and the tool
+/// dispatcher (below the model). Every draft answer passes through <see cref="IClinicalResponseVerifier"/>
+/// before it becomes an <see cref="AgentTurnResult"/> - the mandatory gate FR-VERIF-0 requires;
+/// nothing returned by this class bypasses it.
 /// </summary>
 public sealed class AgentOrchestrator(
     ILlmProvider llmProvider,
     IMcpToolDispatcher toolDispatcher,
+    IClinicalResponseVerifier verifier,
     ILogger<AgentOrchestrator> logger) : IAgentOrchestrator
 {
     /// <summary>
@@ -49,23 +52,30 @@ public sealed class AgentOrchestrator(
     private async Task<AgentTurnResult> RunTurnAsync(ConversationState state, CancellationToken cancellationToken)
     {
         var messages = state.Messages;
+        List<string> toolResultJsonThisTurn = [];
 
         for (var round = 0; round < MaxToolCallRounds; round++)
         {
             var request = new LlmRequest(CardiologyProfile.SystemPrompt, messages, McpToolCatalog.AllTools);
             var response = await llmProvider.CompleteAsync(request, cancellationToken).ConfigureAwait(false);
 
-            messages = [.. messages, new LlmMessage(LlmRole.Assistant, BuildAssistantContent(response))];
-
             if (response.StopReason != LlmStopReason.ToolUse || response.ToolCalls.Count == 0)
             {
-                return new AgentTurnResult(response.Content, state with { Messages = messages });
+                var verification = verifier.Verify(response.Content, toolResultJsonThisTurn);
+                var verifiedMessages = messages.Append(
+                    new LlmMessage(LlmRole.Assistant, [new LlmTextContent(verification.VerifiedAnswer)]));
+
+                return new AgentTurnResult(
+                    verification.VerifiedAnswer, state with { Messages = [.. verifiedMessages] }, verification.ConstraintFlags);
             }
+
+            messages = [.. messages, new LlmMessage(LlmRole.Assistant, BuildAssistantContent(response))];
 
             var toolResults = await Task.WhenAll(
                 response.ToolCalls.Select(call => DispatchAndLogAsync(state.Site, state.PatientId, call, cancellationToken)))
                 .ConfigureAwait(false);
 
+            toolResultJsonThisTurn.AddRange(toolResults.Select(r => r.ResultJson));
             messages = [.. messages, new LlmMessage(LlmRole.User, toolResults)];
         }
 

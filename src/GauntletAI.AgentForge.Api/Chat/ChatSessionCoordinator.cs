@@ -1,6 +1,7 @@
 using System.Text.Json;
 using GauntletAI.AgentForge.Agent;
 using GauntletAI.AgentForge.Api.Session;
+using GauntletAI.AgentForge.Verification;
 
 namespace GauntletAI.AgentForge.Api.Chat;
 
@@ -25,7 +26,7 @@ public sealed class ChatSessionCoordinator(
         var result = await orchestrator.StartBriefAsync(session.Site, session.PatientId, cancellationToken).ConfigureAwait(false);
 
         conversationStore.Save(sessionId, result.State);
-        return outbox.Append(sessionId, "brief", JsonSerializer.Serialize(new ChatAnswerPayload(result.Answer)));
+        return outbox.Append(sessionId, "brief", JsonSerializer.Serialize(ToPayload(result)));
     }
 
     /// <summary>
@@ -41,10 +42,14 @@ public sealed class ChatSessionCoordinator(
         var result = await orchestrator.AskFollowUpAsync(state, question, cancellationToken).ConfigureAwait(false);
 
         conversationStore.Save(sessionId, result.State);
-        return outbox.Append(sessionId, "answer", JsonSerializer.Serialize(new ChatAnswerPayload(result.Answer)));
+        return outbox.Append(sessionId, "answer", JsonSerializer.Serialize(ToPayload(result)));
     }
 
     /// <summary>Returns every message for <paramref name="sessionId"/> after <paramref name="lastSeenSequence"/>.</summary>
     public IReadOnlyList<ChatMessage> Resume(string sessionId, long lastSeenSequence) =>
         outbox.GetSince(sessionId, lastSeenSequence);
+
+    private static ChatAnswerPayload ToPayload(AgentTurnResult result) => new(
+        result.Answer,
+        [.. result.SafetyFlags.Select(f => new SafetyFlagPayload(f.RuleId, f.Description, [.. f.Sources.Select(s => s.Citation)]))]);
 }

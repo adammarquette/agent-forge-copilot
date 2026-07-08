@@ -2,6 +2,7 @@ using FakeItEasy;
 using FluentAssertions;
 using GauntletAI.AgentForge.Agent;
 using GauntletAI.AgentForge.Llm;
+using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GauntletAI.AgentForge.UnitTests.Agent;
@@ -10,10 +11,18 @@ public sealed class AgentOrchestratorTests
 {
     private readonly ILlmProvider _llmProvider = A.Fake<ILlmProvider>();
     private readonly IMcpToolDispatcher _toolDispatcher = A.Fake<IMcpToolDispatcher>();
+    private readonly IClinicalResponseVerifier _verifier = A.Fake<IClinicalResponseVerifier>();
     private readonly AgentOrchestrator _sut;
 
-    public AgentOrchestratorTests() =>
-        _sut = new AgentOrchestrator(_llmProvider, _toolDispatcher, NullLogger<AgentOrchestrator>.Instance);
+    public AgentOrchestratorTests()
+    {
+        // Pass-through by default: existing tests below assert on the raw LLM answer, so the
+        // verifier must echo it back unchanged unless a test configures otherwise.
+        A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._))
+            .ReturnsLazily((string answer, IReadOnlyCollection<string> _) => new VerificationResult(true, answer, [], []));
+
+        _sut = new AgentOrchestrator(_llmProvider, _toolDispatcher, _verifier, NullLogger<AgentOrchestrator>.Instance);
+    }
 
     [Fact]
     public async Task StartBriefAsync_LlmAnswersImmediately_ReturnsAnswerWithoutDispatchingAnyTools()
@@ -158,5 +167,60 @@ public sealed class AgentOrchestratorTests
         await _sut.StartBriefAsync("default", "1", cts.Token);
 
         A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, cts.Token)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_VerifierSuppressesTheDraft_ReturnsTheVerifiedAnswerNotTheRawOne()
+    {
+        // FR-VERIF-0: nothing bypasses the gate. If the raw LLM answer ever leaked through
+        // instead of the verified one, this is the test that would catch it.
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmResponse("Her INR is 9.0.", [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m))));
+        A.CallTo(() => _verifier.Verify("Her INR is 9.0.", A<IReadOnlyCollection<string>>._))
+            .Returns(new VerificationResult(false, string.Empty, [new SuppressedClaim("Her INR is 9.0.", "no citation")], []));
+
+        var result = await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        result.Answer.Should().BeEmpty();
+        result.State.Messages[^1].Content.Should().ContainSingle().Which.Should().BeOfType<LlmTextContent>()
+            .Which.Text.Should().BeEmpty("the stored history must match what actually shipped, not the suppressed draft");
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_VerifierReturnsConstraintFlags_SurfacesThemOnTheResult()
+    {
+        var flag = new DomainConstraintFlag("inr-therapeutic-range", "INR out of range", []);
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmResponse("Her INR is 4.0 [Observation/1].", [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m))));
+        A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._))
+            .Returns(new VerificationResult(true, "Her INR is 4.0 [Observation/1].", [], [flag]));
+
+        var result = await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        result.SafetyFlags.Should().ContainSingle().Which.Should().Be(flag);
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_MultipleToolRounds_PassesEveryRoundsToolResultJsonToTheVerifier()
+    {
+        var firstCall = new LlmToolCall("call_1", "get_patient_summary", "{}");
+        var secondCall = new LlmToolCall("call_2", "get_labs", "{}");
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .ReturnsNextFromSequence(
+                new LlmResponse(string.Empty, [firstCall], LlmStopReason.ToolUse, new LlmUsage(1, 1, 0m)),
+                new LlmResponse(string.Empty, [secondCall], LlmStopReason.ToolUse, new LlmUsage(1, 1, 0m)),
+                new LlmResponse("Final answer.", [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m)));
+        A.CallTo(() => _toolDispatcher.DispatchAsync("default", "1", firstCall, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmToolResultContent("call_1", """{"a":1}""")));
+        A.CallTo(() => _toolDispatcher.DispatchAsync("default", "1", secondCall, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmToolResultContent("call_2", """{"b":2}""")));
+        IReadOnlyCollection<string>? capturedToolJson = null;
+        A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._))
+            .Invokes((string _, IReadOnlyCollection<string> json) => capturedToolJson = json)
+            .Returns(new VerificationResult(true, "Final answer.", [], []));
+
+        await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        capturedToolJson.Should().BeEquivalentTo(["""{"a":1}""", """{"b":2}"""]);
     }
 }
