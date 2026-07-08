@@ -1,0 +1,81 @@
+# Alert rules for AgentForge Clinical Co-Pilot (ARCHITECTURE.md §11, FR-OBS-4 - at least 3 alerts,
+# each with documented meaning + on-call response). Metric names verified against a real running
+# instance's /metrics output, not assumed from the OTel naming convention.
+groups:
+  - name: agentforge-slo
+    rules:
+      - alert: AgentForgeHighTurnLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(agentforge_agent_turn_duration_seconds_bucket[5m])) by (le)) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent turn p95 latency is above 30s"
+          description: >
+            Meaning: the 95th-percentile time to produce a verified brief/answer has exceeded the
+            interactive budget the product is built around (USERS.md's ~90-second between-rooms
+            window assumes most of that time is turn latency, not clicking around) - clinicians
+            are waiting longer than the product promises.
+            On-call response: check which stage is slow via the agent.turn/llm.complete/tool.*
+            trace spans; check OpenEMR FHIR and the LLM provider's own status for degradation
+            (correlate with AgentForgeHighTurnErrorRate firing at the same time); if the LLM
+            provider itself is slow, there is no sidecar-side fix - confirm with on-call before
+            communicating an outage.
+
+      - alert: AgentForgeHighTurnErrorRate
+        expr: |
+          sum(rate(agentforge_agent_turns_total{outcome="failure"}[5m]))
+            / sum(rate(agentforge_agent_turns_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "More than 5% of agent turns are failing"
+          description: >
+            Meaning: a "failed" turn means AgentOrchestrator.RunTurnAsync threw - most commonly
+            exceeding the max tool-call-round bound, an unhandled LLM/tool exception, or a
+            misbehaving model looping on tool calls. This is a hard failure the clinician sees as
+            a broken chat, not a degraded-but-usable answer (contrast with
+            AgentForgeHighToolFailureRate, which can fire without breaking the whole turn).
+            On-call response: check application logs (correlation-id scoped, ENGINEERING_STANDARDS.md
+            §7) for the actual exception type; if it correlates with an LLM provider incident this
+            should self-resolve - otherwise treat as a P1, the product's core loop is down.
+
+      - alert: AgentForgeHighToolFailureRate
+        expr: |
+          sum(rate(agentforge_tool_calls_total{outcome="failure"}[5m]))
+            / sum(rate(agentforge_tool_calls_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 10% of MCP tool calls are failing"
+          description: >
+            Meaning: individual tool calls (get_labs, get_patient_summary, etc.) are failing at an
+            elevated rate - usually OpenEMR FHIR errors, tool-contract validation failures, or a
+            misbehaving model sending malformed arguments repeatedly. A single failed tool call
+            degrades one step, not the whole turn (NFR-REL-1), so this can precede
+            AgentForgeHighTurnErrorRate without every chat breaking yet.
+            On-call response: break down by the `tool` label on agentforge_tool_calls_total - if
+            concentrated on one tool, check OpenEMR FHIR for that specific resource type; if spread
+            across tools, check overall OpenEMR reachability via /ready.
+
+      - alert: AgentForgeElevatedVerificationFailureRate
+        expr: |
+          sum(rate(agentforge_verification_results_total{outcome="fail"}[15m]))
+            / sum(rate(agentforge_verification_results_total[15m])) > 0.2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 20% of draft answers are failing verification"
+          description: >
+            Meaning (beyond the FR-OBS-4 minimum of 3 - a product-quality signal, not a technical
+            one): the model is generating claims the source-attribution/domain-constraint gate
+            (FR-VERIF-0) is suppressing at an unusually high rate. The clinician still only ever
+            sees verified content (PRD.md §13.1 - suppression, never fabrication), so this is not
+            an outage, but a sustained spike suggests a prompt regression, a model version change,
+            or a data-quality issue in the underlying FHIR records.
+            On-call response: sample recent suppressed claims (SuppressedClaimPayload on the wire,
+            or AccessAuditLog-adjacent logs) for a pattern; check whether CardiologyProfile's system
+            prompt or the LLM model/version changed recently.

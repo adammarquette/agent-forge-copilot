@@ -5,6 +5,7 @@ using GauntletAI.AgentForge.IntegrationTests.Mcp;
 using GauntletAI.AgentForge.IntegrationTests.Support;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Mcp;
+using GauntletAI.AgentForge.Observability;
 using Microsoft.Extensions.Logging;
 
 namespace GauntletAI.AgentForge.IntegrationTests.Agent;
@@ -35,7 +36,8 @@ public sealed class PromptInjectionAuthorizationTests : IClassFixture<McpToolSer
     {
         _toolServerFixture = toolServerFixture;
         _loggerFactory = new LoggerFactory([_capturedLogs]);
-        _dispatcher = new McpToolDispatcher(_toolServerFixture.ToolServer, _loggerFactory.CreateLogger<McpToolDispatcher>());
+        _dispatcher = new McpToolDispatcher(
+            _toolServerFixture.ToolServer, new AgentForgeMetrics(), _loggerFactory.CreateLogger<McpToolDispatcher>());
     }
 
     /// <inheritdoc />

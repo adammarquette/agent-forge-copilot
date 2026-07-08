@@ -3,6 +3,7 @@ using FluentAssertions;
 using GauntletAI.AgentForge.Agent;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Mcp;
+using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.UnitTests.TestSupport;
 
 namespace GauntletAI.AgentForge.UnitTests.Agent;
@@ -10,10 +11,11 @@ namespace GauntletAI.AgentForge.UnitTests.Agent;
 public sealed class McpToolDispatcherTests
 {
     private readonly IMcpToolServer _toolServer = A.Fake<IMcpToolServer>();
+    private readonly IAgentForgeMetrics _metrics = A.Fake<IAgentForgeMetrics>();
     private readonly CapturingLogger<McpToolDispatcher> _logger = new();
     private readonly McpToolDispatcher _sut;
 
-    public McpToolDispatcherTests() => _sut = new McpToolDispatcher(_toolServer, _logger);
+    public McpToolDispatcherTests() => _sut = new McpToolDispatcher(_toolServer, _metrics, _logger);
 
     [Fact]
     public async Task DispatchAsync_GetPatientSummary_CallsToolServerWithSessionSiteAndPatientId()
@@ -152,6 +154,28 @@ public sealed class McpToolDispatcherTests
         await _sut.DispatchAsync("default", "1", new LlmToolCall("call_9", "get_recent_encounters", """{"count":5}"""), CancellationToken.None);
 
         captured!.Count.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task DispatchAsync_ToolServerSucceeds_RecordsAToolCallMetricTaggedSuccess()
+    {
+        A.CallTo(() => _toolServer.GetPatientSummaryAsync(A<GetPatientSummaryRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new PatientSummaryResult(null, [], [], [])));
+
+        await _sut.DispatchAsync("default", "1", new LlmToolCall("call_11", "get_patient_summary", "{}"), CancellationToken.None);
+
+        A.CallTo(() => _metrics.RecordToolCall("get_patient_summary", true, A<TimeSpan>._)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task DispatchAsync_ToolServerThrows_RecordsAToolCallMetricTaggedFailure()
+    {
+        A.CallTo(() => _toolServer.GetLabsAsync(A<GetLabsRequest>._, A<CancellationToken>._))
+            .Throws(new McpToolContractException("get_labs", ["bad input"]));
+
+        await _sut.DispatchAsync("default", "1", new LlmToolCall("call_12", "get_labs", "{}"), CancellationToken.None);
+
+        A.CallTo(() => _metrics.RecordToolCall("get_labs", false, A<TimeSpan>._)).MustHaveHappenedOnceExactly();
     }
 
     [Fact]

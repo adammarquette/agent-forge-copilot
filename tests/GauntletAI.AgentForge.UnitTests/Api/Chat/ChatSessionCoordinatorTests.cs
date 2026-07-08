@@ -4,8 +4,11 @@ using GauntletAI.AgentForge.Agent;
 using GauntletAI.AgentForge.Api.Chat;
 using GauntletAI.AgentForge.Api.Session;
 using GauntletAI.AgentForge.Integration.OpenEmr.Fhir;
+using GauntletAI.AgentForge.Integration.OpenEmr.Http;
 using GauntletAI.AgentForge.Llm;
+using GauntletAI.AgentForge.UnitTests.TestSupport;
 using GauntletAI.AgentForge.Verification;
+using Microsoft.Extensions.Logging;
 
 namespace GauntletAI.AgentForge.UnitTests.Api.Chat;
 
@@ -16,11 +19,17 @@ public sealed class ChatSessionCoordinatorTests
     private readonly IChatMessageOutbox _outbox = A.Fake<IChatMessageOutbox>();
     private readonly IScopedAccessTokenProvider _tokenProvider = A.Fake<IScopedAccessTokenProvider>();
     private readonly IScopedClinicianIdentityAccessor _clinicianIdentityAccessor = A.Fake<IScopedClinicianIdentityAccessor>();
+    private readonly ICorrelationIdAccessor _correlationIdAccessor = A.Fake<ICorrelationIdAccessor>();
+    private readonly CapturingLogger<ChatSessionCoordinator> _logger = new();
     private readonly ChatSessionCoordinator _sut;
     private readonly PatientSessionContext _session = new("token-abc", "default", "123", "dr-jones");
 
-    public ChatSessionCoordinatorTests() =>
-        _sut = new ChatSessionCoordinator(_orchestrator, _conversationStore, _outbox, _tokenProvider, _clinicianIdentityAccessor);
+    public ChatSessionCoordinatorTests()
+    {
+        A.CallTo(() => _correlationIdAccessor.CorrelationId).Returns("corr-1");
+        _sut = new ChatSessionCoordinator(
+            _orchestrator, _conversationStore, _outbox, _tokenProvider, _clinicianIdentityAccessor, _correlationIdAccessor, _logger);
+    }
 
     [Fact]
     public async Task RequestBriefAsync_ValidSession_SetsScopedAccessTokenBeforeCallingTheOrchestrator()
@@ -36,6 +45,22 @@ public sealed class ChatSessionCoordinatorTests
         await _sut.RequestBriefAsync("session-1", _session, CancellationToken.None);
 
         tokenDuringOrchestratorCall.Should().Be("token-abc");
+    }
+
+    [Fact]
+    public async Task RequestBriefAsync_ValidSession_ScopesDownstreamLoggingWithTheCorrelationIdBeforeCallingTheOrchestrator()
+    {
+        // FR-OBS-1/ENGINEERING_STANDARDS.md Sec.7: correlation id flows as a logging scope on every
+        // downstream call - the orchestrator and everything it calls transitively (tool dispatch,
+        // LLM call, verification) must be able to pick it up without it being threaded as an
+        // explicit parameter through every one of those layers.
+        A.CallTo(() => _orchestrator.StartBriefAsync("default", "123", A<CancellationToken>._))
+            .Invokes(() => _logger.Log(LogLevel.Information, new EventId(0), "probe", null, (state, _) => state))
+            .Returns(Task.FromResult(new AgentTurnResult("brief text", ConversationState.Start("default", "123"), [], [])));
+
+        await _sut.RequestBriefAsync("session-1", _session, CancellationToken.None);
+
+        _logger.Lines.Should().ContainSingle(line => line.Contains("probe", StringComparison.Ordinal) && line.Contains("CorrelationId=corr-1", StringComparison.Ordinal));
     }
 
     [Fact]
