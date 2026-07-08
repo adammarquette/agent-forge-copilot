@@ -3,6 +3,9 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- CA1707 (no underscores) conflicts with the mandated Method_State_ExpectedResult
+         test-naming convention (ENGINEERING_STANDARDS.md §8). -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,6 +15,10 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="FakeItEasy" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Integration.OpenEmr\GauntletAI.AgentForge.Integration.OpenEmr.csproj" />
   </ItemGroup>
 
   <ItemGroup>
