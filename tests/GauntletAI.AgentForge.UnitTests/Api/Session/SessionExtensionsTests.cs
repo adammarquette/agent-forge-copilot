@@ -12,7 +12,7 @@ public sealed class SessionExtensionsTests
     [Fact]
     public void SavePatientSession_ThenTryGetPatientSession_RoundTripsAllFields()
     {
-        var context = new PatientSessionContext("token-abc", "default", "123");
+        var context = new PatientSessionContext("token-abc", "default", "123", "dr-jones");
 
         _session.SavePatientSession(context);
         var result = _session.TryGetPatientSession();
@@ -36,9 +36,21 @@ public sealed class SessionExtensionsTests
     }
 
     [Fact]
+    public void TryGetPatientSession_MissingClinicianIdentity_ReturnsNullRatherThanAnUnattributableSession()
+    {
+        // FR-AUTH-4: every access must be attributable to who made it - a session missing the
+        // clinician identity is just as invalid as one missing the patient id.
+        _session.SetString("patient-session.access-token", "token-abc");
+        _session.SetString("patient-session.site", "default");
+        _session.SetString("patient-session.patient-id", "123");
+
+        _session.TryGetPatientSession().Should().BeNull();
+    }
+
+    [Fact]
     public void ClearPatientSession_AfterSave_TryGetReturnsNullAfterward()
     {
-        _session.SavePatientSession(new PatientSessionContext("token-abc", "default", "123"));
+        _session.SavePatientSession(new PatientSessionContext("token-abc", "default", "123", "dr-jones"));
 
         _session.ClearPatientSession();
 

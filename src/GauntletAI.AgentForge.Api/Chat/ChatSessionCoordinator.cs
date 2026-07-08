@@ -16,12 +16,14 @@ public sealed class ChatSessionCoordinator(
     IAgentOrchestrator orchestrator,
     IConversationStateStore conversationStore,
     IChatMessageOutbox outbox,
-    IScopedAccessTokenProvider tokenProvider)
+    IScopedAccessTokenProvider tokenProvider,
+    IScopedClinicianIdentityAccessor clinicianIdentityAccessor)
 {
     /// <summary>Starts the pre-visit brief for <paramref name="session"/> and returns the message appended to the outbox.</summary>
     public async Task<ChatMessage> RequestBriefAsync(string sessionId, PatientSessionContext session, CancellationToken cancellationToken)
     {
         tokenProvider.AccessToken = session.AccessToken;
+        clinicianIdentityAccessor.ClinicianIdentity = session.ClinicianIdentity;
 
         var result = await orchestrator.StartBriefAsync(session.Site, session.PatientId, cancellationToken).ConfigureAwait(false);
 
@@ -37,6 +39,7 @@ public sealed class ChatSessionCoordinator(
         string sessionId, PatientSessionContext session, string question, CancellationToken cancellationToken)
     {
         tokenProvider.AccessToken = session.AccessToken;
+        clinicianIdentityAccessor.ClinicianIdentity = session.ClinicianIdentity;
 
         var state = conversationStore.TryGet(sessionId) ?? ConversationState.Start(session.Site, session.PatientId);
         var result = await orchestrator.AskFollowUpAsync(state, question, cancellationToken).ConfigureAwait(false);
