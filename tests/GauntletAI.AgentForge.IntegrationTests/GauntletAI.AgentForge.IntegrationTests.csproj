@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- CA1707 (no underscores) conflicts with the mandated Method_State_ExpectedResult
+         test-naming convention (ENGINEERING_STANDARDS.md §8). -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="JunitXml.TestLogger" />
+    <PackageReference Include="Refit.HttpClientFactory" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Integration.OpenEmr\GauntletAI.AgentForge.Integration.OpenEmr.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Mcp\GauntletAI.AgentForge.Mcp.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Observability\GauntletAI.AgentForge.Observability.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Llm\GauntletAI.AgentForge.Llm.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Agent\GauntletAI.AgentForge.Agent.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Api\GauntletAI.AgentForge.Api.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Verification\GauntletAI.AgentForge.Verification.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

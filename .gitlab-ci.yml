@@ -1,6 +1,52 @@
-build:
+# Pipeline entry point - see documentation/CI-SETUP.md for the full explanation of this
+# structure and the one-time GitLab project-settings steps it depends on.
+
+stages:
+  - lint
+  - build
+  - test
+  - deploy
+
+variables:
+  SOLUTION: "GauntletAI.AgentForge.slnx"
+  BUILD_CONFIG: "Release"
+  UNIT_TEST_PATTERN: "*UnitTests.csproj"
+  INTEGRATION_TEST_PATTERN: "*IntegrationTests.csproj"
+  # Default shallow-clone depth (project setting) is 20 - too shallow once a long-lived
+  # branch (e.g. staging) diverges further back than that. A too-shallow merge-base lookup
+  # in before_script below makes git report "refusing to merge unrelated histories" for a
+  # merge-base that genuinely exists, just outside the fetched window - see the deploy job,
+  # which deliberately overrides this back down to 1 since it never runs the MR before_script.
+  GIT_DEPTH: "1000"
+
+default:
   image: mcr.microsoft.com/dotnet/sdk:10.0
-  script:
-    - dotnet --info
-    - dotnet restore
-    - dotnet build --configuration Release --no-restore
+  interruptible: true
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_BRANCH'
+
+# Every MR pipeline tests "your changes + current target branch", not a stale snapshot -
+# a real conflict with the target branch fails the pipeline immediately instead of
+# producing a green run that can't actually merge cleanly.
+before_script:
+  - |
+    if [ -n "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" ]; then
+      # --depth on this specific fetch deepens the target branch regardless of GIT_DEPTH's
+      # effect (or lack thereof) on a manual fetch of a *different* ref than the one checked
+      # out - belt-and-suspenders alongside the GIT_DEPTH bump above.
+      git fetch --depth=1000 origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+      git -c user.email="ci@local" -c user.name="CI" merge --no-edit "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" || {
+        echo "Merge conflict with $CI_MERGE_REQUEST_TARGET_BRANCH_NAME - resolve locally and re-push.";
+        exit 1;
+      }
+    fi
+
+include:
+  - local: ".gitlab/ci/lint.yml"
+  - local: ".gitlab/ci/build.yml"
+  - local: ".gitlab/ci/test.yml"
+  - local: ".gitlab/ci/deploy.yml"

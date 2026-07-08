@@ -1,0 +1,166 @@
+using GauntletAI.AgentForge.Integration.OpenEmr.Fhir;
+using GauntletAI.AgentForge.Integration.OpenEmr.Http;
+using Microsoft.Extensions.Logging;
+
+namespace GauntletAI.AgentForge.Mcp;
+
+/// <summary>
+/// The MCP tool server implementation (ARCHITECTURE.md §8.1, D2) - the governance choke point
+/// between the agent orchestrator and OpenEMR data. Every tool: validates its contract first
+/// (NFR-CONTRACT-1), fetches only what its bounded input allows, and emits an audit log tagged
+/// with the correlation id and result counts - never the patient id or any clinical value
+/// (ENGINEERING_STANDARDS.md §7 - no PHI in logs).
+/// </summary>
+public sealed class McpToolServer(
+    IOpenEmrFhirClient fhirClient,
+    ICorrelationIdAccessor correlationIdAccessor,
+    ILogger<McpToolServer> logger) : IMcpToolServer
+{
+    /// <inheritdoc />
+    public async Task<PatientSummaryResult> GetPatientSummaryAsync(
+        GetPatientSummaryRequest request, CancellationToken cancellationToken)
+    {
+        const string toolName = "get_patient_summary";
+        McpToolContract.Validate(toolName, request);
+
+        var patientTask = fhirClient.GetPatientAsync(request.Site, request.PatientId, cancellationToken);
+        var problemsTask = fhirClient.GetConditionsAsync(request.Site, request.PatientId, cancellationToken);
+        var medicationsTask = fhirClient.GetMedicationRequestsAsync(request.Site, request.PatientId, cancellationToken);
+        var allergiesTask = fhirClient.GetAllergiesAsync(request.Site, request.PatientId, cancellationToken);
+
+        await Task.WhenAll(patientTask, problemsTask, medicationsTask, allergiesTask).ConfigureAwait(false);
+
+        var result = new PatientSummaryResult(
+            await patientTask.ConfigureAwait(false),
+            await problemsTask.ConfigureAwait(false),
+            await medicationsTask.ConfigureAwait(false),
+            await allergiesTask.ConfigureAwait(false));
+
+        McpToolServerLog.PatientSummaryCompleted(
+            logger,
+            toolName,
+            correlationIdAccessor.CorrelationId,
+            result.Patient is not null,
+            result.ActiveProblems.Count,
+            result.ActiveMedications.Count,
+            result.Allergies.Count);
+
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<LabsResult> GetLabsAsync(GetLabsRequest request, CancellationToken cancellationToken)
+    {
+        const string toolName = "get_labs";
+        McpToolContract.Validate(toolName, request);
+
+        var labs = await fhirClient.GetObservationsAsync(
+            request.Site, request.PatientId, "laboratory", request.SinceDate, cancellationToken)
+            .ConfigureAwait(false);
+
+        McpToolServerLog.ResultCountCompleted(logger, toolName, correlationIdAccessor.CorrelationId, labs.Count);
+
+        return new LabsResult(labs);
+    }
+
+    /// <inheritdoc />
+    public async Task<VitalsResult> GetVitalsAsync(GetVitalsRequest request, CancellationToken cancellationToken)
+    {
+        const string toolName = "get_vitals";
+        McpToolContract.Validate(toolName, request);
+
+        var vitals = await fhirClient.GetObservationsAsync(
+            request.Site, request.PatientId, "vital-signs", request.SinceDate, cancellationToken)
+            .ConfigureAwait(false);
+
+        McpToolServerLog.ResultCountCompleted(logger, toolName, correlationIdAccessor.CorrelationId, vitals.Count);
+
+        return new VitalsResult(vitals);
+    }
+
+    /// <inheritdoc />
+    public async Task<RecentEncountersResult> GetRecentEncountersAsync(
+        GetRecentEncountersRequest request, CancellationToken cancellationToken)
+    {
+        const string toolName = "get_recent_encounters";
+        McpToolContract.Validate(toolName, request);
+
+        var encounters = await fhirClient.GetEncountersAsync(
+            request.Site, request.PatientId, dateFilter: null, cancellationToken)
+            .ConfigureAwait(false);
+
+        var mostRecent = encounters
+            .OrderByDescending(e => e.PeriodStart ?? DateTimeOffset.MinValue)
+            .Take(request.Count)
+            .ToList();
+
+        McpToolServerLog.ResultCountCompleted(logger, toolName, correlationIdAccessor.CorrelationId, mostRecent.Count);
+
+        return new RecentEncountersResult(mostRecent);
+    }
+
+    /// <inheritdoc />
+    public async Task<DocumentsResult> GetDocumentsAsync(GetDocumentsRequest request, CancellationToken cancellationToken)
+    {
+        const string toolName = "get_documents";
+        McpToolContract.Validate(toolName, request);
+
+        var reportsTask = fhirClient.GetDiagnosticReportsAsync(request.Site, request.PatientId, cancellationToken);
+        var documentsTask = fhirClient.GetDocumentReferencesAsync(request.Site, request.PatientId, cancellationToken);
+
+        await Task.WhenAll(reportsTask, documentsTask).ConfigureAwait(false);
+
+        IEnumerable<ClinicalDocumentRecord> combined =
+        [
+            .. await reportsTask.ConfigureAwait(false),
+            .. await documentsTask.ConfigureAwait(false),
+        ];
+
+        if (!string.IsNullOrEmpty(request.DocumentType))
+        {
+            combined = combined.Where(d => d.DocumentType.Contains(request.DocumentType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var documents = combined.ToList();
+
+        McpToolServerLog.ResultCountCompleted(logger, toolName, correlationIdAccessor.CorrelationId, documents.Count);
+
+        return new DocumentsResult(documents);
+    }
+
+    /// <inheritdoc />
+    public async Task<IntervalChangesResult> GetIntervalChangesAsync(
+        GetIntervalChangesRequest request, CancellationToken cancellationToken)
+    {
+        const string toolName = "get_interval_changes";
+        McpToolContract.Validate(toolName, request);
+
+        var medicationsTask = fhirClient.GetMedicationRequestsAsync(request.Site, request.PatientId, cancellationToken);
+        var labsTask = fhirClient.GetObservationsAsync(
+            request.Site, request.PatientId, "laboratory", request.SinceDate, cancellationToken);
+        var encountersTask = fhirClient.GetEncountersAsync(
+            request.Site, request.PatientId, request.SinceDate, cancellationToken);
+
+        await Task.WhenAll(medicationsTask, labsTask, encountersTask).ConfigureAwait(false);
+
+        var sinceDate = McpDateFilter.ExtractDate(request.SinceDate);
+        var medicationChanges = (await medicationsTask.ConfigureAwait(false))
+            .Where(m => m.AuthoredOn is not null && m.AuthoredOn >= sinceDate)
+            .ToList();
+
+        var result = new IntervalChangesResult(
+            medicationChanges,
+            await labsTask.ConfigureAwait(false),
+            await encountersTask.ConfigureAwait(false));
+
+        McpToolServerLog.IntervalChangesCompleted(
+            logger,
+            toolName,
+            correlationIdAccessor.CorrelationId,
+            result.MedicationChanges.Count,
+            result.NewLabs.Count,
+            result.IntervalEncounters.Count);
+
+        return result;
+    }
+}

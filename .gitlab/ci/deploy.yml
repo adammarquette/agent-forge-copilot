@@ -1,17 +1,40 @@
 # -----------------------------------------------------------------------------
-# DEPLOY stage — main only, manual gate, unreachable unless all tests passed.
+# DEPLOY stage — Railway deployment via `railway up`.
+#
+# Single-environment model: everything runs in the Railway "development"
+# environment (project lucid-clarity). Merges to main build and deploy the API
+# there; integration tests run against that same environment's OpenEMR.
+#
+# Railway has no native GitLab integration, so CI pushes code using the official
+# CLI image, authenticated with an environment-scoped Railway *project token*
+# supplied as a protected/masked GitLab CI variable:
+#
+#   RAILWAY_TOKEN_DEV — project token scoped to the "development" environment
+#
+# Create it in Railway: Project Settings > Tokens > New Token (pick the
+# development environment). Add it in GitLab: Settings > CI/CD > Variables
+# (masked, protected). The token selects project + environment; --service picks
+# the target service. Railway builds the repo's Dockerfile server-side.
+#
+# `railway up --ci` streams build logs and exits non-zero on build/deploy
+# failure, so a red job means the deploy did not go out.
 # -----------------------------------------------------------------------------
+
 deploy:
   stage: deploy
+  image:
+    name: ghcr.io/railwayapp/cli:latest
+    entrypoint: [""]
   interruptible: false
+  variables:
+    GIT_DEPTH: "1"
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      when: manual              # click-to-run in the pipeline UI
   environment:
-    name: production
+    name: development
+    url: https://agent-forge-api-development.up.railway.app
+  before_script:
+    - railway --version
   script:
-    - echo "🚀 Deploying Agent Forge Copilot ($CI_COMMIT_SHORT_SHA)..."
-    # TODO: replace with your real deployment, e.g.:
-    #   - dotnet publish $SOLUTION -c $BUILD_CONFIG -o publish/
-    #   - scp/rsync/docker build+push/helm upgrade ...
-    - echo "TODO — deployment script not wired up yet"
+    - export RAILWAY_TOKEN="$RAILWAY_TOKEN_DEV"
+    - railway up --service agent-forge-api --ci

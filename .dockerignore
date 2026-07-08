@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/.vs/
+**/*.csproj.user
+.git/
+.gitlab/
+documentation/
+tests/
+**/node_modules/
