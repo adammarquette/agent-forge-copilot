@@ -1,0 +1,22 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+
+# File-scoped namespaces required (ENGINEERING_STANDARDS.md §1) - enforced as a build
+# error via EnforceCodeStyleInBuild in Directory.Build.props.
+csharp_style_namespace_declarations = file_scoped:error
+
+# Sealed by default on classes not designed for inheritance (ENGINEERING_STANDARDS.md §3).
+dotnet_diagnostic.CA1852.severity = warning
+
+[*.{json,yml,yaml}]
+indent_style = space
+indent_size = 2
