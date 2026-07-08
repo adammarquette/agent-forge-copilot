@@ -12,9 +12,12 @@ format:
 # outside .gitlab/ci/allowed-licenses.json - catches a restrictive-license bump before
 # it merges (ENGINEERING_STANDARDS.md §2, the FluentAssertions v8 commercial-license note).
 #
-# --use-project-assets-json reads the resolved project.assets.json (populated by the
-# `build` job's `dotnet restore`) since Central Package Management leaves PackageReference
-# elements without a Version attribute, which this tool cannot resolve from the csproj alone.
+# --use-project-assets-json reads the resolved project.assets.json. Central Package
+# Management leaves PackageReference elements without a Version attribute, which this tool
+# cannot resolve from the csproj alone, so the job runs its own `dotnet restore` first to
+# populate project.assets.json. It intentionally does NOT `needs: [build]` - build is in a
+# later stage, so a cross-stage need is invalid; restoring here also keeps the license gate
+# failing fast in the lint stage before build runs.
 #
 # .gitlab/ci/license-packages-filter.json narrowly exempts xunit.abstractions: it is
 # genuinely Apache-2.0 (same as the rest of the xunit project) but its NuGet package
@@ -22,8 +25,8 @@ format:
 # not a license risk. Extend that file only for the same kind of verified false positive.
 license-scan:
   stage: lint
-  needs: ["build"]
   script:
+    - dotnet restore $SOLUTION
     - dotnet tool install --global dotnet-project-licenses
     - export PATH="$PATH:$HOME/.dotnet/tools"
     - export DOTNET_ROLL_FORWARD=LatestMajor
