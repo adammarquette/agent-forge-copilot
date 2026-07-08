@@ -3,7 +3,9 @@ using FluentAssertions;
 using GauntletAI.AgentForge.Agent;
 using GauntletAI.AgentForge.Api.Chat;
 using GauntletAI.AgentForge.Api.Session;
+using GauntletAI.AgentForge.Integration.OpenEmr.Fhir;
 using GauntletAI.AgentForge.Llm;
+using GauntletAI.AgentForge.Verification;
 
 namespace GauntletAI.AgentForge.UnitTests.Api.Chat;
 
@@ -108,6 +110,25 @@ public sealed class ChatSessionCoordinatorTests
         var result = await _sut.AskFollowUpAsync("session-1", _session, "Is her INR therapeutic?", CancellationToken.None);
 
         result.Should().Be(appended);
+    }
+
+    [Fact]
+    public async Task RequestBriefAsync_OrchestratorReturnsSafetyFlags_IncludesThemInTheOutboxPayload()
+    {
+        // ARCHITECTURE.md's request-flow sequence diagram sends safety flags to the BFF alongside
+        // the brief, not just into a log line - this proves they actually reach the wire payload.
+        var flag = new DomainConstraintFlag("inr-therapeutic-range", "INR out of range", [new ClinicalSourceRef("Observation", "1")]);
+        A.CallTo(() => _orchestrator.StartBriefAsync("default", "123", A<CancellationToken>._))
+            .Returns(Task.FromResult(new AgentTurnResult("brief text", ConversationState.Start("default", "123"), [flag])));
+        string? capturedPayload = null;
+        A.CallTo(() => _outbox.Append("session-1", "brief", A<string>._))
+            .Invokes((string _, string _, string payload) => capturedPayload = payload)
+            .Returns(new ChatMessage(1, "brief", "{}"));
+
+        await _sut.RequestBriefAsync("session-1", _session, CancellationToken.None);
+
+        capturedPayload.Should().Contain("inr-therapeutic-range");
+        capturedPayload.Should().Contain("Observation/1");
     }
 
     [Fact]
