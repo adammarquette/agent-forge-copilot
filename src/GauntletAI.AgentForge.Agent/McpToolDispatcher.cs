@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Mcp;
+using Microsoft.Extensions.Logging;
 
 namespace GauntletAI.AgentForge.Agent;
 
@@ -15,15 +16,24 @@ namespace GauntletAI.AgentForge.Agent;
 /// arguments, or a downstream contract failure all become an error result the model can see and
 /// react to, not a crash (NFR-REL-1 - one tool failing degrades one step, not the whole turn).
 /// </summary>
-public sealed class McpToolDispatcher(IMcpToolServer toolServer) : IMcpToolDispatcher
+public sealed class McpToolDispatcher(IMcpToolServer toolServer, ILogger<McpToolDispatcher> logger) : IMcpToolDispatcher
 {
     private static readonly JsonSerializerOptions ArgumentsJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly JsonSerializerOptions ResultJsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    /// <summary>
+    /// Field names McpToolCatalog's schemas never offer the model - if one shows up in real
+    /// arguments anyway, it is ignored (enforced elsewhere in this class) but the attempt itself
+    /// is worth recording (FR-AUTH-3: "confirmed... and get logged," not just confirmed harmless).
+    /// </summary>
+    private static readonly string[] UnexpectedArgumentFields = ["patientid", "patient_id", "site"];
 
     /// <inheritdoc />
     public async Task<LlmToolResultContent> DispatchAsync(
         string site, string patientId, LlmToolCall toolCall, CancellationToken cancellationToken)
     {
+        DetectSuspiciousArgumentOverride(toolCall);
+
         try
         {
             var resultJson = await ExecuteAsync(site, patientId, toolCall, cancellationToken).ConfigureAwait(false);
@@ -36,6 +46,41 @@ public sealed class McpToolDispatcher(IMcpToolServer toolServer) : IMcpToolDispa
         catch (Exception ex)
         {
             return new LlmToolResultContent(toolCall.Id, SerializeError(ex.Message), IsError: true);
+        }
+    }
+
+    private void DetectSuspiciousArgumentOverride(LlmToolCall toolCall)
+    {
+        if (string.IsNullOrWhiteSpace(toolCall.ArgumentsJson))
+        {
+            return;
+        }
+
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(toolCall.ArgumentsJson);
+        }
+        catch (JsonException)
+        {
+            // Malformed JSON is handled as a contract failure by the normal dispatch path - nothing to detect here.
+            return;
+        }
+
+        using (document)
+        {
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return;
+            }
+
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (UnexpectedArgumentFields.Contains(property.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    McpToolDispatcherLog.SuspiciousArgumentOverrideAttempt(logger, toolCall.ToolName, property.Name);
+                }
+            }
         }
     }
 

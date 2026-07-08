@@ -3,15 +3,17 @@ using FluentAssertions;
 using GauntletAI.AgentForge.Agent;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Mcp;
+using GauntletAI.AgentForge.UnitTests.TestSupport;
 
 namespace GauntletAI.AgentForge.UnitTests.Agent;
 
 public sealed class McpToolDispatcherTests
 {
     private readonly IMcpToolServer _toolServer = A.Fake<IMcpToolServer>();
+    private readonly CapturingLogger<McpToolDispatcher> _logger = new();
     private readonly McpToolDispatcher _sut;
 
-    public McpToolDispatcherTests() => _sut = new McpToolDispatcher(_toolServer);
+    public McpToolDispatcherTests() => _sut = new McpToolDispatcher(_toolServer, _logger);
 
     [Fact]
     public async Task DispatchAsync_GetPatientSummary_CallsToolServerWithSessionSiteAndPatientId()
@@ -71,6 +73,34 @@ public sealed class McpToolDispatcherTests
             "default", "1", new LlmToolCall("call_4", "get_labs", """{"patientId":"999","since_date":"ge2026-01-01"}"""), CancellationToken.None);
 
         captured!.PatientId.Should().Be("1");
+    }
+
+    [Fact]
+    public async Task DispatchAsync_ArgumentsContainAPatientIdField_LogsASuspiciousOverrideAttempt()
+    {
+        // FR-AUTH-3: the override is already ignored functionally (test above) - this proves the
+        // attempt itself is also recorded, satisfying "confirmed... and get logged," not just
+        // "confirmed to yield zero unauthorized disclosure."
+        A.CallTo(() => _toolServer.GetLabsAsync(A<GetLabsRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LabsResult([])));
+
+        await _sut.DispatchAsync(
+            "default", "1", new LlmToolCall("call_4", "get_labs", """{"patientId":"999","since_date":"ge2026-01-01"}"""), CancellationToken.None);
+
+        _logger.Lines.Should().ContainSingle(line =>
+            line.Contains("get_labs", StringComparison.Ordinal) && line.Contains("patientId", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DispatchAsync_ArgumentsContainNoUnexpectedFields_LogsNothingSuspicious()
+    {
+        A.CallTo(() => _toolServer.GetLabsAsync(A<GetLabsRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LabsResult([])));
+
+        await _sut.DispatchAsync(
+            "default", "1", new LlmToolCall("call_4", "get_labs", """{"since_date":"ge2026-01-01"}"""), CancellationToken.None);
+
+        _logger.Lines.Should().BeEmpty();
     }
 
     [Fact]
