@@ -21,4 +21,10 @@ internal static partial class McpToolServerLog
         int problemCount,
         int medicationCount,
         int allergyCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "MCP tool {ToolName} completed for correlation {CorrelationId}: {ResultCount} results")]
+    public static partial void ResultCountCompleted(
+        ILogger logger, string toolName, string correlationId, int resultCount);
 }

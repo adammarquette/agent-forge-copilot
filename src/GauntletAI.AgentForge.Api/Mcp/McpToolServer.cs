@@ -47,4 +47,19 @@ public sealed class McpToolServer(
 
         return result;
     }
+
+    /// <inheritdoc />
+    public async Task<LabsResult> GetLabsAsync(GetLabsRequest request, CancellationToken cancellationToken)
+    {
+        const string toolName = "get_labs";
+        McpToolContract.Validate(toolName, request);
+
+        var labs = await fhirClient.GetObservationsAsync(
+            request.Site, request.PatientId, "laboratory", request.SinceDate, cancellationToken)
+            .ConfigureAwait(false);
+
+        McpToolServerLog.ResultCountCompleted(logger, toolName, correlationIdAccessor.CorrelationId, labs.Count);
+
+        return new LabsResult(labs);
+    }
 }

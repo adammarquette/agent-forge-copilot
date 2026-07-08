@@ -10,4 +10,7 @@ public interface IMcpToolServer
     /// <summary>Demographics + active problems + active meds + allergies, one bounded bundle.</summary>
     Task<PatientSummaryResult> GetPatientSummaryAsync(
         GetPatientSummaryRequest request, CancellationToken cancellationToken);
+
+    /// <summary>Lab Observations (INR, K+, Cr, lipids, BNP) with values, units, dates, reference ranges.</summary>
+    Task<LabsResult> GetLabsAsync(GetLabsRequest request, CancellationToken cancellationToken);
 }
