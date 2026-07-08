@@ -77,4 +77,25 @@ public sealed class McpToolServer(
 
         return new VitalsResult(vitals);
     }
+
+    /// <inheritdoc />
+    public async Task<RecentEncountersResult> GetRecentEncountersAsync(
+        GetRecentEncountersRequest request, CancellationToken cancellationToken)
+    {
+        const string toolName = "get_recent_encounters";
+        McpToolContract.Validate(toolName, request);
+
+        var encounters = await fhirClient.GetEncountersAsync(
+            request.Site, request.PatientId, dateFilter: null, cancellationToken)
+            .ConfigureAwait(false);
+
+        var mostRecent = encounters
+            .OrderByDescending(e => e.PeriodStart ?? DateTimeOffset.MinValue)
+            .Take(request.Count)
+            .ToList();
+
+        McpToolServerLog.ResultCountCompleted(logger, toolName, correlationIdAccessor.CorrelationId, mostRecent.Count);
+
+        return new RecentEncountersResult(mostRecent);
+    }
 }

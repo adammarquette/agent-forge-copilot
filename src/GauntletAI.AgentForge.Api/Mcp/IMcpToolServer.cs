@@ -16,4 +16,8 @@ public interface IMcpToolServer
 
     /// <summary>Vital-signs Observations (BP, HR).</summary>
     Task<VitalsResult> GetVitalsAsync(GetVitalsRequest request, CancellationToken cancellationToken);
+
+    /// <summary>A thin list of the most recent encounters (date, type, reason).</summary>
+    Task<RecentEncountersResult> GetRecentEncountersAsync(
+        GetRecentEncountersRequest request, CancellationToken cancellationToken);
 }
