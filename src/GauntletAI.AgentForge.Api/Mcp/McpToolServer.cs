@@ -98,4 +98,33 @@ public sealed class McpToolServer(
 
         return new RecentEncountersResult(mostRecent);
     }
+
+    /// <inheritdoc />
+    public async Task<DocumentsResult> GetDocumentsAsync(GetDocumentsRequest request, CancellationToken cancellationToken)
+    {
+        const string toolName = "get_documents";
+        McpToolContract.Validate(toolName, request);
+
+        var reportsTask = fhirClient.GetDiagnosticReportsAsync(request.Site, request.PatientId, cancellationToken);
+        var documentsTask = fhirClient.GetDocumentReferencesAsync(request.Site, request.PatientId, cancellationToken);
+
+        await Task.WhenAll(reportsTask, documentsTask).ConfigureAwait(false);
+
+        IEnumerable<ClinicalDocumentRecord> combined =
+        [
+            .. await reportsTask.ConfigureAwait(false),
+            .. await documentsTask.ConfigureAwait(false),
+        ];
+
+        if (!string.IsNullOrEmpty(request.DocumentType))
+        {
+            combined = combined.Where(d => d.DocumentType.Contains(request.DocumentType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var documents = combined.ToList();
+
+        McpToolServerLog.ResultCountCompleted(logger, toolName, correlationIdAccessor.CorrelationId, documents.Count);
+
+        return new DocumentsResult(documents);
+    }
 }

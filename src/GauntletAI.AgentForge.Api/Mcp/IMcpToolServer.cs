@@ -20,4 +20,7 @@ public interface IMcpToolServer
     /// <summary>A thin list of the most recent encounters (date, type, reason).</summary>
     Task<RecentEncountersResult> GetRecentEncountersAsync(
         GetRecentEncountersRequest request, CancellationToken cancellationToken);
+
+    /// <summary>DiagnosticReport / DocumentReference narrative (echo/EF, device), with source ref.</summary>
+    Task<DocumentsResult> GetDocumentsAsync(GetDocumentsRequest request, CancellationToken cancellationToken);
 }
