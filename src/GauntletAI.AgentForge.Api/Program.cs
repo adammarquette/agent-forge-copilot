@@ -1,5 +1,6 @@
 using GauntletAI.AgentForge.Agent;
 using GauntletAI.AgentForge.Api.Chat;
+using GauntletAI.AgentForge.Api.Health;
 using GauntletAI.AgentForge.Api.Launch;
 using GauntletAI.AgentForge.Api.Session;
 using GauntletAI.AgentForge.Integration.OpenEmr;
@@ -9,8 +10,15 @@ using GauntletAI.AgentForge.Integration.OpenEmr.Http;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Llm.Anthropic;
 using GauntletAI.AgentForge.Mcp;
+using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Refit;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,6 +35,10 @@ builder.Services.AddOptions<LlmProviderOptions>()
     .Bind(builder.Configuration.GetSection(LlmProviderOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+// Optional self-hosted infra (observability/docker-compose.yml) - not required/ValidateOnStart,
+// unlike OpenEmr/Llm above, since the app must still boot and serve traffic without it running.
+builder.Services.AddOptions<ObservabilityOptions>()
+    .Bind(builder.Configuration.GetSection(ObservabilityOptions.SectionName));
 
 // Per-request/per-hub-invocation scope: a fresh instance carries exactly one call's token and
 // correlation id, so nothing here can leak between two different sessions or hub calls
@@ -92,6 +104,49 @@ builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 builder.Services.AddScoped<SmartLaunchService>();
 builder.Services.AddScoped<ChatSessionCoordinator>();
 
+// Epic 9 (Observability): the app-side metrics/tracing that feed the self-hosted dashboard, and
+// the readiness checks NFR-HEALTH-1 requires against OpenEMR, the LLM provider, and that dashboard's
+// own backend. A single AgentForgeMetrics instance so every Counter/Histogram it owns aggregates
+// across the whole process, not per-request.
+builder.Services.AddSingleton<AgentForgeMetrics>();
+builder.Services.AddSingleton<IAgentForgeMetrics>(sp => sp.GetRequiredService<AgentForgeMetrics>());
+
+builder.Services.AddHttpClient<OpenEmrHealthCheck>();
+builder.Services.AddHttpClient<LlmProviderHealthCheck>();
+builder.Services.AddHttpClient<ObservabilityHealthCheck>();
+builder.Services.AddHealthChecks()
+    .AddCheck<OpenEmrHealthCheck>("openemr", tags: ["ready"])
+    .AddCheck<LlmProviderHealthCheck>("llm-provider", tags: ["ready"])
+    .AddCheck<ObservabilityHealthCheck>("observability", tags: ["ready"]);
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("agentforge-api"))
+    .WithMetrics(metrics => metrics
+        .AddMeter(AgentForgeMetrics.MeterName)
+        // Microsoft.Extensions.Http.Resilience's AddStandardResilienceHandler (the OpenEMR/LLM
+        // clients above) already emits retry/circuit-breaker telemetry under this meter name - no
+        // custom retry-counting code needed for the dashboard's "tool-call + retry counts" panel.
+        .AddMeter("Polly")
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddRuntimeInstrumentation()
+        .AddPrometheusExporter())
+    .WithTracing(tracing => tracing
+        .AddSource(AgentForgeActivitySource.Name)
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddConsoleExporter());
+
+// Correlation id (a logging scope - ChatSessionCoordinator, ENGINEERING_STANDARDS.md §7) actually
+// rendered somewhere real; OTel's own log exporter, not a specific provider like Serilog/NLog, so
+// the sidecar stays provider-agnostic per ENGINEERING_STANDARDS.md §7's sample-configs note.
+builder.Logging.AddOpenTelemetry(options =>
+{
+    options.IncludeScopes = true;
+    options.IncludeFormattedMessage = true;
+    options.AddConsoleExporter();
+});
+
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
@@ -119,6 +174,13 @@ app.UseStaticFiles();
 
 app.MapLaunchEndpoints();
 app.MapHub<ChatHub>("/hubs/chat");
+
+// /health: liveness only (the process is up and serving) - no dependency checks, so it can't flap
+// on a transient OpenEMR/LLM blip. /ready: the real NFR-HEALTH-1 checks (OpenEmrHealthCheck,
+// LlmProviderHealthCheck, ObservabilityHealthCheck), tagged "ready" above.
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
+app.MapPrometheusScrapingEndpoint();
 
 app.Run();
 
