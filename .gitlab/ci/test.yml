@@ -1,6 +1,13 @@
 # -----------------------------------------------------------------------------
 # TEST stage - unit tests (fully mocked) + integration tests (real OpenEMR).
 # Both consume the build artifacts and run with --no-build.
+#
+# Results handling: every project writes into ONE shared results directory
+# ($CI_PROJECT_DIR/TestResults) via --results-directory, and each logger uses
+# LogFileName (relative to that directory) rather than LogFilePath. This avoids
+# the default per-project / nested TestResults locations that the artifact globs
+# would otherwise miss ("no matching files"). {assembly} keeps filenames unique
+# across projects.
 # -----------------------------------------------------------------------------
 
 .test_template: &test_template
@@ -9,10 +16,9 @@
   artifacts:
     when: always
     paths:
-      - "**/TestResults/*.trx"
-      - "**/TestResults/*.junit.xml"
+      - TestResults/
     reports:
-      junit: "**/TestResults/*.junit.xml"
+      junit: TestResults/*.junit.xml
     expire_in: 1 week
 
 unit-tests:
@@ -28,8 +34,9 @@ unit-tests:
       for proj in $projects; do
         echo "dotnet test $proj"
         dotnet test "$proj" --no-build -c $BUILD_CONFIG \
-          --logger trx \
-          --logger "junit;LogFilePath=TestResults/{assembly}.junit.xml"
+          --results-directory "$CI_PROJECT_DIR/TestResults" \
+          --logger "junit;LogFileName={assembly}.junit.xml" \
+          --logger "trx;LogFileName={assembly}.trx"
       done
 
 # Integration tests exercise the real deployed OpenEMR (FHIR/OAuth/SMART) in the
@@ -63,6 +70,7 @@ integration-tests:
       for proj in $projects; do
         echo "dotnet test $proj"
         dotnet test "$proj" --no-build -c $BUILD_CONFIG \
-          --logger trx \
-          --logger "junit;LogFilePath=TestResults/{assembly}.junit.xml"
+          --results-directory "$CI_PROJECT_DIR/TestResults" \
+          --logger "junit;LogFileName={assembly}.junit.xml" \
+          --logger "trx;LogFileName={assembly}.trx"
       done
