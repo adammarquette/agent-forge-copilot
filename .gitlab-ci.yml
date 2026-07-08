@@ -12,6 +12,12 @@ variables:
   BUILD_CONFIG: "Release"
   UNIT_TEST_PATTERN: "*UnitTests.csproj"
   INTEGRATION_TEST_PATTERN: "*IntegrationTests.csproj"
+  # Default shallow-clone depth (project setting) is 20 - too shallow once a long-lived
+  # branch (e.g. staging) diverges further back than that. A too-shallow merge-base lookup
+  # in before_script below makes git report "refusing to merge unrelated histories" for a
+  # merge-base that genuinely exists, just outside the fetched window - see the deploy job,
+  # which deliberately overrides this back down to 1 since it never runs the MR before_script.
+  GIT_DEPTH: "1000"
 
 default:
   image: mcr.microsoft.com/dotnet/sdk:10.0
@@ -29,7 +35,10 @@ workflow:
 before_script:
   - |
     if [ -n "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" ]; then
-      git fetch origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+      # --depth on this specific fetch deepens the target branch regardless of GIT_DEPTH's
+      # effect (or lack thereof) on a manual fetch of a *different* ref than the one checked
+      # out - belt-and-suspenders alongside the GIT_DEPTH bump above.
+      git fetch --depth=1000 origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
       git -c user.email="ci@local" -c user.name="CI" merge --no-edit "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" || {
         echo "Merge conflict with $CI_MERGE_REQUEST_TARGET_BRANCH_NAME - resolve locally and re-push.";
         exit 1;
