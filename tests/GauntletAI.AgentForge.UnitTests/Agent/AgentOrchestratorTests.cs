@@ -187,6 +187,22 @@ public sealed class AgentOrchestratorTests
     }
 
     [Fact]
+    public async Task StartBriefAsync_VerifierSuppressesAClaim_SurfacesItOnTheResult()
+    {
+        // PRD.md Sec.13.1's "Claim can't be grounded" row: "suppressed items noted" - a suppressed
+        // claim must reach the caller alongside the (now shorter) verified answer, not just vanish.
+        var suppressed = new SuppressedClaim("Her INR is 9.0.", "no citation");
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmResponse("Her INR is 9.0.", [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m))));
+        A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._))
+            .Returns(new VerificationResult(false, string.Empty, [suppressed], []));
+
+        var result = await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        result.SuppressedClaims.Should().ContainSingle().Which.Should().Be(suppressed);
+    }
+
+    [Fact]
     public async Task StartBriefAsync_VerifierReturnsConstraintFlags_SurfacesThemOnTheResult()
     {
         var flag = new DomainConstraintFlag("inr-therapeutic-range", "INR out of range", []);

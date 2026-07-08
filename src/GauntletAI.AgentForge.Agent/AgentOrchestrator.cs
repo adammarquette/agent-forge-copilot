@@ -66,7 +66,10 @@ public sealed class AgentOrchestrator(
                     new LlmMessage(LlmRole.Assistant, [new LlmTextContent(verification.VerifiedAnswer)]));
 
                 return new AgentTurnResult(
-                    verification.VerifiedAnswer, state with { Messages = [.. verifiedMessages] }, verification.ConstraintFlags);
+                    verification.VerifiedAnswer,
+                    state with { Messages = [.. verifiedMessages] },
+                    verification.ConstraintFlags,
+                    verification.SuppressedClaims);
             }
 
             messages = [.. messages, new LlmMessage(LlmRole.Assistant, BuildAssistantContent(response))];
