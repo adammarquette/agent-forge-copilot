@@ -9,6 +9,7 @@ using GauntletAI.AgentForge.Integration.OpenEmr.Http;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Llm.Anthropic;
 using GauntletAI.AgentForge.Mcp;
+using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Options;
 using Refit;
 
@@ -65,6 +66,15 @@ builder.Services.AddScoped<IOpenEmrFhirClient, OpenEmrFhirClient>();
 builder.Services.AddScoped<IMcpToolServer, McpToolServer>();
 builder.Services.AddScoped<IMcpToolDispatcher, McpToolDispatcher>();
 builder.Services.AddScoped<ILlmProvider, AnthropicLlmProvider>();
+
+// Stateless (no per-request data of their own), so a single shared instance is fine. Missing since
+// Epic 7 first wired the verifier into AgentOrchestrator - the app never actually booted with that
+// change in place until this was added; caught by a Program.cs smoke test during Epic 8's work.
+builder.Services.AddSingleton<ISourceAttributionEngine, SourceAttributionEngine>();
+builder.Services.AddSingleton(sp => new CardiologyConstraintEngine(
+    CardiologyConstraintRules.Default, sp.GetRequiredService<ILogger<CardiologyConstraintEngine>>()));
+builder.Services.AddSingleton<IClinicalResponseVerifier, ClinicalResponseVerifier>();
+
 builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 
 builder.Services.AddScoped<SmartLaunchService>();
