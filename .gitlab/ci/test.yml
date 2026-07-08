@@ -8,6 +8,25 @@
 # the default per-project / nested TestResults locations that the artifact globs
 # would otherwise miss ("no matching files"). {assembly} keeps filenames unique
 # across projects.
+#
+# Root cause of issue #21 (dotnet test silently ran zero tests, exit 0): the
+# `build` job's artifacts (**/bin/, **/obj/) do NOT include the NuGet global
+# packages cache (~/.nuget/packages) - it lives outside the repo checkout.
+# Each test job starts a fresh container with an empty cache, so
+# Microsoft.NET.Test.Sdk.props's `Condition="Exists(...)"` import silently
+# fails to resolve, IsTestProject never gets set, and MSBuild's VSTest target
+# (Condition="'$(IsTestProject)' == 'true'") is silently skipped - not an
+# MTP-vs-VSTest runner-selection issue (global.json pinning VSTest explicitly
+# did not fix it; confirmed against the real runner before settling on this).
+# Fix: `dotnet restore` right before each `dotnet test --no-build` call
+# repopulates the cache and regenerates props-import paths valid for this
+# container; --no-build still skips the (already-done) compile step.
+#
+# Fail-safe guard, kept regardless: both jobs verify AFTER the loop that (a)
+# at least one *.junit.xml was produced and (b) its combined tests="N" count
+# is > 0, and fail loudly otherwise (NFR-REL-2 - a meaningful check, not an
+# unconditional pass) - a second line of defense against this class of bug
+# recurring for any other reason.
 # -----------------------------------------------------------------------------
 
 .test_template: &test_template
@@ -21,6 +40,18 @@
       junit: TestResults/*.junit.xml
     expire_in: 1 week
 
+.verify_results: &verify_results |
+  if ! ls TestResults/*.junit.xml >/dev/null 2>&1; then
+    echo "No test result files were produced - dotnet test ran silently and produced nothing (issue #21). Failing rather than reporting a false green."
+    exit 1
+  fi
+  total_tests=$(grep -ohE 'tests="[0-9]+"' TestResults/*.junit.xml | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+  if [ "$total_tests" -eq 0 ]; then
+    echo "Test result files exist but report zero tests executed (issue #21). Failing rather than reporting a false green."
+    exit 1
+  fi
+  echo "Verified: $total_tests test(s) actually executed."
+
 unit-tests:
   <<: *test_template
   script:
@@ -32,12 +63,15 @@ unit-tests:
         exit 1
       fi
       for proj in $projects; do
+        echo "dotnet restore $proj"
+        dotnet restore "$proj"
         echo "dotnet test $proj"
         dotnet test "$proj" --no-build -c $BUILD_CONFIG \
           --results-directory "$CI_PROJECT_DIR/TestResults" \
           --logger "junit;LogFileName={assembly}.junit.xml" \
           --logger "trx;LogFileName={assembly}.trx"
       done
+    - *verify_results
 
 # Integration tests exercise the real deployed OpenEMR (FHIR/OAuth/SMART) in the
 # single Railway "development" environment - per ENGINEERING_STANDARDS.md §8.2 /
@@ -68,9 +102,12 @@ integration-tests:
         exit 1
       fi
       for proj in $projects; do
+        echo "dotnet restore $proj"
+        dotnet restore "$proj"
         echo "dotnet test $proj"
         dotnet test "$proj" --no-build -c $BUILD_CONFIG \
           --results-directory "$CI_PROJECT_DIR/TestResults" \
           --logger "junit;LogFileName={assembly}.junit.xml" \
           --logger "trx;LogFileName={assembly}.trx"
       done
+    - *verify_results
