@@ -1,0 +1,64 @@
+# -----------------------------------------------------------------------------
+# TEST stage — unit tests (no services) + integration tests (MySQL service).
+# Both consume the build artifacts and run with --no-build.
+# -----------------------------------------------------------------------------
+
+.test_template: &test_template
+  stage: test
+  needs: ["build"]
+  artifacts:
+    when: always
+    paths:
+      - "**/TestResults/*.trx"
+    # Uncomment once test projects reference the JunitXml.TestLogger package —
+    # this lights up the failed-test widget directly in the MR:
+    # reports:
+    #   junit: "**/TestResults/*.junit.xml"
+    expire_in: 1 week
+
+unit-tests:
+  <<: *test_template
+  script:
+    - |
+      set -e
+      projects=$(find . -type f -name "$UNIT_TEST_PATTERN" -not -path "*/bin/*" -not -path "*/obj/*")
+      if [ -z "$projects" ]; then
+        echo "❌ No unit test projects matched '$UNIT_TEST_PATTERN'. Fix UNIT_TEST_PATTERN in .gitlab-ci.yml."
+        exit 1
+      fi
+      for proj in $projects; do
+        echo "▶ dotnet test $proj"
+        dotnet test "$proj" --no-build -c $BUILD_CONFIG --logger trx
+      done
+
+integration-tests:
+  <<: *test_template
+  services:
+    - name: mysql:8.4
+      alias: mysql
+  variables:
+    # Service container bootstrap
+    MYSQL_DATABASE: "agentforge_test"
+    MYSQL_ROOT_PASSWORD: "ci_test_password"
+    # Connection string handed to the tests via .NET config env-var convention.
+    # Adjust the key to whatever your appsettings uses (e.g. ConnectionStrings__AgentForgeDb).
+    ConnectionStrings__DefaultConnection: "Server=mysql;Port=3306;Database=agentforge_test;Uid=root;Pwd=ci_test_password;"
+  script:
+    - |
+      set -e
+      echo "⏳ Waiting for MySQL to accept connections..."
+      for i in $(seq 1 60); do
+        (echo > /dev/tcp/mysql/3306) 2>/dev/null && break
+        [ "$i" = "60" ] && { echo "❌ MySQL never became reachable"; exit 1; }
+        sleep 1
+      done
+      echo "✅ MySQL is up"
+      projects=$(find . -type f -name "$INTEGRATION_TEST_PATTERN" -not -path "*/bin/*" -not -path "*/obj/*")
+      if [ -z "$projects" ]; then
+        echo "❌ No integration test projects matched '$INTEGRATION_TEST_PATTERN'. Fix INTEGRATION_TEST_PATTERN in .gitlab-ci.yml."
+        exit 1
+      fi
+      for proj in $projects; do
+        echo "▶ dotnet test $proj"
+        dotnet test "$proj" --no-build -c $BUILD_CONFIG --logger trx
+      done
