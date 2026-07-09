@@ -1,0 +1,47 @@
+# -----------------------------------------------------------------------------
+# VERIFY stage — post-deploy smoke test against the real, deployed service.
+#
+# `railway up --ci` (the deploy job) only proves the build succeeded and the
+# container started - not that it's actually serving traffic with a working
+# runtime config (real OpenEMR/LLM credentials, DI resolving, dependencies
+# reachable). This hits the live URL's own /health and /ready endpoints
+# (Program.cs) to close that gap, the same "run the host and hit
+# representative endpoints" check applied locally after DI changes - now
+# automated as the pipeline's last step. A red job here can't undo the
+# deploy that already went out; it's the signal to go roll back
+# (documentation/RAILWAY.md's rollback procedure) or fix forward.
+# -----------------------------------------------------------------------------
+
+post-deploy-smoke-test:
+  stage: verify
+  image: curlimages/curl:latest
+  interruptible: false
+  needs:
+    - deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  variables:
+    GIT_STRATEGY: none
+    DEPLOYED_URL: https://agent-forge-api-development.up.railway.app
+  script:
+    - |
+      check() {
+        path="$1"
+        url="${DEPLOYED_URL}${path}"
+        echo "Checking ${url} ..."
+        for i in $(seq 1 12); do
+          status=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 10 "$url" || echo "000")
+          if [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
+            echo "OK: ${path} returned HTTP ${status} after attempt ${i}"
+            cat /tmp/body; echo
+            return 0
+          fi
+          echo "  attempt ${i}: HTTP ${status}, retrying in 5s..."
+          sleep 5
+        done
+        echo "FAILED: ${path} never returned 2xx within the retry budget"
+        cat /tmp/body 2>/dev/null; echo
+        return 1
+      }
+      check "/health"
+      check "/ready"
