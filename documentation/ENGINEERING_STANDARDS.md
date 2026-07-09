@@ -265,6 +265,9 @@ Notes:
 - License scan on the dependency graph (catches restrictive-license bumps — see FluentAssertions note §2).
 - Contracts (tool schemas) exported and diffed (NFR-CONTRACT-1).
 - Release version (`<Version>` / git tag) follows SemVer — see §14.
+- **Every MR references a tracking issue** (`Closes #N` / `Related to #N`) stating the problem or requirement
+  being addressed — no MR is merged without one. The issue is opened *before* the MR, not written up
+  after the fact; it's where design decisions, scoping notes, and known gaps get recorded (root `AGENTS.md`).
 
 ---
 
