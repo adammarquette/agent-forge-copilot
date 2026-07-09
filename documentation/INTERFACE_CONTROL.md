@@ -64,6 +64,29 @@ Use discovery to resolve the concrete authorize/token/introspection/registration
    authenticated user, granted scopes, and **launch patient context**.
 4. **Validate** tokens via `POST /introspect`; hold them **server-side in the BFF** (never in the browser).
 
+```mermaid
+sequenceDiagram
+    actor MD as Cardiologist
+    participant Mod as OpenEMR Module (shim)
+    participant BFF as Sidecar BFF
+    participant Auth as OpenEMR OAuth2 Server
+
+    Note over BFF,Auth: One-time — dynamic client registration
+    BFF->>Auth: POST /oauth2/{site}/registration
+    Auth-->>BFF: client_id (+ secret / JWKS)
+
+    Note over MD,Auth: Per-launch — SMART EHR launch
+    MD->>Mod: Open patient panel
+    Mod->>BFF: launch token + iss
+    BFF->>Auth: GET /authorize (auth-code + PKCE)
+    Auth-->>BFF: authorization code
+    BFF->>Auth: POST /token
+    Auth-->>BFF: access_token (+ refresh_token)<br/>claims: user, scopes, launch patient context
+    BFF->>Auth: POST /introspect (validate)
+    Auth-->>BFF: token active + claims confirmed
+    Note over BFF: token held server-side only<br/>never sent to the browser (D11)
+```
+
 > **Phase-2 note:** headless/batch access (Morning Triage) would use `client_credentials` + `system/*` scopes
 > **or** `offline_access` refresh tokens — both grants exist in the fork. Out of scope for v1 (`ARCHITECTURE.md`
 > §18.2).
