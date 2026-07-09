@@ -33,18 +33,21 @@ public sealed class CrossIdentityAuthorizationQaFixture
     {
         OpenEmr = new OpenEmrQaFixture();
 
-        if (string.IsNullOrEmpty(OpenEmr.Options.TestAccessToken) || string.IsNullOrEmpty(OpenEmr.Options.TestPatientId) ||
+        if (string.IsNullOrEmpty(OpenEmr.Options.CrossIdentityTestAccessTokenA) || string.IsNullOrEmpty(OpenEmr.Options.TestPatientId) ||
             string.IsNullOrEmpty(OpenEmr.Options.SecondTestAccessToken) || string.IsNullOrEmpty(OpenEmr.Options.SecondTestPatientId))
         {
             throw new InvalidOperationException(
-                $"Cross-identity authorization tests require {QaOpenEmrOptions.SectionName}__TestAccessToken/" +
+                $"Cross-identity authorization tests require {QaOpenEmrOptions.SectionName}__CrossIdentityTestAccessTokenA/" +
                 "TestPatientId AND SecondTestAccessToken/SecondTestPatientId - two real, distinct SMART EHR " +
                 "launches are the only way to prove entitlement is per-identity (ARCHITECTURE.md §5.3/§5.6), " +
-                "not one grant standing in for two (tests/AGENTS.md - nothing here is mocked).");
+                "not one grant standing in for two (tests/AGENTS.md - nothing here is mocked). Note this is " +
+                "CrossIdentityTestAccessTokenA, not the shared TestAccessToken: once SystemClientId is " +
+                "configured (issue #22), TestAccessToken is a system-role client_credentials grant that can " +
+                "read every patient, which would make this class's isolation checks meaningless (issue #27).");
         }
 
         ToolServerA = new McpToolServer(
-            new OpenEmrFhirClient(OpenEmr.FhirApi),
+            new OpenEmrFhirClient(OpenEmr.CrossIdentityFhirApiA),
             new FixedCorrelationIdAccessor("qa-cross-identity-test-a"),
             NullLogger<McpToolServer>.Instance);
 
