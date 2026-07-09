@@ -89,10 +89,22 @@ unit-tests:
 # The `rules` below gate the job on OpenEmrQa__BaseUrl: until that variable is set the
 # job is simply not added to the pipeline (keeping the pipeline green), and it activates
 # automatically once the QA variables are configured. Set OpenEmrQa__BaseUrl last.
+#
+# On MR pipelines the job runs but does not block merge (allow_failure: true) - the suite
+# still has known-flaky/data-gap failures (issue #26 and friends) that would otherwise
+# block every MR, unrelated changes included. It surfaces real regressions for review
+# before merge rather than only on develop's post-merge pipeline. Push pipelines to
+# develop/main (protected branches; `fix/*` and `epic-*` are also protected so their MR
+# pipelines can read the protected QA variables) keep the original hard-gate behavior.
+# Flip this to a required check once the known-flaky tests are fixed.
 integration-tests:
   <<: *test_template
   rules:
-    - if: '$OpenEmrQa__BaseUrl'
+    - if: '$OpenEmrQa__BaseUrl == null'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      allow_failure: true
+    - when: on_success
   script:
     - |
       set -e
