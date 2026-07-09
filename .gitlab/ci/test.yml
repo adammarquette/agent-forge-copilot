@@ -1,0 +1,113 @@
+# -----------------------------------------------------------------------------
+# TEST stage - unit tests (fully mocked) + integration tests (real OpenEMR).
+# Both consume the build artifacts and run with --no-build.
+#
+# Results handling: every project writes into ONE shared results directory
+# ($CI_PROJECT_DIR/TestResults) via --results-directory, and each logger uses
+# LogFileName (relative to that directory) rather than LogFilePath. This avoids
+# the default per-project / nested TestResults locations that the artifact globs
+# would otherwise miss ("no matching files"). {assembly} keeps filenames unique
+# across projects.
+#
+# Root cause of issue #21 (dotnet test silently ran zero tests, exit 0): the
+# `build` job's artifacts (**/bin/, **/obj/) do NOT include the NuGet global
+# packages cache (~/.nuget/packages) - it lives outside the repo checkout.
+# Each test job starts a fresh container with an empty cache, so
+# Microsoft.NET.Test.Sdk.props's `Condition="Exists(...)"` import silently
+# fails to resolve, IsTestProject never gets set, and MSBuild's VSTest target
+# (Condition="'$(IsTestProject)' == 'true'") is silently skipped - not an
+# MTP-vs-VSTest runner-selection issue (global.json pinning VSTest explicitly
+# did not fix it; confirmed against the real runner before settling on this).
+# Fix: `dotnet restore` right before each `dotnet test --no-build` call
+# repopulates the cache and regenerates props-import paths valid for this
+# container; --no-build still skips the (already-done) compile step.
+#
+# Fail-safe guard, kept regardless: both jobs verify AFTER the loop that (a)
+# at least one *.junit.xml was produced and (b) its combined tests="N" count
+# is > 0, and fail loudly otherwise (NFR-REL-2 - a meaningful check, not an
+# unconditional pass) - a second line of defense against this class of bug
+# recurring for any other reason.
+# -----------------------------------------------------------------------------
+
+.test_template: &test_template
+  stage: test
+  needs: ["build"]
+  artifacts:
+    when: always
+    paths:
+      - TestResults/
+    reports:
+      junit: TestResults/*.junit.xml
+    expire_in: 1 week
+
+.verify_results: &verify_results |
+  if ! ls TestResults/*.junit.xml >/dev/null 2>&1; then
+    echo "No test result files were produced - dotnet test ran silently and produced nothing (issue #21). Failing rather than reporting a false green."
+    exit 1
+  fi
+  total_tests=$(grep -ohE 'tests="[0-9]+"' TestResults/*.junit.xml | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+  if [ "$total_tests" -eq 0 ]; then
+    echo "Test result files exist but report zero tests executed (issue #21). Failing rather than reporting a false green."
+    exit 1
+  fi
+  echo "Verified: $total_tests test(s) actually executed."
+
+unit-tests:
+  <<: *test_template
+  script:
+    - |
+      set -e
+      projects=$(find . -type f -name "$UNIT_TEST_PATTERN" -not -path "*/bin/*" -not -path "*/obj/*")
+      if [ -z "$projects" ]; then
+        echo "No unit test projects matched '$UNIT_TEST_PATTERN'. Fix UNIT_TEST_PATTERN in .gitlab-ci.yml."
+        exit 1
+      fi
+      for proj in $projects; do
+        echo "dotnet restore $proj"
+        dotnet restore "$proj"
+        echo "dotnet test $proj"
+        dotnet test "$proj" --no-build -c $BUILD_CONFIG \
+          --results-directory "$CI_PROJECT_DIR/TestResults" \
+          --logger "junit;LogFileName={assembly}.junit.xml" \
+          --logger "trx;LogFileName={assembly}.trx"
+      done
+    - *verify_results
+
+# Integration tests exercise the real deployed OpenEMR (FHIR/OAuth/SMART) in the
+# single Railway "development" environment - per ENGINEERING_STANDARDS.md §8.2 /
+# tests/AGENTS.md, nothing here is mocked and there is no throwaway service container:
+# the sidecar talks to OpenEMR only over FHIR (ARCHITECTURE.md - FHIR-first, no direct
+# DB access in v1), so the target is a stable URL, not a fresh MySQL instance per run.
+#
+# Endpoint + OAuth client + test-fixture config is supplied via protected/masked GitLab
+# CI/CD variables (Options-pattern env vars the fixtures read directly):
+#   OpenEmrQa__BaseUrl, OpenEmrQa__Site, OpenEmrQa__TestPatientId,
+#   OpenEmrQa__TestAccessToken, LlmQa__ApiKey, LlmQa__Model
+# (see documentation/RAILWAY.md). The fixtures throw on startup if these are missing,
+# which is intentional - a meaningful check, not an unconditional 200 (NFR-REL-2).
+#
+# The `rules` below gate the job on OpenEmrQa__BaseUrl: until that variable is set the
+# job is simply not added to the pipeline (keeping the pipeline green), and it activates
+# automatically once the QA variables are configured. Set OpenEmrQa__BaseUrl last.
+integration-tests:
+  <<: *test_template
+  rules:
+    - if: '$OpenEmrQa__BaseUrl'
+  script:
+    - |
+      set -e
+      projects=$(find . -type f -name "$INTEGRATION_TEST_PATTERN" -not -path "*/bin/*" -not -path "*/obj/*")
+      if [ -z "$projects" ]; then
+        echo "No integration test projects matched '$INTEGRATION_TEST_PATTERN'. Fix INTEGRATION_TEST_PATTERN in .gitlab-ci.yml."
+        exit 1
+      fi
+      for proj in $projects; do
+        echo "dotnet restore $proj"
+        dotnet restore "$proj"
+        echo "dotnet test $proj"
+        dotnet test "$proj" --no-build -c $BUILD_CONFIG \
+          --results-directory "$CI_PROJECT_DIR/TestResults" \
+          --logger "junit;LogFileName={assembly}.junit.xml" \
+          --logger "trx;LogFileName={assembly}.trx"
+      done
+    - *verify_results

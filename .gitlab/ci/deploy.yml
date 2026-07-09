@@ -1,0 +1,40 @@
+# -----------------------------------------------------------------------------
+# DEPLOY stage — Railway deployment via `railway up`.
+#
+# Single-environment model: everything runs in the Railway "development"
+# environment (project lucid-clarity). Merges to main build and deploy the API
+# there; integration tests run against that same environment's OpenEMR.
+#
+# Railway has no native GitLab integration, so CI pushes code using the official
+# CLI image, authenticated with an environment-scoped Railway *project token*
+# supplied as a protected/masked GitLab CI variable:
+#
+#   RAILWAY_TOKEN_DEV — project token scoped to the "development" environment
+#
+# Create it in Railway: Project Settings > Tokens > New Token (pick the
+# development environment). Add it in GitLab: Settings > CI/CD > Variables
+# (masked, protected). The token selects project + environment; --service picks
+# the target service. Railway builds the repo's Dockerfile server-side.
+#
+# `railway up --ci` streams build logs and exits non-zero on build/deploy
+# failure, so a red job means the deploy did not go out.
+# -----------------------------------------------------------------------------
+
+deploy:
+  stage: deploy
+  image:
+    name: ghcr.io/railwayapp/cli:latest
+    entrypoint: [""]
+  interruptible: false
+  variables:
+    GIT_DEPTH: "1"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  environment:
+    name: development
+    url: https://agent-forge-api-development.up.railway.app
+  before_script:
+    - railway --version
+  script:
+    - export RAILWAY_TOKEN="$RAILWAY_TOKEN_DEV"
+    - railway up --service agent-forge-api --ci

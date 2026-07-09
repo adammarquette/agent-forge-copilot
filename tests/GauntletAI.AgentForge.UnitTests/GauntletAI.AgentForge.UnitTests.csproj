@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- CA1707 (no underscores) conflicts with the mandated Method_State_ExpectedResult
+         test-naming convention (ENGINEERING_STANDARDS.md §8). -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="JunitXml.TestLogger" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ISession and other ASP.NET Core abstractions for testing the BFF (Epic 3) -
+         part of the shared framework, not a NuGet package, for a non-Sdk.Web project. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Integration.OpenEmr\GauntletAI.AgentForge.Integration.OpenEmr.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Llm\GauntletAI.AgentForge.Llm.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Mcp\GauntletAI.AgentForge.Mcp.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Observability\GauntletAI.AgentForge.Observability.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Agent\GauntletAI.AgentForge.Agent.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Api\GauntletAI.AgentForge.Api.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Verification\GauntletAI.AgentForge.Verification.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

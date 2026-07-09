@@ -1,0 +1,14 @@
+# -----------------------------------------------------------------------------
+# BUILD stage — restore + compile once, hand output to the test jobs.
+# -----------------------------------------------------------------------------
+build:
+  stage: build
+  script:
+    - dotnet restore $SOLUTION
+    - dotnet build $SOLUTION --no-restore -c $BUILD_CONFIG
+  artifacts:
+    # Hand the compiled output to the test jobs so they can use --no-build.
+    paths:
+      - "**/bin/"
+      - "**/obj/"
+    expire_in: 2 hours

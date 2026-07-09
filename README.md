@@ -30,6 +30,19 @@ For the full picture, read the docs below in order.
 
 ---
 
+## Live demo
+
+A running OpenEMR instance (synthetic data only) is deployed on Railway — see [Deployment](#deployment):
+
+**[openemr-uubp-development.up.railway.app](https://openemr-uubp-development.up.railway.app)**
+
+| | |
+|---|---|
+| Username | `admin` |
+| Password | `P@ssw0rd1` |
+
+---
+
 ## Where to find things
 
 | Path | What's there |

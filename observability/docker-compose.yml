@@ -1,0 +1,35 @@
+# Self-hosted observability stack (Epic 9 - ARCHITECTURE.md §11): Prometheus scrapes the sidecar's
+# /metrics endpoint (OpenTelemetry's Prometheus exporter, wired in Program.cs); Grafana reads from
+# Prometheus and is pre-provisioned with the AgentForge dashboard and alert rules below. This
+# compose file stands up the observability *backend* only - run the sidecar itself separately
+# (`dotnet run` from src/GauntletAI.AgentForge.Api, or its own container).
+#
+# Usage: docker compose -f observability/docker-compose.yml up
+#   Grafana:    http://localhost:3000  (admin/admin - change on first login)
+#   Prometheus: http://localhost:9090
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: agentforge-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts/agentforge-alerts.yml:/etc/prometheus/alerts/agentforge-alerts.yml:ro
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      # Lets the container reach the sidecar running on the host via `dotnet run`. Docker Desktop
+      # (Windows/Mac) resolves host.docker.internal automatically; this line makes it explicit and
+      # also works on Linux.
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: agentforge-grafana
+    depends_on:
+      - prometheus
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"

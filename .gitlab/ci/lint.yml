@@ -1,0 +1,42 @@
+# -----------------------------------------------------------------------------
+# LINT stage - style/format gate + third-party license gate (ENGINEERING_STANDARDS.md §10).
+# Runs before build so a style or license violation fails fast.
+# -----------------------------------------------------------------------------
+
+format:
+  stage: lint
+  script:
+    - dotnet format $SOLUTION --verify-no-changes
+
+# Fails the pipeline if any dependency (direct or transitive) resolves to a license
+# outside .gitlab/ci/allowed-licenses.json - catches a restrictive-license bump before
+# it merges (ENGINEERING_STANDARDS.md §2, the FluentAssertions v8 commercial-license note).
+#
+# --use-project-assets-json reads the resolved project.assets.json. Central Package
+# Management leaves PackageReference elements without a Version attribute, which this tool
+# cannot resolve from the csproj alone, so the job runs its own `dotnet restore` first to
+# populate project.assets.json. It intentionally does NOT `needs: [build]` - build is in a
+# later stage, so a cross-stage need is invalid; restoring here also keeps the license gate
+# failing fast in the lint stage before build runs.
+#
+# .gitlab/ci/license-packages-filter.json narrowly exempts xunit.abstractions: it is
+# genuinely Apache-2.0 (same as the rest of the xunit project) but its NuGet package
+# metadata has no machine-readable license tag, only a LicenseUrl - a known metadata gap,
+# not a license risk. Extend that file only for the same kind of verified false positive.
+license-scan:
+  stage: lint
+  script:
+    - dotnet restore $SOLUTION
+    - dotnet tool install --global dotnet-project-licenses
+    - export PATH="$PATH:$HOME/.dotnet/tools"
+    - export DOTNET_ROLL_FORWARD=LatestMajor
+    - |
+      dotnet-project-licenses -i . --use-project-assets-json -t \
+        --allowed-license-types .gitlab/ci/allowed-licenses.json \
+        --packages-filter .gitlab/ci/license-packages-filter.json \
+        --json --outfile licenses-report.json -l Warning
+  artifacts:
+    when: always
+    paths:
+      - licenses-report.json
+    expire_in: 1 week

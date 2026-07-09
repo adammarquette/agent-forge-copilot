@@ -1,0 +1,72 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Typed OpenEMR FHIR/REST clients (ENGINEERING_STANDARDS.md §2) -->
+    <PackageVersion Include="Refit" Version="13.1.0" />
+    <PackageVersion Include="Refit.HttpClientFactory" Version="13.1.0" />
+
+    <!-- Streaming the fast-core-then-defer answer to the iFrame SPA -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.9" />
+
+    <!-- In-process real host for the BFF's own integration tests (Epic 3 QA) -->
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.9" />
+
+    <!-- Transient-fault handling on every outbound OpenEMR/LLM call -->
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.7.0" />
+
+    <!-- Strongly-typed configuration (Options pattern) -->
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.9" />
+
+    <!-- ILogger abstraction, no hard dependency on a concrete provider -->
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
+
+    <!--
+      OpenTelemetry (Epic 9 - ARCHITECTURE.md §11 / ENGINEERING_STANDARDS.md §7): traces/metrics,
+      never a hard dependency on a specific backend. Prometheus.AspNetCore has stayed in beta
+      upstream for years (spec churn, not instability) - this is the accepted, standard way to
+      expose a /metrics scrape endpoint from an ASP.NET Core app; there is no stable release to
+      pin to instead.
+    -->
+    <PackageVersion Include="OpenTelemetry" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.16.0-beta.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.16.0" />
+
+    <!-- Composition root plumbing for the integration test host (real HttpClient, real config
+         binding from environment variables - never hard-coded QA credentials/URLs) -->
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.9" />
+
+    <!-- Test infrastructure (both test projects) -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
+
+    <!-- JUnit XML test reports so failed tests surface inline in the MR (CI-SETUP.md §5) -->
+    <PackageVersion Include="JunitXml.TestLogger" Version="8.0.0" />
+
+    <!-- Mocking (unit tier only, per ENGINEERING_STANDARDS.md §8.1) -->
+    <PackageVersion Include="FakeItEasy" Version="9.0.1" />
+
+    <!--
+      FluentAssertions: pinned below 8.0.0. v8+ (Jan 2025) is commercially licensed
+      ($130/dev/yr); 7.x and earlier remain Apache-2.0. Do not raise this floor without
+      confirming license terms (ENGINEERING_STANDARDS.md §2).
+    -->
+    <PackageVersion Include="FluentAssertions" Version="7.2.2" />
+  </ItemGroup>
+
+</Project>

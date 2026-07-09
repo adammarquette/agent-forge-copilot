@@ -1,0 +1,20 @@
+meta {
+  name: Liveness (/health)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/health
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  Liveness only - the process is up and serving. Never checks OpenEMR/LLM/observability
+  reachability, so it must stay 200 even if a downstream dependency is down (that's /ready's job).
+}

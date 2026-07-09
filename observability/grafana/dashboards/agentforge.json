@@ -1,0 +1,157 @@
+{
+  "title": "AgentForge Clinical Co-Pilot",
+  "uid": "agentforge",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Agent Turn Rate",
+      "description": "Completed agent turns/sec (this app's traffic unit - SignalR hub invocations, not classic HTTP requests). ARCHITECTURE.md §11's 'request count'.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (outcome) (rate(agentforge_agent_turns_total[5m]))",
+          "legendFormat": "{{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Agent Turn Error Rate",
+      "description": "Fraction of agent turns that threw (see AgentForgeHighTurnErrorRate alert).",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(agentforge_agent_turns_total{outcome=\"failure\"}[5m])) / sum(rate(agentforge_agent_turns_total[5m]))",
+          "legendFormat": "error rate"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Agent Turn Latency (p50 / p95)",
+      "description": "Wall-clock duration of one agent turn (see AgentForgeHighTurnLatencyP95 alert).",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(agentforge_agent_turn_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(agentforge_agent_turn_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Tool Call Rate by Tool",
+      "description": "MCP tool calls dispatched/sec, by tool name.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (tool) (rate(agentforge_tool_calls_total[5m]))",
+          "legendFormat": "{{tool}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Tool Call Failure Rate by Tool",
+      "description": "Fraction of calls failing, per tool (see AgentForgeHighToolFailureRate alert).",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (tool) (rate(agentforge_tool_calls_total{outcome=\"failure\"}[5m])) / sum by (tool) (rate(agentforge_tool_calls_total[5m]))",
+          "legendFormat": "{{tool}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Verification Pass/Fail Rate",
+      "description": "FR-VERIF-0 gate outcomes (see AgentForgeElevatedVerificationFailureRate alert). Suppressed content never ships - a rising fail rate is a product-quality signal, not an outage.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (outcome) (rate(agentforge_verification_results_total[5m]))",
+          "legendFormat": "{{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "LLM Tokens/sec by Direction",
+      "description": "Input vs. output token throughput (FR-OBS-2).",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 16, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (direction) (rate(agentforge_llm_tokens_total[5m]))",
+          "legendFormat": "{{direction}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "LLM Cost Rate (USD/sec)",
+      "description": "Estimated spend rate from LlmUsage.EstimatedCostUsd.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 8, "y": 16, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(agentforge_llm_cost_usd_total[5m]))",
+          "legendFormat": "cost/sec"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Resilience (Polly) - retries & pipeline events, raw",
+      "description": "Microsoft.Extensions.Http.Resilience's own telemetry (Program.cs subscribes the 'Polly' meter) - raw table rather than a specific metric name, since the exact Prometheus-exported name for a given Polly/OTel SDK version is best confirmed live rather than hard-coded here.",
+      "type": "table",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 16, "y": 16, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "{otel_scope_name=\"Polly\"}",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    }
+  ]
+}

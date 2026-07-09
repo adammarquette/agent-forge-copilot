@@ -1,0 +1,24 @@
+meta {
+  name: Chat Hub Negotiate (/hubs/chat/negotiate)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/hubs/chat/negotiate
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.connectionId: isString
+}
+
+docs {
+  SignalR's connection-establishment handshake for the real-time chat hub (ARCHITECTURE.md D11).
+  Returns a connectionId and the available transports (WebSockets, Server-Sent Events, Long
+  Polling) - the chat protocol itself is WebSocket-based, not REST, so this negotiate call is as
+  far as a plain HTTP collection can exercise the hub without a SignalR-aware client; it still
+  proves the hub is mapped and reachable.
+}
