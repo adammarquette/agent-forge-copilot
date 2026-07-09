@@ -5,11 +5,12 @@ using Refit;
 var baseUrl = Environment.GetEnvironmentVariable("MintToken__BaseUrl") ?? "https://openemr-uubp-development.up.railway.app";
 var site = Environment.GetEnvironmentVariable("MintToken__Site") ?? "default";
 var identityAPatientUuid = Environment.GetEnvironmentVariable("OpenEmrQa__TestPatientId");
+var identityBPatientUuid = Environment.GetEnvironmentVariable("OpenEmrQa__SecondTestPatientId");
 
-Console.WriteLine($"Minting a second, patient-scoped QA identity token against {baseUrl} (site: {site}).");
-Console.WriteLine("This is identity B for GitLab issue #27 (CrossIdentityAuthorizationTests): a real,");
-Console.WriteLine("distinct SMART standalone-launch login, scoped to whichever patient you select/log in");
-Console.WriteLine("as during the browser step below.");
+Console.WriteLine($"Minting a patient-scoped QA identity token against {baseUrl} (site: {site}).");
+Console.WriteLine("For GitLab issue #27 (CrossIdentityAuthorizationTests): a real, SMART standalone-launch");
+Console.WriteLine("login, scoped to whichever patient you select/log in as during the browser step below.");
+Console.WriteLine("Log in as Ada Testpatient for identity A, or any other patient for identity B.");
 
 using var authHttpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
 var authApi = RestService.For<IOpenEmrAuthApi>(authHttpClient);
@@ -51,21 +52,32 @@ using var http = new HttpClient();
 var canReadOwnPatient = await FhirPatientProbe.CanReadAsync(http, baseUrl, site, token.AccessToken, token.Patient);
 Console.WriteLine($"Self-check      - can read its own patient ({token.Patient}): {(canReadOwnPatient ? "OK" : "FAILED")}");
 
-if (!string.IsNullOrWhiteSpace(identityAPatientUuid) &&
-    !string.Equals(identityAPatientUuid, token.Patient, StringComparison.OrdinalIgnoreCase))
+var isIdentityA = !string.IsNullOrWhiteSpace(identityAPatientUuid) &&
+    string.Equals(identityAPatientUuid, token.Patient, StringComparison.OrdinalIgnoreCase);
+var otherPatientUuid = isIdentityA ? identityBPatientUuid : identityAPatientUuid;
+var otherPatientLabel = isIdentityA ? "identity B's" : "identity A's";
+
+if (!string.IsNullOrWhiteSpace(otherPatientUuid))
 {
-    var canReadIdentityA = await FhirPatientProbe.CanReadAsync(http, baseUrl, site, token.AccessToken, identityAPatientUuid);
+    var canReadOtherPatient = await FhirPatientProbe.CanReadAsync(http, baseUrl, site, token.AccessToken, otherPatientUuid);
     Console.WriteLine(
-        $"Isolation check - blocked from identity A's patient ({identityAPatientUuid}): " +
-        $"{(canReadIdentityA ? "FAILED (leaked!)" : "OK (blocked)")}");
+        $"Isolation check - blocked from {otherPatientLabel} patient ({otherPatientUuid}): " +
+        $"{(canReadOtherPatient ? "FAILED (leaked!)" : "OK (blocked)")}");
 }
 else
 {
-    Console.WriteLine("Isolation check skipped - set OpenEmrQa__TestPatientId in the environment to also");
-    Console.WriteLine("verify this token cannot read identity A's patient before wiring it into CI.");
+    Console.WriteLine("Isolation check skipped - set OpenEmrQa__TestPatientId and/or OpenEmrQa__SecondTestPatientId");
+    Console.WriteLine("in the environment to also verify this token cannot read the other identity's patient.");
 }
 
 Console.WriteLine();
 Console.WriteLine("=== Paste into GitLab (Settings -> CI/CD -> Variables, protected + masked) ===");
-Console.WriteLine($"OpenEmrQa__SecondTestAccessToken = {token.AccessToken}");
-Console.WriteLine($"OpenEmrQa__SecondTestPatientId   = {token.Patient}");
+if (isIdentityA)
+{
+    Console.WriteLine($"OpenEmrQa__CrossIdentityTestAccessTokenA = {token.AccessToken}");
+}
+else
+{
+    Console.WriteLine($"OpenEmrQa__SecondTestAccessToken = {token.AccessToken}");
+    Console.WriteLine($"OpenEmrQa__SecondTestPatientId   = {token.Patient}");
+}
