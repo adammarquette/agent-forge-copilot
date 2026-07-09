@@ -73,7 +73,8 @@ public sealed class SmartLaunchService(
 
         // FR-AUTH-4: every patient-data access must be attributable to who made it. A session with
         // no clinician identity could never be audited, so it must not be allowed to start.
-        var introspection = await authClient.IntrospectAsync(options.Site, token.AccessToken, cancellationToken)
+        var introspection = await authClient.IntrospectAsync(
+                options.Site, token.AccessToken, options.ClientId, options.ClientSecret, cancellationToken)
             .ConfigureAwait(false);
         if (string.IsNullOrEmpty(introspection.Subject))
         {

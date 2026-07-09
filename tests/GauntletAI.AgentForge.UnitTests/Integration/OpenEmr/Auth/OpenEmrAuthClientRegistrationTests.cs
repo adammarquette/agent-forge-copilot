@@ -29,7 +29,7 @@ public sealed class OpenEmrAuthClientRegistrationTests
         captured.RedirectUris.Should().Equal("https://sidecar.example.org/callback");
         captured.GrantTypes.Should().Equal("authorization_code", "refresh_token");
         captured.ResponseTypes.Should().Equal("code");
-        captured.TokenEndpointAuthMethod.Should().Be("none");
+        captured.TokenEndpointAuthMethod.Should().Be("client_secret_post");
         captured.Scope.Should().Be("launch patient/patient.read openid fhirUser");
     }
 
