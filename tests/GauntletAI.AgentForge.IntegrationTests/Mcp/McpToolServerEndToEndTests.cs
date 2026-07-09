@@ -8,6 +8,7 @@ namespace GauntletAI.AgentForge.IntegrationTests.Mcp;
 /// the actual contract-drift and source-attribution coverage a unit test faking
 /// IOpenEmrFhirClient can't provide. Per tests/AGENTS.md, nothing here is mocked.
 /// </summary>
+[Trait("Metric", "M1-Groundedness")]
 public sealed class McpToolServerEndToEndTests : IClassFixture<McpToolServerQaFixture>
 {
     private readonly McpToolServerQaFixture _fixture;

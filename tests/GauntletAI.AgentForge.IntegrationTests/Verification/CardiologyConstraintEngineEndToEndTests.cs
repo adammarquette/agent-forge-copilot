@@ -10,6 +10,7 @@ namespace GauntletAI.AgentForge.IntegrationTests.Verification;
 /// "INR" fixture can't prove: that the rule's keyword match actually recognizes how this specific
 /// FHIR deployment labels the observation, not just how we assumed it would.
 /// </summary>
+[Trait("Metric", "M2-ConstraintRecall")]
 public sealed class CardiologyConstraintEngineEndToEndTests : IClassFixture<VerificationQaFixture>
 {
     private readonly VerificationQaFixture _fixture;

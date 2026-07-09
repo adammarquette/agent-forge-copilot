@@ -16,6 +16,7 @@ namespace GauntletAI.AgentForge.IntegrationTests.Mcp;
 /// proves the message format itself survives being read back by something that isn't the same code
 /// that wrote it, which is the entire point of an audit trail (tests/AGENTS.md).
 /// </summary>
+[Trait("Metric", "M3-AuthorizationIntegrity")]
 public sealed class AccessAuditTrailReconstructionTests : IClassFixture<McpToolServerQaFixture>, IDisposable
 {
     private static readonly Regex AuditLinePattern = new(

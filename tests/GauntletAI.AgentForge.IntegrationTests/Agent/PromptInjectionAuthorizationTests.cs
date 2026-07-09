@@ -23,6 +23,7 @@ namespace GauntletAI.AgentForge.IntegrationTests.Agent;
 /// under test is mocked here except the argument itself, which is standing in for a compromised or
 /// jailbroken model's output).
 /// </summary>
+[Trait("Metric", "M3-AuthorizationIntegrity")]
 public sealed class PromptInjectionAuthorizationTests : IClassFixture<McpToolServerQaFixture>, IDisposable
 {
     private static readonly JsonSerializerOptions DeserializeOptions = new() { PropertyNameCaseInsensitive = true };
