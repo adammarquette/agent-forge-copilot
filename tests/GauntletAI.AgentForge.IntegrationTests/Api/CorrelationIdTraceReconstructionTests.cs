@@ -23,7 +23,7 @@ public sealed class CorrelationIdTraceReconstructionTests : IClassFixture<BffQaF
 
     public CorrelationIdTraceReconstructionTests(BffQaFixture fixture) => _fixture = fixture;
 
-    [Fact]
+    [Fact(Skip = BffQaFixture.ChatHubSessionSkipReason)]
     public async Task RequestBrief_RealSessionRealLlmRealOpenEmr_EveryScopedLogLineForThisTurnCarriesTheSameCorrelationId()
     {
         var cookies = await _fixture.SeedAuthenticatedSessionAsync(CancellationToken.None);

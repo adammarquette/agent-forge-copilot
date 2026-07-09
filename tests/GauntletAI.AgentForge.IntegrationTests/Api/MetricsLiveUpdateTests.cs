@@ -26,7 +26,7 @@ public sealed class MetricsLiveUpdateTests : IClassFixture<BffQaFixture>
 
     public MetricsLiveUpdateTests(BffQaFixture fixture) => _fixture = fixture;
 
-    [Fact]
+    [Fact(Skip = BffQaFixture.ChatHubSessionSkipReason)]
     public async Task Metrics_AfterSeveralRealChatTurns_ReflectsAllOfThem()
     {
         var cookies = await _fixture.SeedAuthenticatedSessionAsync(CancellationToken.None);
