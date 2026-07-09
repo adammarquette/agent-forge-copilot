@@ -6,6 +6,7 @@ stages:
   - build
   - test
   - deploy
+  - verify
 
 variables:
   SOLUTION: "GauntletAI.AgentForge.slnx"
@@ -50,3 +51,4 @@ include:
   - local: ".gitlab/ci/build.yml"
   - local: ".gitlab/ci/test.yml"
   - local: ".gitlab/ci/deploy.yml"
+  - local: ".gitlab/ci/verify.yml"
