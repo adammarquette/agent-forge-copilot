@@ -92,6 +92,37 @@ public sealed class OpenEmrQaFixture
                 .GetAwaiter().GetResult();
         }
 
+        var crossIdentityClientId = section["CrossIdentityClientId"];
+        var crossIdentityClientSecret = section["CrossIdentityClientSecret"];
+        var crossIdentityRefreshTokenA = section["CrossIdentityRefreshTokenA"];
+        var crossIdentityRefreshTokenB = section["CrossIdentityRefreshTokenB"];
+
+        var crossIdentityAccessTokenA = section["CrossIdentityTestAccessTokenA"];
+        var secondTestAccessToken = section["SecondTestAccessToken"];
+        if (!string.IsNullOrWhiteSpace(crossIdentityClientId))
+        {
+            // refresh_token (GitLab issue #29) supersedes a static, manually-minted access token for
+            // either identity - unlike the system_credentials mint above, this is a real
+            // production-shaped grant (IOpenEmrAuthClient.RefreshAccessTokenAsync), just redeemed here
+            // instead of through an interactive browser login every time the ~1hr access token expires.
+            var refreshAuthHttpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            var refreshAuthClient = new OpenEmrAuthClient(RestService.For<IOpenEmrAuthApi>(refreshAuthHttpClient));
+
+            if (!string.IsNullOrWhiteSpace(crossIdentityRefreshTokenA))
+            {
+                crossIdentityAccessTokenA = refreshAuthClient.RefreshAccessTokenAsync(
+                        site, crossIdentityRefreshTokenA, crossIdentityClientId, crossIdentityClientSecret, CancellationToken.None)
+                    .GetAwaiter().GetResult().AccessToken;
+            }
+
+            if (!string.IsNullOrWhiteSpace(crossIdentityRefreshTokenB))
+            {
+                secondTestAccessToken = refreshAuthClient.RefreshAccessTokenAsync(
+                        site, crossIdentityRefreshTokenB, crossIdentityClientId, crossIdentityClientSecret, CancellationToken.None)
+                    .GetAwaiter().GetResult().AccessToken;
+            }
+        }
+
         Options = new QaOpenEmrOptions
         {
             BaseUrl = baseUrl,
@@ -100,9 +131,13 @@ public sealed class OpenEmrQaFixture
             TestPatientId = section["TestPatientId"],
             TestClientId = section["TestClientId"],
             TestClientSecret = section["TestClientSecret"],
-            SecondTestAccessToken = section["SecondTestAccessToken"],
+            SecondTestAccessToken = secondTestAccessToken,
             SecondTestPatientId = section["SecondTestPatientId"],
-            CrossIdentityTestAccessTokenA = section["CrossIdentityTestAccessTokenA"],
+            CrossIdentityTestAccessTokenA = crossIdentityAccessTokenA,
+            CrossIdentityClientId = crossIdentityClientId,
+            CrossIdentityClientSecret = crossIdentityClientSecret,
+            CrossIdentityRefreshTokenA = crossIdentityRefreshTokenA,
+            CrossIdentityRefreshTokenB = crossIdentityRefreshTokenB,
             SystemClientId = systemClientId,
             SystemPrivateKeyPath = systemPrivateKeyPath,
             SystemKeyId = systemKeyId,
