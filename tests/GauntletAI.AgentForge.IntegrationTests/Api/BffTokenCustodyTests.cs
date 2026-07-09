@@ -18,7 +18,7 @@ public sealed class BffTokenCustodyTests : IClassFixture<BffQaFixture>
 
     public BffTokenCustodyTests(BffQaFixture fixture) => _fixture = fixture;
 
-    [Fact]
+    [Fact(Skip = BffQaFixture.ChatHubSessionSkipReason)]
     public async Task RequestBrief_RealSessionRealLlmRealOpenEmr_DeliversAnswerWithNoBearerTokenInPayloadOrLogs()
     {
         var cookies = await _fixture.SeedAuthenticatedSessionAsync(CancellationToken.None);

@@ -38,9 +38,13 @@ public sealed class AnthropicLlmProviderEndToEndTests : IClassFixture<AnthropicQ
         // (AnthropicRequestMapper) and our ability to parse a real tool_use content block back
         // out (AnthropicResponseMapper) - a unit test faking IAnthropicMessagesApi can't tell us
         // whether the live API actually accepts the shape we're sending.
+        // The tool schema requires patientId, so the prompt must supply one - otherwise the model
+        // has no way to satisfy a required parameter and reasonably asks a clarifying question
+        // instead of calling the tool (observed live: this was the actual source of flakiness
+        // here, not a real API/schema-tolerance problem).
         var request = new LlmRequest(
             SystemPrompt: "When asked about a patient's labs, you must call get_labs. Do not answer from your own knowledge.",
-            Messages: [LlmMessage.FromText(LlmRole.User, "What is the patient's most recent INR?")],
+            Messages: [LlmMessage.FromText(LlmRole.User, "What is the most recent INR for patient P12345?")],
             Tools:
             [
                 new LlmToolDefinition(

@@ -17,7 +17,10 @@ public sealed class CardiologyConstraintEngineEndToEndTests : IClassFixture<Veri
 
     public CardiologyConstraintEngineEndToEndTests(VerificationQaFixture fixture) => _fixture = fixture;
 
-    [Fact]
+    [Fact(Skip =
+        "QA test patient (Ada Testpatient) has no INR lab Observation on file - issue #26. The test's whole " +
+        "point is proving the rule matches this deployment's real CodeDisplay text, so there's no meaningful " +
+        "way to relax the assertion; it needs an actual INR lab seeded into QA OpenEMR to mean anything.")]
     public async Task Evaluate_RealInrLabForcedOutOfRange_FiresUsingTheLabsOwnRealCodeDisplayAndSource()
     {
         // The "seeded violation" here is forcing the *value* of a real, fetched lab out of range

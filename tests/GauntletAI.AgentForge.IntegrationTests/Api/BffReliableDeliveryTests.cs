@@ -17,7 +17,7 @@ public sealed class BffReliableDeliveryTests : IClassFixture<BffQaFixture>
 
     public BffReliableDeliveryTests(BffQaFixture fixture) => _fixture = fixture;
 
-    [Fact]
+    [Fact(Skip = BffQaFixture.ChatHubSessionSkipReason)]
     public async Task Reconnect_NewConnectionSameSession_ResumeReturnsMessageSentToThePriorConnection()
     {
         var cookies = await _fixture.SeedAuthenticatedSessionAsync(CancellationToken.None);
@@ -47,7 +47,7 @@ public sealed class BffReliableDeliveryTests : IClassFixture<BffQaFixture>
             "a reconnect on the same session must be able to replay a message sent to the prior, now-dead connection");
     }
 
-    [Fact]
+    [Fact(Skip = BffQaFixture.ChatHubSessionSkipReason)]
     public async Task Resume_CalledAgainWithTheSequenceAlreadySeen_ReturnsNothingNewTheSecondTime()
     {
         var cookies = await _fixture.SeedAuthenticatedSessionAsync(CancellationToken.None);

@@ -86,9 +86,13 @@ public sealed class McpToolServerEndToEndTests : IClassFixture<McpToolServerQaFi
 
         // Guards that the real server actually honors the date search param the way
         // INTERFACE_CONTROL.md's [CONFIRM] note flags as unverified - a mocked unit test can only
-        // prove we sent the right parameter, not that OpenEMR applied it correctly.
-        result.NewLabs.Should().OnlyContain(
-            lab => lab.EffectiveDateTime == null || lab.EffectiveDateTime >= sinceDate,
+        // prove we sent the right parameter, not that OpenEMR applied it correctly. NotContain
+        // (rather than OnlyContain, which FluentAssertions fails on an empty collection) so this
+        // tolerates the QA test patient having no labs in range at all (tests/AGENTS.md - graceful
+        // handling of the demo data's known gaps, issue #26) while still catching a real violation:
+        // any returned lab whose date predates the filter.
+        result.NewLabs.Should().NotContain(
+            lab => lab.EffectiveDateTime != null && lab.EffectiveDateTime < sinceDate,
             "the server was asked to filter to {0} and onward", sinceDateFilter);
     }
 }
