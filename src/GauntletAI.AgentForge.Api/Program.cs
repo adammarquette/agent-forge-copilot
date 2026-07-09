@@ -61,7 +61,9 @@ builder.Services.AddTransient<AnthropicAuthHandler>();
 
 builder.Services.AddRefitClient<IOpenEmrAuthApi>()
     .ConfigureHttpClient((sp, client) =>
-        client.BaseAddress = new Uri(sp.GetRequiredService<IOptions<OpenEmrOptions>>().Value.BaseUrl));
+        client.BaseAddress = new Uri(sp.GetRequiredService<IOptions<OpenEmrOptions>>().Value.BaseUrl))
+    .AddHttpMessageHandler<CorrelationIdHandler>()
+    .AddStandardResilienceHandler();
 
 builder.Services.AddRefitClient<IOpenEmrFhirApi>()
     .ConfigureHttpClient((sp, client) =>
