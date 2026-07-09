@@ -1,0 +1,19 @@
+meta {
+  name: Readiness (/ready)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/ready
+  body: none
+  auth: none
+}
+
+docs {
+  Real dependency checks (OpenEMR FHIR /metadata, the LLM provider base URL, the observability
+  backend) - PRD.md §13.1's "Dependency down" row. 200 when every dependency is reachable, 503
+  when any one is down (NFR-HEALTH-1). No status assertion here since the expected result
+  legitimately depends on whether the environment's dependencies are actually up when this runs -
+  see HealthEndpointReadinessTests for the automated fault-injection version of this check.
+}

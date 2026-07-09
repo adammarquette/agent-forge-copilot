@@ -8,6 +8,7 @@ namespace GauntletAI.AgentForge.IntegrationTests.Api;
 /// still succeeds" - proven against a real, deliberately unreachable OpenEMR (tests/AGENTS.md,
 /// nothing mocked), not a fake health check result.
 /// </summary>
+[Trait("Metric", "M5-Degradation")]
 public sealed class HealthEndpointReadinessTests : IClassFixture<HealthEndpointQaFixture>
 {
     private readonly HealthEndpointQaFixture _fixture;

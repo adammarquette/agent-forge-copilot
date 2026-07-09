@@ -1,0 +1,27 @@
+meta {
+  name: SMART Launch Redirect (/launch)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/launch?launch=demo-launch-token&iss=https://example-openemr.invalid
+  body: none
+  auth: none
+}
+
+settings {
+  followRedirects: false
+}
+
+assert {
+  res.status: eq 302
+}
+
+docs {
+  Starts the SMART EHR launch flow (INTERFACE_CONTROL.md A.3). iss/launch are accepted but not
+  required to trigger the redirect - the sidecar targets one fixed, configured OpenEMR deployment
+  in v1, so `iss` is present per spec but not used for connection selection. Expects a 302 to the
+  configured OpenEMR's /authorize endpoint; disable redirect-following to see the raw response
+  rather than transparently landing on OpenEMR's real login page.
+}

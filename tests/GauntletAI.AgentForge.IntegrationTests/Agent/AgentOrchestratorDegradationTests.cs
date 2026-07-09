@@ -10,6 +10,7 @@ namespace GauntletAI.AgentForge.IntegrationTests.Agent;
 /// client (a genuine <c>Refit.ApiException</c>, real network cancellation timing) actually reaches
 /// that logic the way the unit tests assume. Nothing here is mocked (tests/AGENTS.md).
 /// </summary>
+[Trait("Metric", "M5-Degradation")]
 public sealed class AgentOrchestratorDegradationTests : IClassFixture<AgentOrchestratorQaFixture>
 {
     private readonly AgentOrchestratorQaFixture _fixture;

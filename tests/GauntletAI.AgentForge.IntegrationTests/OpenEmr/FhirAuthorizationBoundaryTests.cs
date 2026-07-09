@@ -11,6 +11,7 @@ namespace GauntletAI.AgentForge.IntegrationTests.OpenEmr;
 /// (later epics) add role/relationship checks on top, but the FHIR server itself refusing an
 /// unauthenticated read is the foundation everything else stands on.
 /// </summary>
+[Trait("Metric", "M3-AuthorizationIntegrity")]
 public sealed class FhirAuthorizationBoundaryTests : IClassFixture<OpenEmrQaFixture>
 {
     private readonly OpenEmrQaFixture _fixture;

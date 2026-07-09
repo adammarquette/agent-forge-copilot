@@ -11,6 +11,7 @@ namespace GauntletAI.AgentForge.IntegrationTests.Api;
 /// token never appears in anything the browser can see (ARCHITECTURE.md D11), across the actual
 /// wire format the hub sends and the actual log lines the running host writes.
 /// </summary>
+[Trait("Metric", "M3-AuthorizationIntegrity")]
 public sealed class BffTokenCustodyTests : IClassFixture<BffQaFixture>
 {
     private readonly BffQaFixture _fixture;

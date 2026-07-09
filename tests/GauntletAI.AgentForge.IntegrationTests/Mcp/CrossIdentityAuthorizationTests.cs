@@ -16,6 +16,7 @@ namespace GauntletAI.AgentForge.IntegrationTests.Mcp;
 /// honors them. This is the one place in the suite that can actually confirm or refute the
 /// PROVISIONAL note.
 /// </summary>
+[Trait("Metric", "M3-AuthorizationIntegrity")]
 public sealed class CrossIdentityAuthorizationTests : IClassFixture<CrossIdentityAuthorizationQaFixture>
 {
     private readonly CrossIdentityAuthorizationQaFixture _fixture;

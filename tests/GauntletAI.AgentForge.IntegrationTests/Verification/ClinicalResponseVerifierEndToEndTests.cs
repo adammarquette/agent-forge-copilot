@@ -13,6 +13,7 @@ namespace GauntletAI.AgentForge.IntegrationTests.Verification;
 /// <see cref="McpToolServer"/>'s real results actually serialize to, and do real FHIR field values
 /// (ids, CodeDisplay text) actually resolve/match the way the engines expect.
 /// </summary>
+[Trait("Metric", "M1-Groundedness")]
 public sealed class ClinicalResponseVerifierEndToEndTests : IClassFixture<VerificationQaFixture>
 {
     private static readonly JsonSerializerOptions SerializeOptions = new() { PropertyNameCaseInsensitive = true };
