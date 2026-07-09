@@ -70,5 +70,6 @@ public sealed class ChatSessionCoordinator(
     private static ChatAnswerPayload ToPayload(AgentTurnResult result) => new(
         result.Answer,
         [.. result.SafetyFlags.Select(f => new SafetyFlagPayload(f.RuleId, f.Description, [.. f.Sources.Select(s => s.Citation)]))],
-        [.. result.SuppressedClaims.Select(c => new SuppressedClaimPayload(c.Line, c.Reason))]);
+        [.. result.SuppressedClaims.Select(c => new SuppressedClaimPayload(c.Line, c.Reason))],
+        result.IsDeterministicFallback);
 }

@@ -6,6 +6,7 @@ using GauntletAI.AgentForge.Mcp;
 using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace GauntletAI.AgentForge.IntegrationTests.Agent;
 
@@ -54,6 +55,8 @@ public sealed class AgentOrchestratorQaFixture
             new CardiologyConstraintEngine(CardiologyConstraintRules.Default),
             NullLogger<ClinicalResponseVerifier>.Instance);
 
-        Orchestrator = new AgentOrchestrator(llm.Provider, dispatcher, verifier, metrics, NullLogger<AgentOrchestrator>.Instance);
+        Orchestrator = new AgentOrchestrator(
+            llm.Provider, dispatcher, verifier, metrics,
+            Options.Create(new AgentOptions()), NullLogger<AgentOrchestrator>.Instance);
     }
 }

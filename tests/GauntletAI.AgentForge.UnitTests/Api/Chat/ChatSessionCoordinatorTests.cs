@@ -193,6 +193,25 @@ public sealed class ChatSessionCoordinatorTests
     }
 
     [Fact]
+    public async Task RequestBriefAsync_OrchestratorReturnsADeterministicFallback_IncludesTheFlagInTheOutboxPayload()
+    {
+        // PRD.md §13.1: the BFF/UI must be able to tell a graceful-degradation answer apart from
+        // a normal synthesized one, so it can show "Summary unavailable right now - here is the
+        // source data" instead of presenting fallback text as if the model actually said it.
+        A.CallTo(() => _orchestrator.StartBriefAsync("default", "123", A<CancellationToken>._))
+            .Returns(Task.FromResult(new AgentTurnResult(
+                "raw data", ConversationState.Start("default", "123"), [], [], IsDeterministicFallback: true)));
+        string? capturedPayload = null;
+        A.CallTo(() => _outbox.Append("session-1", "brief", A<string>._))
+            .Invokes((string _, string _, string payload) => capturedPayload = payload)
+            .Returns(new ChatMessage(1, "brief", "{}"));
+
+        await _sut.RequestBriefAsync("session-1", _session, CancellationToken.None);
+
+        capturedPayload.Should().Contain("\"IsDeterministicFallback\":true");
+    }
+
+    [Fact]
     public void Resume_Always_DelegatesToTheOutbox()
     {
         var messages = new List<ChatMessage> { new(3, "answer", "{}") };
