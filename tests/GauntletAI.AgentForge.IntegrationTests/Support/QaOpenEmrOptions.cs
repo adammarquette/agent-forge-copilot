@@ -68,6 +68,28 @@ public sealed class QaOpenEmrOptions
     public string? CrossIdentityTestAccessTokenA { get; init; }
 
     /// <summary>
+    /// Shared OAuth client id used to redeem <see cref="CrossIdentityRefreshTokenA"/>/
+    /// <see cref="CrossIdentityRefreshTokenB"/> (GitLab issue #29) - the refresh grant is redeemed by
+    /// the client that obtained it, not tied to either patient, so both identities' logins reuse the
+    /// same registered client.
+    /// </summary>
+    public string? CrossIdentityClientId { get; init; }
+
+    /// <summary>Client secret paired with <see cref="CrossIdentityClientId"/> (empty for a public client).</summary>
+    public string? CrossIdentityClientSecret { get; init; }
+
+    /// <summary>
+    /// Identity A's refresh token (GitLab issue #29). When set alongside <see cref="CrossIdentityClientId"/>,
+    /// <see cref="OpenEmrQaFixture"/> exchanges it for a fresh <see cref="CrossIdentityTestAccessTokenA"/>
+    /// at construction - the same durable pattern <see cref="SystemClientId"/> already gives
+    /// <see cref="TestAccessToken"/>, avoiding a by-hand re-mint every time the ~1hr access token expires.
+    /// </summary>
+    public string? CrossIdentityRefreshTokenA { get; init; }
+
+    /// <summary>Identity B's refresh token (GitLab issue #29) - same pattern as <see cref="CrossIdentityRefreshTokenA"/>.</summary>
+    public string? CrossIdentityRefreshTokenB { get; init; }
+
+    /// <summary>
     /// Client id of an admin-provisioned confidential client for the client_credentials + JWT-bearer
     /// grant (RFC 7523, GitLab issue #22) - the durable replacement for a manually re-minted
     /// <see cref="TestAccessToken"/>. Optional; when unset, <see cref="OpenEmrQaFixture"/> falls back

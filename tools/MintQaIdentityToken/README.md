@@ -30,6 +30,12 @@ patient for identity B. Issue #26 seeded 20 synthetic demo patients into QA Open
 for identity B (see MR !41's description for the full pid/uuid table). No need for a dedicated QA patient:
 the test only needs two patients whose data don't leak into each other.
 
+**Durability (issue #29):** the scope also includes `offline_access`, so if this OpenEMR deployment grants
+a refresh token, use *that* instead of the raw access token - see Output below. `OpenEmrQaFixture` will
+exchange it for a fresh access token every test run, the same durable pattern already used for
+`OpenEmrQa__TestAccessToken` via `client_credentials` (issue #22), except this preserves patient scoping
+instead of a system-role grant.
+
 ## Running it
 
 ```bash
@@ -62,15 +68,26 @@ The access token this produces lives only in the process's memory - never logged
 
 ## Output
 
-Prints the granted scope, token lifetime, and resolved `patient` claim, then which pair of GitLab CI/CD
-variables to paste it into (Settings -> CI/CD -> Variables, protected + masked) - depending on which
-patient you selected:
+Prints the granted scope, token lifetime, resolved `patient` claim, and whether a refresh token came back,
+then which GitLab CI/CD variables to paste it into (Settings -> CI/CD -> Variables, protected + masked):
 
 ```
-# If the resolved patient matches OpenEmrQa__TestPatientId (identity A):
-OpenEmrQa__CrossIdentityTestAccessTokenA = <token>
+# If a refresh token was granted (preferred - durable, issue #29):
+OpenEmrQa__CrossIdentityClientId = <client id - SAME value both times; reuse via MintToken__ClientId>
+OpenEmrQa__CrossIdentityClientSecret = <client secret, only if non-empty>
+OpenEmrQa__CrossIdentityRefreshTokenA = <refresh token>   # identity A run
+# or, identity B run:
+OpenEmrQa__CrossIdentityRefreshTokenB = <refresh token>
+OpenEmrQa__SecondTestPatientId        = <patient uuid>
 
-# Otherwise (identity B):
+# If no refresh token was granted (this deployment doesn't support offline_access - falls back to a
+# static, ~1hr-lived access token, same as before issue #29):
+OpenEmrQa__CrossIdentityTestAccessTokenA = <token>   # identity A run
+# or, identity B run:
 OpenEmrQa__SecondTestAccessToken = <token>
 OpenEmrQa__SecondTestPatientId   = <patient uuid>
 ```
+
+The refresh path needs **both** logins to register against the *same* OAuth client (the refresh grant is
+redeemed by the client that obtained it) - set `MintToken__ClientId`/`MintToken__ClientSecret` to the
+first run's printed `CrossIdentityClientId`/`ClientSecret` before running the second.

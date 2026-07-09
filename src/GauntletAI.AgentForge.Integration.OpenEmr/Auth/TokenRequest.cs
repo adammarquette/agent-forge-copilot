@@ -27,6 +27,10 @@ public sealed record TokenRequest
     [AliasAs("code_verifier")]
     public string? CodeVerifier { get; init; }
 
+    /// <summary>The refresh token being redeemed, for the refresh_token grant.</summary>
+    [AliasAs("refresh_token")]
+    public string? RefreshToken { get; init; }
+
     /// <summary>Present only for a confidential client; a public client omits this entirely.</summary>
     [AliasAs("client_secret")]
     public string? ClientSecret { get; init; }

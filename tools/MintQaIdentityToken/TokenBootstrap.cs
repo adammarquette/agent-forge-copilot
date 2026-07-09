@@ -23,10 +23,13 @@ public static class TokenBootstrap
     // (confirmed exhaustively via the live .well-known/openid-configuration's scopes_supported).
     // Condition/MedicationRequest/AllergyIntolerance are needed alongside Patient because
     // McpToolServer.GetPatientSummaryAsync - what CrossIdentityAuthorizationTests exercises -
-    // fetches all four resources, not just Patient.
+    // fetches all four resources, not just Patient. offline_access (confirmed supported in the live
+    // .well-known/openid-configuration's scopes_supported) is what actually gets a refresh_token back
+    // in the token response - without it the server issues access-token-only, silent about the
+    // omission (GitLab issue #29: makes these tokens durable instead of needing re-minting hourly).
     private static readonly string[] Scopes =
     [
-        "openid", "fhirUser", "launch/patient", "api:fhir",
+        "openid", "fhirUser", "launch/patient", "api:fhir", "offline_access",
         "patient/Patient.read", "patient/Condition.read", "patient/MedicationRequest.read", "patient/AllergyIntolerance.read",
     ];
 

@@ -34,9 +34,10 @@ catch (ApiException ex)
 
 Console.WriteLine();
 Console.WriteLine("=== Token minted ===");
-Console.WriteLine($"Granted scope: {token.Scope}");
-Console.WriteLine($"Expires in:    {(token.ExpiresIn is { } seconds ? $"{seconds}s (~{seconds / 60} min)" : "not advertised")}");
-Console.WriteLine($"Patient claim: {token.Patient ?? "(none - the server did not return a patient context)"}");
+Console.WriteLine($"Granted scope:  {token.Scope}");
+Console.WriteLine($"Expires in:     {(token.ExpiresIn is { } seconds ? $"{seconds}s (~{seconds / 60} min)" : "not advertised")}");
+Console.WriteLine($"Patient claim:  {token.Patient ?? "(none - the server did not return a patient context)"}");
+Console.WriteLine($"Refresh token:  {(token.RefreshToken is null ? "(none - offline_access was not granted; this deployment may not support it)" : "present - see below")}");
 
 if (string.IsNullOrEmpty(token.Patient))
 {
@@ -72,7 +73,31 @@ else
 
 Console.WriteLine();
 Console.WriteLine("=== Paste into GitLab (Settings -> CI/CD -> Variables, protected + masked) ===");
-if (isIdentityA)
+if (token.RefreshToken is not null)
+{
+    Console.WriteLine("This deployment granted a refresh token - use it instead of the raw access token so");
+    Console.WriteLine("OpenEmrQaFixture can mint a fresh access token every run instead of it expiring hourly");
+    Console.WriteLine("(GitLab issue #29). OpenEmrQa__CrossIdentityClientId is SHARED - set it once, reuse for");
+    Console.WriteLine("both identity A and B (set MintToken__ClientId to this same value on future runs so both");
+    Console.WriteLine("logins use the same registered client, which the refresh grant requires).");
+    Console.WriteLine();
+    Console.WriteLine($"OpenEmrQa__CrossIdentityClientId = {clientId}");
+    if (!string.IsNullOrEmpty(clientSecret))
+    {
+        Console.WriteLine($"OpenEmrQa__CrossIdentityClientSecret = {clientSecret}");
+    }
+
+    if (isIdentityA)
+    {
+        Console.WriteLine($"OpenEmrQa__CrossIdentityRefreshTokenA = {token.RefreshToken}");
+    }
+    else
+    {
+        Console.WriteLine($"OpenEmrQa__CrossIdentityRefreshTokenB = {token.RefreshToken}");
+        Console.WriteLine($"OpenEmrQa__SecondTestPatientId        = {token.Patient}");
+    }
+}
+else if (isIdentityA)
 {
     Console.WriteLine($"OpenEmrQa__CrossIdentityTestAccessTokenA = {token.AccessToken}");
 }
