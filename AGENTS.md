@@ -27,6 +27,9 @@ The `documentation/` folder is authoritative; these AGENTS files summarize and p
 - **Contracts are the source of truth** (strict tool I/O schemas; NFR-CONTRACT-1). External calls conform to
   `INTERFACE_CONTROL.md`.
 - **Commits:** Conventional Commits; add `Assisted-by:` trailer when authored by an AI agent.
+- **No orphaned MRs.** Every MR references a tracking issue (`Closes #N` / `Related to #N`) that states the
+  problem or requirement being addressed, opened *before* the MR. If no issue exists yet for the work, open
+  one first — don't retrofit one after the fact.
 
 ## The two agent roles
 | Agent | Scope | Definition |
