@@ -14,6 +14,15 @@ namespace GauntletAI.AgentForge.IntegrationTests.Support;
 /// </summary>
 public sealed class OpenEmrQaFixture
 {
+    // Matches tools/MintQaIdentityToken's scope list - what McpToolServer.GetPatientSummaryAsync
+    // needs (Patient/Condition/MedicationRequest/AllergyIntolerance), plus offline_access so a
+    // Playwright-driven mint also comes back with a refresh token for next time.
+    private static readonly string[] CrossIdentityScopes =
+    [
+        "openid", "fhirUser", "launch/patient", "api:fhir", "offline_access",
+        "patient/Patient.read", "patient/Condition.read", "patient/MedicationRequest.read", "patient/AllergyIntolerance.read",
+    ];
+
     /// <summary>QA connection details resolved from environment variables.</summary>
     public QaOpenEmrOptions Options { get; }
 
@@ -123,16 +132,41 @@ public sealed class OpenEmrQaFixture
             }
         }
 
+        var loginUsername = section["LoginUsername"];
+        var loginPassword = section["LoginPassword"];
+        var testPatientId = section["TestPatientId"];
+        var secondTestPatientId = section["SecondTestPatientId"];
+        if (!string.IsNullOrWhiteSpace(loginUsername) && !string.IsNullOrWhiteSpace(loginPassword))
+        {
+            // Last-resort self-heal (GitLab issue #30): only fires when neither a refresh token nor a
+            // still-valid static token already produced an access token above - a real Playwright
+            // login is far slower than a refresh_token exchange, so it's the fallback, not the
+            // primary path (see issue #30's "relationship to #29" note).
+            if (string.IsNullOrWhiteSpace(crossIdentityAccessTokenA) && !string.IsNullOrWhiteSpace(testPatientId))
+            {
+                crossIdentityAccessTokenA = PlaywrightLoginAutomation.AcquireTokenAsync(
+                        baseUrl, site, loginUsername, loginPassword, testPatientId, CrossIdentityScopes, CancellationToken.None)
+                    .GetAwaiter().GetResult().AccessToken;
+            }
+
+            if (string.IsNullOrWhiteSpace(secondTestAccessToken) && !string.IsNullOrWhiteSpace(secondTestPatientId))
+            {
+                secondTestAccessToken = PlaywrightLoginAutomation.AcquireTokenAsync(
+                        baseUrl, site, loginUsername, loginPassword, secondTestPatientId, CrossIdentityScopes, CancellationToken.None)
+                    .GetAwaiter().GetResult().AccessToken;
+            }
+        }
+
         Options = new QaOpenEmrOptions
         {
             BaseUrl = baseUrl,
             Site = site,
             TestAccessToken = testAccessToken,
-            TestPatientId = section["TestPatientId"],
+            TestPatientId = testPatientId,
             TestClientId = section["TestClientId"],
             TestClientSecret = section["TestClientSecret"],
             SecondTestAccessToken = secondTestAccessToken,
-            SecondTestPatientId = section["SecondTestPatientId"],
+            SecondTestPatientId = secondTestPatientId,
             CrossIdentityTestAccessTokenA = crossIdentityAccessTokenA,
             CrossIdentityClientId = crossIdentityClientId,
             CrossIdentityClientSecret = crossIdentityClientSecret,
@@ -142,6 +176,8 @@ public sealed class OpenEmrQaFixture
             SystemPrivateKeyPath = systemPrivateKeyPath,
             SystemKeyId = systemKeyId,
             SystemScope = systemScope,
+            LoginUsername = loginUsername,
+            LoginPassword = loginPassword,
         };
 
         var authHttpClient = new HttpClient { BaseAddress = new Uri(Options.BaseUrl) };

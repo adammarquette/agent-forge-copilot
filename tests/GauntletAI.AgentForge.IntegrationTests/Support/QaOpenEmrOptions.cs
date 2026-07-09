@@ -112,4 +112,17 @@ public sealed class QaOpenEmrOptions
 
     /// <summary>Space-separated system/* scopes requested on the client_credentials mint.</summary>
     public string? SystemScope { get; init; }
+
+    /// <summary>
+    /// QA staff username for <see cref="PlaywrightLoginAutomation"/> (GitLab issue #30) - the
+    /// last-resort fallback <see cref="OpenEmrQaFixture"/> uses to self-heal
+    /// <see cref="CrossIdentityTestAccessTokenA"/>/<see cref="SecondTestAccessToken"/> when neither a
+    /// refresh token nor a still-valid static token is configured, instead of throwing and waiting for
+    /// a human to re-mint one by hand. Optional and off by default - only synthetic QA data is ever
+    /// reachable this way (ARCHITECTURE.md §13.1).
+    /// </summary>
+    public string? LoginUsername { get; init; }
+
+    /// <summary>Password paired with <see cref="LoginUsername"/>.</summary>
+    public string? LoginPassword { get; init; }
 }
