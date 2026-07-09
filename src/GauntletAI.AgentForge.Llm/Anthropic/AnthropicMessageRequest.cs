@@ -9,7 +9,7 @@ public sealed record AnthropicMessageRequest(
     [property: JsonPropertyName("max_tokens")] int MaxTokens,
     [property: JsonPropertyName("system")] string System,
     [property: JsonPropertyName("messages")] IReadOnlyList<AnthropicMessage> Messages,
-    [property: JsonPropertyName("tools")] IReadOnlyList<AnthropicToolDefinition>? Tools,
+    [property: JsonPropertyName("tools"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<AnthropicToolDefinition>? Tools,
     [property: JsonPropertyName("temperature")] double Temperature);
 
 /// <summary>One conversation turn in Anthropic wire format.</summary>
