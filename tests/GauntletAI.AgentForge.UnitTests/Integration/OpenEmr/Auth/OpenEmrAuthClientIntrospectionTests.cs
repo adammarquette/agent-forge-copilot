@@ -17,11 +17,14 @@ public sealed class OpenEmrAuthClientIntrospectionTests
             .Returns(Task.FromResult(expected));
         var client = new OpenEmrAuthClient(api);
 
-        var result = await client.IntrospectAsync("default", "access-token-abc", CancellationToken.None);
+        var result = await client.IntrospectAsync(
+            "default", "access-token-abc", "sidecar-client", "the-secret", CancellationToken.None);
 
         result.Should().Be(expected);
         captured!.Token.Should().Be("access-token-abc");
         captured.TokenTypeHint.Should().Be("access_token");
+        captured.ClientId.Should().Be("sidecar-client");
+        captured.ClientSecret.Should().Be("the-secret");
     }
 
     [Fact]
@@ -33,7 +36,7 @@ public sealed class OpenEmrAuthClientIntrospectionTests
         var client = new OpenEmrAuthClient(api);
         using var cts = new CancellationTokenSource();
 
-        await client.IntrospectAsync("default", "token", cts.Token);
+        await client.IntrospectAsync("default", "token", "sidecar-client", null, cts.Token);
 
         A.CallTo(() => api.IntrospectAsync("default", A<IntrospectionRequest>._, cts.Token)).MustHaveHappenedOnceExactly();
     }

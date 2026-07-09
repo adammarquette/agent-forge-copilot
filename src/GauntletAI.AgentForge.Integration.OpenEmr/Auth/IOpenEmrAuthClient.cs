@@ -22,12 +22,20 @@ public interface IOpenEmrAuthClient
         string? clientSecret,
         CancellationToken cancellationToken);
 
-    /// <summary>Validates <paramref name="accessToken"/> and returns its active claims.</summary>
-    Task<IntrospectionResponse> IntrospectAsync(string site, string accessToken, CancellationToken cancellationToken);
+    /// <summary>
+    /// Validates <paramref name="accessToken"/> and returns its active claims. OpenEMR's introspect
+    /// endpoint requires the caller to authenticate as a registered client via
+    /// <paramref name="clientId"/>/<paramref name="clientSecret"/> form parameters (confirmed
+    /// against the real QA server - HTTP Basic Auth is not accepted here); an unauthenticated call
+    /// is rejected with 401 before the token itself is ever evaluated.
+    /// </summary>
+    Task<IntrospectionResponse> IntrospectAsync(
+        string site, string accessToken, string clientId, string? clientSecret, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Registers the sidecar as a public OAuth2 client (token_endpoint_auth_method "none" - PKCE
-    /// stands in for a client secret, since a browser-launched public client can't keep one).
+    /// Registers the sidecar as a public OAuth2 client (token_endpoint_auth_method
+    /// "client_secret_post" - OpenEMR rejects "none" outright; PKCE, not the resulting
+    /// empty-string secret, is what actually secures the exchange for a public client).
     /// Fixes grant_types to authorization_code + refresh_token and response_types to code; a
     /// confidential-client registration path is not implemented (D12/v1 scope - one auth model).
     /// </summary>

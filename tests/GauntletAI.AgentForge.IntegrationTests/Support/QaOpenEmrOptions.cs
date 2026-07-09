@@ -30,6 +30,20 @@ public sealed class QaOpenEmrOptions
     public string? TestPatientId { get; init; }
 
     /// <summary>
+    /// The client id of a dynamically-registered client that has already been enabled via the
+    /// OpenEMR admin UI (Administration → System → API Clients → Enable). Needed for endpoints
+    /// that require client authentication - e.g. introspection - since a freshly self-registered
+    /// client is left disabled by OpenEMR and cannot authenticate until an admin approves it, so
+    /// tests cannot provision one on the fly the way <see cref="DynamicClientRegistrationTests"/>
+    /// or <see cref="TestAccessToken"/> otherwise would. Optional - tests that need it fail with a
+    /// clear message rather than silently passing when it's absent.
+    /// </summary>
+    public string? TestClientId { get; init; }
+
+    /// <summary>The client secret paired with <see cref="TestClientId"/> (empty string for a public client).</summary>
+    public string? TestClientSecret { get; init; }
+
+    /// <summary>
     /// A second real access token, obtained the same out-of-band way as <see cref="TestAccessToken"/>
     /// but through a distinct SMART EHR launch - a different clinician identity/patient context, not
     /// a second copy of the same one. Needed to prove entitlement is per-identity, not shared

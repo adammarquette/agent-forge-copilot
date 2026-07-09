@@ -73,18 +73,25 @@ Confirmed available scopes relevant to the cardiology read paths. Request **only
 
 | Data need | Scope(s) | `[CONFIRM]` |
 |---|---|---|
-| Patient demographics | `patient/patient.read`, `user/patient.read` | |
-| Encounters (interval events) | `patient/encounter.read`, `user/encounter.read` | |
-| Medications | `user/medication.read`, `user/prescription.read`, `user/drug.read` | which map to `MedicationRequest` |
-| Problems / allergies (in `lists`) | `user/list.read`, `user/allergy.read` | Condition↔`list` mapping `[CONFIRM]` |
-| Vitals | `user/vital.read` | |
-| Procedures | `user/procedure.read`, `user/surgery.read` | |
-| Documents (echo/EF, device narrative) | `user/document.read` | |
+| Patient demographics | `patient/Patient.read`, `user/patient.read` | resource-name casing confirmed PascalCase against the live server (see note below); `user/*` row not yet re-verified — `[CONFIRM]` |
+| Encounters (interval events) | `patient/encounter.read`, `user/encounter.read` | casing not yet re-verified — `[CONFIRM]` |
+| Medications | `user/medication.read`, `user/prescription.read`, `user/drug.read` | which map to `MedicationRequest`; casing not yet re-verified — `[CONFIRM]` |
+| Problems / allergies (in `lists`) | `user/list.read`, `user/allergy.read` | Condition↔`list` mapping `[CONFIRM]`; casing not yet re-verified — `[CONFIRM]` |
+| Vitals | `user/vital.read` | casing not yet re-verified — `[CONFIRM]` |
+| Procedures | `user/procedure.read`, `user/surgery.read` | casing not yet re-verified — `[CONFIRM]` |
+| Documents (echo/EF, device narrative) | `user/document.read` | casing not yet re-verified — `[CONFIRM]` |
 | Launch/identity | `openid`, `fhirUser`, `launch`, `launch/patient` | |
+| FHIR API companion | `api:fhir` | **required alongside every `patient/*`/`user/*` FHIR-resource scope above** — confirmed against the live server; requesting a resource scope without it is rejected as `invalid_scope` |
 
 *(No discrete "lab observation" or "condition" scope surfaced in the enum; labs surface via Observation/
 DiagnosticReport and problems via `lists`. Resolve the exact scope→resource mapping per resource on the running
 stack — `[CONFIRM]`.)*
+
+> **Scope casing, confirmed live:** the deployed server's `scopes_supported` uses **PascalCase FHIR resource
+> names** (`patient/Patient.read`, not `patient/patient.read`) — the lowercase form this table originally
+> documented is rejected with `invalid_scope` at both `/authorize` and `/registration`. Only the `Patient`
+> resource scope has been directly re-verified this way; the other rows above still carry their original,
+> unverified lowercase casing and need the same live check before being trusted (`[CONFIRM]`).
 
 ---
 

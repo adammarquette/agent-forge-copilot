@@ -67,7 +67,8 @@ public sealed class SmartLaunchServiceTests
                 "default", "auth-code", "https://sidecar.example.org/callback", "sidecar-client",
                 pending.CodeVerifier, null, A<CancellationToken>._))
             .Returns(Task.FromResult(new TokenResponse("access-token-abc", "Bearer", 3600, "patient/patient.read", null, "patient-123", null)));
-        A.CallTo(() => _authClient.IntrospectAsync("default", "access-token-abc", A<CancellationToken>._))
+        A.CallTo(() => _authClient.IntrospectAsync(
+                "default", "access-token-abc", "sidecar-client", A<string?>._, A<CancellationToken>._))
             .Returns(Task.FromResult(new IntrospectionResponse(true, "patient/patient.read", "sidecar-client", null, "dr-jones", "patient-123")));
 
         var result = await _sut.CompleteLaunchAsync("auth-code", pending.State, pending, CancellationToken.None);
@@ -102,7 +103,8 @@ public sealed class SmartLaunchServiceTests
         A.CallTo(() => _authClient.ExchangeAuthorizationCodeAsync(
                 A<string>._, A<string>._, A<string>._, A<string>._, A<string>._, A<string?>._, A<CancellationToken>._))
             .Returns(Task.FromResult(new TokenResponse("access-token-abc", "Bearer", 3600, "patient/patient.read", null, "patient-123", null)));
-        A.CallTo(() => _authClient.IntrospectAsync(A<string>._, A<string>._, A<CancellationToken>._))
+        A.CallTo(() => _authClient.IntrospectAsync(
+                A<string>._, A<string>._, A<string>._, A<string?>._, A<CancellationToken>._))
             .Returns(Task.FromResult(new IntrospectionResponse(true, "patient/patient.read", "sidecar-client", null, Subject: null, "patient-123")));
 
         var act = () => _sut.CompleteLaunchAsync("auth-code", pending.State, pending, CancellationToken.None);
