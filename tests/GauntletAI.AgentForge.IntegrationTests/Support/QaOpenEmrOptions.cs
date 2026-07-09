@@ -56,6 +56,18 @@ public sealed class QaOpenEmrOptions
     public string? SecondTestPatientId { get; init; }
 
     /// <summary>
+    /// A real, patient-scoped access token for identity A (<see cref="TestPatientId"/>), obtained via
+    /// a SMART standalone-launch login the same way <see cref="SecondTestAccessToken"/> was - used
+    /// only by the cross-identity entitlement tests. <see cref="TestAccessToken"/> can't stand in for
+    /// this: once <see cref="SystemClientId"/> is configured (GitLab issue #22), it mints a
+    /// system-role <c>client_credentials</c> token that can read every patient, not just
+    /// <see cref="TestPatientId"/> - which would make a cross-identity isolation check meaningless
+    /// (GitLab issue #27). Optional - the tests that need it fail with a clear message rather than
+    /// silently skipping when it's absent.
+    /// </summary>
+    public string? CrossIdentityTestAccessTokenA { get; init; }
+
+    /// <summary>
     /// Client id of an admin-provisioned confidential client for the client_credentials + JWT-bearer
     /// grant (RFC 7523, GitLab issue #22) - the durable replacement for a manually re-minted
     /// <see cref="TestAccessToken"/>. Optional; when unset, <see cref="OpenEmrQaFixture"/> falls back

@@ -40,6 +40,15 @@ public sealed class OpenEmrQaFixture
     /// </summary>
     public IOpenEmrFhirApi SecondFhirApi { get; }
 
+    /// <summary>
+    /// Real FHIR client carrying <see cref="QaOpenEmrOptions.CrossIdentityTestAccessTokenA"/> as its
+    /// bearer token - identity A's genuinely patient-scoped token for the cross-identity entitlement
+    /// tests specifically (distinct from <see cref="FhirApi"/>, which carries the system-role token
+    /// once <see cref="QaOpenEmrOptions.SystemClientId"/> is configured). Only usable when that
+    /// optional config is set.
+    /// </summary>
+    public IOpenEmrFhirApi CrossIdentityFhirApiA { get; }
+
     public OpenEmrQaFixture()
     {
         var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
@@ -93,6 +102,7 @@ public sealed class OpenEmrQaFixture
             TestClientSecret = section["TestClientSecret"],
             SecondTestAccessToken = section["SecondTestAccessToken"],
             SecondTestPatientId = section["SecondTestPatientId"],
+            CrossIdentityTestAccessTokenA = section["CrossIdentityTestAccessTokenA"],
             SystemClientId = systemClientId,
             SystemPrivateKeyPath = systemPrivateKeyPath,
             SystemKeyId = systemKeyId,
@@ -122,5 +132,14 @@ public sealed class OpenEmrQaFixture
         }
 
         SecondFhirApi = RestService.For<IOpenEmrFhirApi>(secondFhirHttpClient);
+
+        var crossIdentityFhirHttpClientA = new HttpClient { BaseAddress = new Uri(Options.BaseUrl) };
+        if (!string.IsNullOrEmpty(Options.CrossIdentityTestAccessTokenA))
+        {
+            crossIdentityFhirHttpClientA.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", Options.CrossIdentityTestAccessTokenA);
+        }
+
+        CrossIdentityFhirApiA = RestService.For<IOpenEmrFhirApi>(crossIdentityFhirHttpClientA);
     }
 }
