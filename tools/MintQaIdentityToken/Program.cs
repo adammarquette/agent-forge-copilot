@@ -15,8 +15,21 @@ using var authHttpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
 var authApi = RestService.For<IOpenEmrAuthApi>(authHttpClient);
 var authClient = new OpenEmrAuthClient(authApi);
 
-var (clientId, clientSecret) = await TokenBootstrap.ResolveClientAsync(authClient, site);
-var token = await TokenBootstrap.AcquireTokenAsync(authClient, baseUrl, site, clientId, clientSecret);
+string clientId;
+string? clientSecret;
+TokenResponse token;
+try
+{
+    (clientId, clientSecret) = await TokenBootstrap.ResolveClientAsync(authClient, site);
+    token = await TokenBootstrap.AcquireTokenAsync(authClient, baseUrl, site, clientId, clientSecret);
+}
+catch (ApiException ex)
+{
+    Console.WriteLine();
+    Console.WriteLine($"OpenEMR rejected the request: {(int)ex.StatusCode} {ex.StatusCode}");
+    Console.WriteLine(ex.Content ?? "(no response body)");
+    return;
+}
 
 Console.WriteLine();
 Console.WriteLine("=== Token minted ===");

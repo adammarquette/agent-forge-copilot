@@ -16,7 +16,19 @@ namespace GauntletAI.AgentForge.MintQaIdentityToken;
 public static class TokenBootstrap
 {
     private const string RedirectUri = "https://sidecar.invalid/callback";
-    private static readonly string[] Scopes = ["openid", "fhirUser", "launch/patient", "patient/patient.read", "api:fhir"];
+
+    // PascalCase resource name is required - confirmed live against the QA server
+    // (INTERFACE_CONTROL.md A.4's casing note): "patient/patient.read" is rejected as
+    // invalid_scope at both /registration and /authorize; only "patient/Patient.read" is accepted
+    // (confirmed exhaustively via the live .well-known/openid-configuration's scopes_supported).
+    // Condition/MedicationRequest/AllergyIntolerance are needed alongside Patient because
+    // McpToolServer.GetPatientSummaryAsync - what CrossIdentityAuthorizationTests exercises -
+    // fetches all four resources, not just Patient.
+    private static readonly string[] Scopes =
+    [
+        "openid", "fhirUser", "launch/patient", "api:fhir",
+        "patient/Patient.read", "patient/Condition.read", "patient/MedicationRequest.read", "patient/AllergyIntolerance.read",
+    ];
 
     /// <summary>
     /// Registers a fresh public client (or reuses <c>MintToken__ClientId</c>/<c>ClientSecret</c> from
