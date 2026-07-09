@@ -34,7 +34,8 @@ compatibility.
 |---|---|---|---|
 | **Refit** | `>= 7.0.0` | Typed REST/HTTP clients — turns the OpenEMR FHIR/REST surface into C# interfaces (see ICD) | Contracts as interfaces; pairs with `Refit.HttpClientFactory` for DI |
 | **Microsoft.AspNetCore.SignalR.Client** | `>= 9.0.0` | Real-time push to the iFrame SPA — streams the "fast core, then defer" answer (NFR-PERF-1) | 9.0.0+ is the .NET 10-compatible line |
-| **Polly** | `>= 8.6.5` | Transient-fault handling: retry w/ backoff, timeout, circuit breaker on external calls | Recommended; underpins failure-mode behavior (`ARCHITECTURE.md` §13.1 / `PRD.md` §13.1). Prefer `Microsoft.Extensions.Http.Resilience` (Polly-based) for `HttpClient` |
+| **Microsoft.Extensions.Http.Resilience** | `>= 9.0.0` | Transient-fault handling: retry w/ backoff, timeout, circuit breaker on external calls | The Polly-v8-based standard for `HttpClient` pipelines — the actual package pinned in `Directory.Packages.props` (no bare `Polly` reference); underpins failure-mode behavior (`ARCHITECTURE.md` §13.1 / `PRD.md` §13.1) |
+| **OpenTelemetry** (+ `.Extensions.Hosting`, `.Instrumentation.AspNetCore`/`.Http`/`.Runtime`, `.Exporter.Prometheus.AspNetCore`, `.Exporter.Console`) | `>= 1.15.0` | Traces/metrics (latency, tool counts, tokens/cost, verification pass/fail) feeding the dashboard (FR-OBS-2/3, `ARCHITECTURE.md` §11) | Never a hard dependency on a specific backend (§7). `Exporter.Prometheus.AspNetCore` is pinned to a beta version deliberately — it has stayed in beta upstream for years (spec churn, not instability); it's the accepted, standard way to expose a `/metrics` scrape endpoint from ASP.NET Core and there is no stable release to pin to instead |
 | **Microsoft.Extensions.Options** | current w/ .NET 10 | Strongly-typed configuration (`IOptions<T>`) for credentials/endpoints | Bind from env vars / appsettings; validate on start |
 | **Microsoft.Extensions.Logging.Abstractions** | current w/ .NET 10 | `ILogger` abstraction throughout — no hard dependency on a provider | Consuming host picks Serilog/NLog/etc. (samples in §7) |
 | **xUnit** | `>= 2.9.0` | Unit test framework | See testing standards (§8) |
@@ -237,20 +238,22 @@ two test projects** — one unit, one integration (§8).
 ```
 GauntletAI.AgentForge.slnx                   // solution (repo root)
 src/
-  GauntletAI.AgentForge.Api/                 // ASP.NET Core host: BFF, SignalR hub, /health + /ready, MCP tool server
+  GauntletAI.AgentForge.Api/                 // ASP.NET Core host: BFF, SignalR hub, /health + /ready
   GauntletAI.AgentForge.Agent/               // orchestrator: multi-turn loop, tool chaining
+  GauntletAI.AgentForge.Mcp/                 // MCP tool server: contracts, audit log, read-only FHIR tools
   GauntletAI.AgentForge.Verification/        // source attribution + cardiology domain-constraint rules
   GauntletAI.AgentForge.Integration.OpenEmr/ // Refit clients, OAuth/SMART, FHIR mappers (see ICD)
   GauntletAI.AgentForge.Llm/                 // ILlmProvider abstraction + one implementation
+  GauntletAI.AgentForge.Observability/       // OTel activity source + metrics (FR-OBS-2/3)
 tests/
   GauntletAI.AgentForge.UnitTests/           // §8.1 — fully mocked (FakeItEasy); expectations only; no I/O
   GauntletAI.AgentForge.IntegrationTests/    // §8.2 — real OpenEMR/MySQL in the QA environment; synthetic data only
 ```
 
 Notes:
-- The MCP tool server lives inside the host project (`GauntletAI.AgentForge.Api`) unless/until it earns its own
-  project. (Name the host as you prefer — `.Api` is the placeholder; the earlier `.Copilot` template project is
-  removed.)
+- The MCP tool server is its own project (`GauntletAI.AgentForge.Mcp`), consumed by the host
+  (`GauntletAI.AgentForge.Api`). (Name the host as you prefer — `.Api` is the placeholder; the earlier
+  `.Copilot` template project is removed.)
 - The two test projects stay fixed regardless of how many `src/` projects exist — unit tests reference the
   projects they fake; integration tests reference the host.
 
@@ -261,6 +264,7 @@ Notes:
 - `dotnet test` with coverage threshold; the FR-EVAL boundary/invariant/regression suite runs here.
 - License scan on the dependency graph (catches restrictive-license bumps — see FluentAssertions note §2).
 - Contracts (tool schemas) exported and diffed (NFR-CONTRACT-1).
+- Release version (`<Version>` / git tag) follows SemVer — see §14.
 
 ---
 
@@ -311,7 +315,35 @@ Consolidated security requirements (also enforced in code via §4 HTTP, §6 Conf
 
 ---
 
-## 14. Agent Instructions & Roles (`AGENTS.md` / `CLAUDE.md`)
+## 14. Versioning (SemVer)
+
+**All versioning in this repo — the sidecar release, git tags, and tool/contract schemas — follows
+[Semantic Versioning 2.0.0](https://semver.org/) (`MAJOR.MINOR.PATCH`), effective now.**
+
+- **Release version.** The sidecar's version is tracked via `<Version>` in `Directory.Build.props`
+  (solution-wide, one version for the whole sidecar). Starting point: `0.1.0`, matching the docs'
+  existing "v0.1" status framing.
+- **Bumps ride the existing commit convention — no separate versioning ceremony.** The root `AGENTS.md`
+  already mandates Conventional Commits; the commit type *is* the version-bump signal:
+  - `fix:` → **PATCH**
+  - `feat:` → **MINOR**
+  - a `!` after the type (e.g. `feat!:`) or a `BREAKING CHANGE:` footer → **MAJOR**
+- **Pre-1.0 caveat.** While the sidecar is `0.x`, SemVer permits breaking changes on a MINOR bump — the
+  API/contract surface isn't yet a stable public commitment. **`1.0.0` is a deliberate milestone** (a
+  stable tool/contract surface worth committing to), not an incidental crossing.
+- **Tags.** Releases are tagged `vMAJOR.MINOR.PATCH` on `main` at deploy time, so a version is always
+  traceable to a commit and a deployed build.
+- **Contract schemas force the issue.** The MCP tool input/output schemas (NFR-CONTRACT-1,
+  `INTERFACE_CONTROL.md`) are the sidecar's public contract. A breaking schema change is a breaking
+  change to the sidecar — it forces a MAJOR bump on its own, independent of how much application code
+  actually changed.
+- **Dependency versions already follow this discipline** — §2's floor/cap constraints (e.g. FluentAssertions
+  `[6.12.0,8.0.0)`) are SemVer ranges; this section extends the same discipline to what this repo *ships*,
+  not just what it depends on.
+
+---
+
+## 15. Agent Instructions & Roles (`AGENTS.md` / `CLAUDE.md`)
 
 AI agents that build this repo are governed by **`AGENTS.md`** files (the cross-tool standard). They are laid
 out as a hierarchy, and **the nearest file to what's being edited takes precedence / adds context**:
