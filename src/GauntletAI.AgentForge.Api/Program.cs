@@ -35,6 +35,12 @@ builder.Services.AddOptions<LlmProviderOptions>()
     .Bind(builder.Configuration.GetSection(LlmProviderOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+// AgentOptions.TurnDeadline has a built-in default (Epic 10), so binding is optional - the app
+// must still boot and use the default when this section is absent from configuration.
+builder.Services.AddOptions<AgentOptions>()
+    .Bind(builder.Configuration.GetSection(AgentOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 // Optional self-hosted infra (observability/docker-compose.yml) - not required/ValidateOnStart,
 // unlike OpenEmr/Llm above, since the app must still boot and serve traffic without it running.
 builder.Services.AddOptions<ObservabilityOptions>()

@@ -5,6 +5,7 @@ using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace GauntletAI.AgentForge.UnitTests.Agent;
 
@@ -23,8 +24,14 @@ public sealed class AgentOrchestratorTests
         A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._))
             .ReturnsLazily((string answer, IReadOnlyCollection<string> _) => new VerificationResult(true, answer, [], []));
 
-        _sut = new AgentOrchestrator(_llmProvider, _toolDispatcher, _verifier, _metrics, NullLogger<AgentOrchestrator>.Instance);
+        _sut = BuildSut(TimeSpan.FromSeconds(60));
     }
+
+    // Every test below runs well under a minute, so a 60s default deadline never fires
+    // incidentally - only the tests that deliberately configure a tiny deadline exercise it.
+    private AgentOrchestrator BuildSut(TimeSpan turnDeadline) => new(
+        _llmProvider, _toolDispatcher, _verifier, _metrics,
+        Options.Create(new AgentOptions { TurnDeadline = turnDeadline }), NullLogger<AgentOrchestrator>.Instance);
 
     [Fact]
     public async Task StartBriefAsync_LlmAnswersImmediately_ReturnsAnswerWithoutDispatchingAnyTools()
@@ -164,15 +171,27 @@ public sealed class AgentOrchestratorTests
     }
 
     [Fact]
-    public async Task StartBriefAsync_Always_PassesCancellationTokenToTheLlmProvider()
+    public async Task StartBriefAsync_CallerCancelsTheToken_TheTokenTheLlmProviderSeesAlsoBecomesCanceled()
     {
-        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
-            .Returns(Task.FromResult(new LlmResponse("ok", [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m))));
+        // The orchestrator links the caller's token with an internal turn-deadline token (Epic
+        // 10), so the LLM provider no longer receives the exact same CancellationToken value -
+        // but caller cancellation must still reach it, which is the actual behavior this guards.
+        // Cancels from inside the call itself (not after it returns): the linked token source is
+        // scoped to the turn and gets disposed once it completes, so cancelling afterward
+        // wouldn't prove anything about live propagation during the call.
+        CancellationToken? capturedToken = null;
         using var cts = new CancellationTokenSource();
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Invokes((LlmRequest _, CancellationToken ct) =>
+            {
+                capturedToken = ct;
+                cts.Cancel();
+            })
+            .Returns(Task.FromResult(new LlmResponse("ok", [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m))));
 
         await _sut.StartBriefAsync("default", "1", cts.Token);
 
-        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, cts.Token)).MustHaveHappenedOnceExactly();
+        capturedToken!.Value.IsCancellationRequested.Should().BeTrue();
     }
 
     [Fact]
@@ -354,6 +373,49 @@ public sealed class AgentOrchestratorTests
         var act = () => _sut.StartBriefAsync("default", "1", CancellationToken.None);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_CallersOwnCancellationTokenAlreadyCanceled_ThrowsRatherThanDegradingToFallback()
+    {
+        // Guards the deadline-vs-caller-cancellation distinction: a caller-driven cancellation
+        // must still surface as a genuine cancellation even though the turn deadline mechanism
+        // now also races a CancellationTokenSource internally.
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .ThrowsAsync(new OperationCanceledException());
+
+        var act = () => _sut.StartBriefAsync("default", "1", cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_TurnExceedsItsConfiguredDeadline_ReturnsADeterministicFallbackContainingTheRawToolData()
+    {
+        // PRD.md §13.1's "Tool slow / hits deadline" row + the "per-request deadline" design
+        // default: a turn that runs past its configured budget must return the verified/gathered
+        // core now rather than block indefinitely.
+        var sut = BuildSut(TimeSpan.FromMilliseconds(1));
+        var summaryCall = new LlmToolCall("call_1", "get_patient_summary", "{}");
+        A.CallTo(() => _toolDispatcher.DispatchAsync("default", "1", summaryCall, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmToolResultContent("call_1", """{"patient":"Ada Testpatient"}""")));
+        // Round 1 succeeds and requests a tool; round 2's LLM call never completes within the
+        // 1ms deadline configured above, so the deadline's token cancels it first.
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmResponse(string.Empty, [summaryCall], LlmStopReason.ToolUse, new LlmUsage(1, 1, 0m))))
+            .Once()
+            .Then.ReturnsLazily(async (LlmRequest _, CancellationToken ct) =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);
+                return new LlmResponse("should never get here", [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m));
+            });
+
+        var result = await sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        result.IsDeterministicFallback.Should().BeTrue();
+        result.Answer.Should().Contain("""{"patient":"Ada Testpatient"}""");
     }
 
     [Fact]

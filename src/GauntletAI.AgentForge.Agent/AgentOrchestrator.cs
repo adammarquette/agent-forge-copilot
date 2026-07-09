@@ -3,6 +3,7 @@ using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace GauntletAI.AgentForge.Agent;
 
@@ -25,6 +26,7 @@ public sealed class AgentOrchestrator(
     IMcpToolDispatcher toolDispatcher,
     IClinicalResponseVerifier verifier,
     IAgentForgeMetrics metrics,
+    IOptions<AgentOptions> agentOptions,
     ILogger<AgentOrchestrator> logger) : IAgentOrchestrator
 {
     /// <summary>
@@ -79,6 +81,15 @@ public sealed class AgentOrchestrator(
         var messages = state.Messages;
         List<string> toolResultJsonThisTurn = [];
 
+        // PRD.md §13.1's "per-request deadline" design default (the "tool slow / hits deadline"
+        // row): bounds the whole turn's wall-clock time, not just each individual HTTP call (those
+        // already have their own Polly attempt-timeout). deadlineOnlyCts is kept separate from the
+        // linked token so the catch clauses below can tell "my deadline fired" apart from "the
+        // caller cancelled" - the latter must still propagate, not degrade to a fallback.
+        using var deadlineOnlyCts = new CancellationTokenSource(agentOptions.Value.TurnDeadline);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadlineOnlyCts.Token);
+        var operationToken = linkedCts.Token;
+
         for (var round = 0; round < MaxToolCallRounds; round++)
         {
             using var llmActivity = AgentForgeActivitySource.Instance.StartActivity("llm.complete");
@@ -87,7 +98,11 @@ public sealed class AgentOrchestrator(
             LlmResponse response;
             try
             {
-                response = await llmProvider.CompleteAsync(request, cancellationToken).ConfigureAwait(false);
+                response = await llmProvider.CompleteAsync(request, operationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (deadlineOnlyCts.IsCancellationRequested)
+            {
+                return BuildDeterministicFallback(state, messages, toolResultJsonThisTurn, "Turn exceeded its configured deadline.");
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -115,9 +130,17 @@ public sealed class AgentOrchestrator(
 
             messages = [.. messages, new LlmMessage(LlmRole.Assistant, BuildAssistantContent(response))];
 
-            var toolResults = await Task.WhenAll(
-                response.ToolCalls.Select(call => DispatchAndLogAsync(state.Site, state.PatientId, call, cancellationToken)))
-                .ConfigureAwait(false);
+            LlmToolResultContent[] toolResults;
+            try
+            {
+                toolResults = await Task.WhenAll(
+                    response.ToolCalls.Select(call => DispatchAndLogAsync(state.Site, state.PatientId, call, operationToken)))
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (deadlineOnlyCts.IsCancellationRequested)
+            {
+                return BuildDeterministicFallback(state, messages, toolResultJsonThisTurn, "Turn exceeded its configured deadline.");
+            }
 
             toolResultJsonThisTurn.AddRange(toolResults.Select(r => r.ResultJson));
             messages = [.. messages, new LlmMessage(LlmRole.User, toolResults)];
