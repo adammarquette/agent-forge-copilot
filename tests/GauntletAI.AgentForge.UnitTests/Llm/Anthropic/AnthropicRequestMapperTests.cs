@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Llm.Anthropic;
@@ -95,6 +96,20 @@ public sealed class AnthropicRequestMapperTests
         var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
 
         wire.Tools.Should().BeNull();
+    }
+
+    [Fact]
+    public void Map_NoToolsOffered_SerializedRequestOmitsToolsField()
+    {
+        // Regression test: the real Anthropic API rejects an explicit "tools": null with
+        // 400 invalid_request_error "tools: Input should be a valid array" - the field must be
+        // omitted entirely, not sent as a JSON null (confirmed against the real API; see #25).
+        var request = new LlmRequest("system", [], Tools: null);
+
+        var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
+        var json = JsonSerializer.Serialize(wire);
+
+        json.Should().NotContain("\"tools\"");
     }
 
     [Fact]

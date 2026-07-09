@@ -3,6 +3,8 @@
 **Product:** AgentForge Clinical Co-Pilot — an AI agent embedded in OpenEMR for the outpatient cardiologist.
 **Repos:** `agent-forge` (OpenEMR v8 fork — audited base + thin module shim) · `agent-forge-copilot` (.NET sidecar).
 **Traces to:** `USERS.md` (source of truth) · informed by `AUDIT.md` · requirements in `PRD.md`.
+**Implementation companions:** `INTERFACE_CONTROL.md` (external interfaces) · `ENGINEERING_STANDARDS.md`
+(stack/standards) · `RAILWAY.md` (deployment implementation) · `CI-SETUP.md` (pipeline implementation).
 **Status:** v0.1 draft — audit-informed. Items marked **[PROVISIONAL]** await remaining recon (data-quality
 preflight, exact FHIR field coverage for EF/echo/device, calibrated latency numbers).
 
@@ -330,6 +332,37 @@ citation + domain-constraint gate is mandatory across any provider and is the qu
 .NET sidecar) are containers that integrate over standard HTTPS/FHIR/OAuth, so the *same build* runs in either
 environment; what changes is the host and its compliance controls. Two environments (D15):
 
+```mermaid
+flowchart TB
+    subgraph Dev["Development / Demo -- Railway (13.1)"]
+        direction LR
+        DevOE["OpenEMR fork"]
+        DevSC[".NET sidecar"]
+        DevLLM[["LLM provider<br/>assumed BAA"]]
+        DevOE <-->|SMART dynamic client reg| DevSC
+        DevSC --> DevLLM
+    end
+
+    subgraph Prod["Production -- HIPAA-eligible cloud, default AWS (13.2)"]
+        direction LR
+        ProdOE["OpenEMR fork"]
+        ProdSC[".NET sidecar"]
+        ProdLLM[["LLM provider<br/>signed BAA"]]
+        ProdOE <-->|SMART dynamic client reg| ProdSC
+        ProdSC --> ProdLLM
+    end
+
+    Dev -.->|"same container image both ways (13.3)<br/>host + BAA is the only difference"| Prod
+
+    classDef nophi fill:#e8f0fe,stroke:#4285f4,color:#111;
+    classDef phi fill:#fde8e8,stroke:#d93025,color:#111;
+    class DevOE,DevSC,DevLLM nophi;
+    class ProdOE,ProdSC,ProdLLM phi;
+```
+
+*Blue = synthetic data only, no BAA needed. Red = real PHI, under a signed BAA. Railway is also viable for
+prod (§13.2) but gated behind its Enterprise-only HIPAA BAA.*
+
 ### 13.1 Development / demo — Railway
 - **Both services on Railway**; public URL submitted each sprint checkpoint. Per the case study, the final
   agent deploys to the **same infrastructure** as the audited app — so Railway is the sprint target end-to-end.
@@ -437,6 +470,17 @@ enters triage, even in batch.
 4. **Rank by actionability** (deterministic, §18.3).
 5. **Persist** results to the sidecar triage store (§18.4).
 6. **Display** the ranked list in the custom module when the clinician logs in (§18.5).
+
+```mermaid
+flowchart LR
+    A["1. Schedule<br/>pre-clinic worker fires per provider"] --> B["2. Enumerate panel<br/>FHIR Appointment"]
+    B --> C["3. Per-patient brief<br/>interval changes + labs + problems + meds<br/>-> LLM -> verification gate<br/>one failure never kills the run"]
+    C --> D["4. Rank by actionability<br/>deterministic rules, 18.3"]
+    D --> E["5. Persist<br/>sidecar triage store, 18.4"]
+    E --> F["6. Display<br/>custom module, on login, 18.5"]
+
+    Auth["Batch authorization<br/>Option A or B, 18.2"] -.->|non-interactive principal| A
+```
 
 ### 18.2 Batch authorization — the hard problem (resolves the D6 conflict)
 A 5am job has **no clinician present**, so the interactive SMART EHR-launch token doesn't exist. Two

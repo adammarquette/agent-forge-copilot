@@ -12,4 +12,8 @@
     <Project Path="tests/GauntletAI.AgentForge.IntegrationTests/GauntletAI.AgentForge.IntegrationTests.csproj" />
     <Project Path="tests/GauntletAI.AgentForge.UnitTests/GauntletAI.AgentForge.UnitTests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/MintQaIdentityToken/MintQaIdentityToken.csproj" />
+    <Project Path="tools/SeedDemoPatients/SeedDemoPatients.csproj" />
+  </Folder>
 </Solution>

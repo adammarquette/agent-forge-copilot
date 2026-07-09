@@ -14,11 +14,42 @@ namespace GauntletAI.AgentForge.Api.Chat;
 public sealed class ChatHub(ChatSessionCoordinator coordinator, ILogger<ChatHub> logger) : Hub
 {
     private const int MaxDeliveryAttempts = 3;
+    private const string SessionIdItemKey = "patient-session.id";
+    private const string SessionItemKey = "patient-session.context";
+
+    /// <summary>
+    /// ASP.NET Core <c>Session</c> is a per-HTTP-request abstraction backed by a feature on
+    /// <see cref="HttpContext"/>; a SignalR connection is not one request, so re-reading
+    /// <c>Context.GetHttpContext().Session</c> from inside a hub method is unreliable - most
+    /// visibly with the long-polling transport (forced by <c>BffQaFixture</c>, since the in-memory
+    /// TestServer has no real sockets), where every poll is a distinct HTTP request and the one
+    /// handling a given hub method invocation may never have run through the <c>UseSession()</c>
+    /// middleware, throwing <see cref="InvalidOperationException"/> ("Session has not been
+    /// configured for this application or request") instead of the intended "not authenticated"
+    /// <see cref="HubException"/>. The <see cref="HubCallerContext"/> reflects the
+    /// connection-establishing request, which did run the full middleware pipeline, so the
+    /// session is loaded once here and cached on <see cref="HubCallerContext.Items"/> for every
+    /// hub method on this connection to read instead.
+    /// </summary>
+    public override async Task OnConnectedAsync()
+    {
+        var httpContext = Context.GetHttpContext()
+            ?? throw new HubException("No HTTP context available for this connection.");
+
+        await httpContext.Session.LoadAsync(Context.ConnectionAborted).ConfigureAwait(false);
+        Context.Items[SessionIdItemKey] = httpContext.Session.Id;
+        if (httpContext.Session.TryGetPatientSession() is { } session)
+        {
+            Context.Items[SessionItemKey] = session;
+        }
+
+        await base.OnConnectedAsync().ConfigureAwait(false);
+    }
 
     /// <summary>Starts the pre-visit brief for the authenticated session's patient (UC-1).</summary>
     public async Task RequestBrief()
     {
-        var (sessionId, session) = await GetAuthenticatedSessionOrThrowAsync().ConfigureAwait(false);
+        var (sessionId, session) = GetAuthenticatedSessionOrThrow();
         var message = await coordinator.RequestBriefAsync(sessionId, session, Context.ConnectionAborted).ConfigureAwait(false);
         await DeliverAsync(message).ConfigureAwait(false);
     }
@@ -26,7 +57,7 @@ public sealed class ChatHub(ChatSessionCoordinator coordinator, ILogger<ChatHub>
     /// <summary>Asks a follow-up question within the authenticated session (UC-2).</summary>
     public async Task AskFollowUp(string question)
     {
-        var (sessionId, session) = await GetAuthenticatedSessionOrThrowAsync().ConfigureAwait(false);
+        var (sessionId, session) = GetAuthenticatedSessionOrThrow();
         var message = await coordinator.AskFollowUpAsync(sessionId, session, question, Context.ConnectionAborted).ConfigureAwait(false);
         await DeliverAsync(message).ConfigureAwait(false);
     }
@@ -36,22 +67,20 @@ public sealed class ChatHub(ChatSessionCoordinator coordinator, ILogger<ChatHub>
     /// (ENGINEERING_STANDARDS.md §12 - idempotent resume: safe to call repeatedly with the same
     /// <paramref name="lastSeenSequence"/>, and safe across a new connection id after a drop).
     /// </summary>
-    public async Task<IReadOnlyList<ChatMessage>> Resume(long lastSeenSequence)
+    public Task<IReadOnlyList<ChatMessage>> Resume(long lastSeenSequence)
     {
-        var (sessionId, _) = await GetAuthenticatedSessionOrThrowAsync().ConfigureAwait(false);
-        return coordinator.Resume(sessionId, lastSeenSequence);
+        var (sessionId, _) = GetAuthenticatedSessionOrThrow();
+        return Task.FromResult(coordinator.Resume(sessionId, lastSeenSequence));
     }
 
-    private async Task<(string SessionId, PatientSessionContext Session)> GetAuthenticatedSessionOrThrowAsync()
+    private (string SessionId, PatientSessionContext Session) GetAuthenticatedSessionOrThrow()
     {
-        var httpContext = Context.GetHttpContext()
-            ?? throw new HubException("No HTTP context available for this connection.");
+        if (Context.Items.TryGetValue(SessionItemKey, out var value) && value is PatientSessionContext session)
+        {
+            return ((string)Context.Items[SessionIdItemKey]!, session);
+        }
 
-        await httpContext.Session.LoadAsync(Context.ConnectionAborted).ConfigureAwait(false);
-        var session = httpContext.Session.TryGetPatientSession()
-            ?? throw new HubException("No authenticated session - complete the SMART launch first.");
-
-        return (httpContext.Session.Id, session);
+        throw new HubException("No authenticated session - complete the SMART launch first.");
     }
 
     /// <summary>

@@ -106,18 +106,51 @@ Pipeline: lint → build → test (unit + integration) → deploy.
   - `OpenEmrQa__Site` = `default`
   - `OpenEmrQa__TestPatientId` = `a2362388-35e0-43de-97dc-450bd53e624e`
     (seeded FHIR patient "Ada Testpatient")
-  - `OpenEmrQa__TestAccessToken` = an OAuth access token (see token note below)
+  - `OpenEmrQa__TestAccessToken` = an OAuth access token (fallback only, see
+    token note below — the durable path no longer depends on this)
+  - `OpenEmrQa__System__ClientId`, `OpenEmrQa__System__PrivateKeyPath` (**File**
+    type), `OpenEmrQa__System__KeyId`, `OpenEmrQa__System__Scope` — see below
   - `LlmQa__ApiKey`, `LlmQa__Model` = real Anthropic key + model for test runs
 
-> **Access-token expiry:** OpenEMR access tokens live ~1 hour, so a *static*
-> `OpenEmrQa__TestAccessToken` variable goes stale between CI runs. The durable
-> fix is to mint a token at test startup from client credentials + a service
-> login, stored as CI variables: `OpenEmrQa__ClientId`,
-> `OpenEmrQa__ClientSecret`, `OpenEmrQa__Username`, `OpenEmrQa__Password`. The
-> password grant call is:
-> `POST /oauth2/default/token` (form-encoded) with `grant_type=password`,
-> `user_role=users`, `scope=openid api:oemr api:fhir user/Patient.read`, plus
-> the client id/secret and username/password.
+> **Access-token expiry — solved (GitLab issue #22):** OpenEMR access tokens
+> live ~1 hour, so a *static* `OpenEmrQa__TestAccessToken` went stale between
+> CI runs. `password` grant was ruled out (OpenEMR only ever grants it
+> identity-only scopes, never `api:fhir`, regardless of the user's ACL). The
+> durable fix: `OpenEmrQaFixture` mints a fresh token itself, per test run, via
+> `client_credentials` + a JWT-bearer client assertion (RFC 7523) — never
+> expires in practice, no interactive browser flow ever again. Needs:
+>
+> - A **confidential** OAuth client registered with `application_type: private`,
+>   `token_endpoint_auth_method` can be anything the registration endpoint
+>   accepts (`client_secret_post` works — this server's `client_credentials`
+>   grant only ever authenticates via the JWT assertion regardless of the
+>   client's recorded auth method) plus a `jwks` containing an RS384 public
+>   key, `grant_types: ["client_credentials"]`, and `system/*` scopes.
+>   Self-service dynamic registration refuses this via the "Register New App"
+>   admin GUI (hardcodes `client_secret_post`, no `grant_types` field at all)
+>   — register directly against `POST /oauth2/{site}/registration` instead.
+>   The client lands **disabled**; one admin "Enable" click (Admin → System →
+>   API Clients) is required before it can mint tokens.
+> - The **"Enable OpenEMR FHIR System Scopes"** global (Admin → Configuration →
+>   Connectors → `rest_system_scopes_api`) — off by default; without it every
+>   `system/*` scope is rejected as `invalid_scope` regardless of naming.
+> - The **"Site Address Override"** global (same Connectors tab,
+>   `site_addr_oath`) set to this environment's real base URL (e.g.
+>   `https://openemr-uubp-development.up.railway.app`). It defaults to an
+>   *empty string*, which PHP's `??` does not treat as unset — so every OAuth
+>   URL the server computes (including the token endpoint used to validate the
+>   JWT assertion's `aud` claim) comes out as a bare path with no scheme/host.
+>   Left unset, this breaks both the admin "Register New App" GUI (`fetch()`
+>   targets an unreachable URL — "Failed to fetch") and JWT assertion audience
+>   validation (`invalid_client: Client authentication failed`) even with an
+>   otherwise-correct assertion.
+>
+> Config maps `OpenEmrQa__System__ClientId`/`PrivateKeyPath`/`KeyId`/`Scope` →
+> `OpenEmrQa:System:ClientId` etc. `PrivateKeyPath` is a GitLab **File**-type
+> variable (GitLab sets the env var's value to a temp file path at runtime,
+> preserving the multi-line PEM exactly — inline `Variable`-type values are
+> fragile for this). When `System__ClientId`/`PrivateKeyPath` aren't set, the
+> fixture falls back to the static `OpenEmrQa__TestAccessToken` unchanged.
 - **deploy** (auto on `main`): `railway up --service agent-forge-api --ci` with
   `RAILWAY_TOKEN=$RAILWAY_TOKEN_DEV`. Railway builds the Dockerfile server-side.
 
@@ -157,8 +190,9 @@ on `openemr-Uubp`, kept in sync so a re-setup recreates the same credentials).
    as a masked/protected GitLab CI variable.
 4. In the dashboard, confirm `agent-forge-api`'s domain targets port 8080 and
    `openemr-Uubp`'s domain targets port 80 (see the domain-port gotcha above).
-5. Adopt runtime token minting (see access-token expiry note) so CI doesn't
-   depend on a static, expiring `OpenEmrQa__TestAccessToken`.
+5. ~~Adopt runtime token minting~~ — **done** (GitLab issue #22): `OpenEmrQaFixture`
+   mints via `client_credentials` + JWT-bearer assertion; see the access-token
+   expiry note above for the one-time OpenEMR setup this required.
 6. Optional cleanup: rename `openemr-Uubp` → `openemr`.
 
 ## Rollback

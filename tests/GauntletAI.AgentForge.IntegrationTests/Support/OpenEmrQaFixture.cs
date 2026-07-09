@@ -40,6 +40,15 @@ public sealed class OpenEmrQaFixture
     /// </summary>
     public IOpenEmrFhirApi SecondFhirApi { get; }
 
+    /// <summary>
+    /// Real FHIR client carrying <see cref="QaOpenEmrOptions.CrossIdentityTestAccessTokenA"/> as its
+    /// bearer token - identity A's genuinely patient-scoped token for the cross-identity entitlement
+    /// tests specifically (distinct from <see cref="FhirApi"/>, which carries the system-role token
+    /// once <see cref="QaOpenEmrOptions.SystemClientId"/> is configured). Only usable when that
+    /// optional config is set.
+    /// </summary>
+    public IOpenEmrFhirApi CrossIdentityFhirApiA { get; }
+
     public OpenEmrQaFixture()
     {
         var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
@@ -56,16 +65,48 @@ public sealed class OpenEmrQaFixture
                 "(ENGINEERING_STANDARDS.md §8.2 / tests/AGENTS.md) - there is no mock fallback to fail over to.");
         }
 
+        var systemSection = section.GetSection("System");
+        var systemClientId = systemSection["ClientId"];
+        var systemPrivateKeyPath = systemSection["PrivateKeyPath"];
+        var systemKeyId = systemSection["KeyId"];
+        var systemScope = systemSection["Scope"];
+
+        var testAccessToken = section["TestAccessToken"];
+        if (!string.IsNullOrWhiteSpace(systemClientId) && !string.IsNullOrWhiteSpace(systemPrivateKeyPath))
+        {
+            // client_credentials + JWT-bearer minting (GitLab issue #22) supersedes a static
+            // TestAccessToken - it never expires in practice, unlike a token re-minted by hand
+            // through an interactive SMART launch. A configured-but-failed mint throws rather than
+            // silently falling back to a possibly-stale static token: that would defeat the point of
+            // this fix and mask the real failure (NFR-REL-2's "meaningful check, not an unconditional
+            // pass" applied to test config, not just /ready).
+            testAccessToken = OpenEmrSystemTokenClient.MintAccessTokenAsync(
+                baseUrl,
+                site,
+                systemClientId,
+                systemPrivateKeyPath,
+                systemKeyId ?? throw new InvalidOperationException(
+                    $"{QaOpenEmrOptions.SectionName}__System__KeyId is required when System__ClientId is set."),
+                systemScope ?? throw new InvalidOperationException(
+                    $"{QaOpenEmrOptions.SectionName}__System__Scope is required when System__ClientId is set."))
+                .GetAwaiter().GetResult();
+        }
+
         Options = new QaOpenEmrOptions
         {
             BaseUrl = baseUrl,
             Site = site,
-            TestAccessToken = section["TestAccessToken"],
+            TestAccessToken = testAccessToken,
             TestPatientId = section["TestPatientId"],
             TestClientId = section["TestClientId"],
             TestClientSecret = section["TestClientSecret"],
             SecondTestAccessToken = section["SecondTestAccessToken"],
             SecondTestPatientId = section["SecondTestPatientId"],
+            CrossIdentityTestAccessTokenA = section["CrossIdentityTestAccessTokenA"],
+            SystemClientId = systemClientId,
+            SystemPrivateKeyPath = systemPrivateKeyPath,
+            SystemKeyId = systemKeyId,
+            SystemScope = systemScope,
         };
 
         var authHttpClient = new HttpClient { BaseAddress = new Uri(Options.BaseUrl) };
@@ -91,5 +132,14 @@ public sealed class OpenEmrQaFixture
         }
 
         SecondFhirApi = RestService.For<IOpenEmrFhirApi>(secondFhirHttpClient);
+
+        var crossIdentityFhirHttpClientA = new HttpClient { BaseAddress = new Uri(Options.BaseUrl) };
+        if (!string.IsNullOrEmpty(Options.CrossIdentityTestAccessTokenA))
+        {
+            crossIdentityFhirHttpClientA.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", Options.CrossIdentityTestAccessTokenA);
+        }
+
+        CrossIdentityFhirApiA = RestService.For<IOpenEmrFhirApi>(crossIdentityFhirHttpClientA);
     }
 }

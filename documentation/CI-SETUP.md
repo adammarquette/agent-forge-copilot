@@ -8,12 +8,13 @@ under `.gitlab/`:
 .gitlab-ci.yml            <- pipeline root: workflow, stages, defaults, includes
 .gitlab/
 └── ci/
+    ├── lint.yml          <- lint stage: dotnet format + third-party license scan
     ├── build.yml         <- build stage
     ├── test.yml          <- unit + integration test stage
-    └── deploy.yml        <- manual deploy gate (main only)
+    └── deploy.yml        <- deploy stage (auto on main)
 ```
 
-The root file `include:`s the three fragments. Everything about *where* and
+The root file `include:`s the four fragments. Everything about *where* and
 *how* the pipeline runs is defined in code — the only remaining items below are
 GitLab **policy** settings (who can merge when), which have no in-file
 equivalent.
@@ -73,19 +74,19 @@ Two layers cover this:
 
 ## 4. Main must pass tests before deploy
 
-Already enforced by pipeline structure: on `main`, the `deploy` job sits in the
-last stage as a **manual** action. If `build`, `unit-tests`, or
-`integration-tests` fail, the pipeline stops and the deploy button is never
-runnable. When everything is green, deploy shows up as a ▶ manual job — replace
-the `TODO` in `.gitlab/ci/deploy.yml`'s `script` with your real deployment steps.
+Enforced by pipeline stage ordering: `deploy` is the last stage, and a failed
+`lint`, `build`, `unit-tests`, or `integration-tests` job stops the pipeline
+before `deploy` ever runs. `deploy` itself runs **automatically** on `main`
+(`.gitlab/ci/deploy.yml`, `rules: if $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH` —
+no manual gate) and ships via `railway up --service agent-forge-api --ci`; see
+`RAILWAY.md` for the deployed target and rollback procedure.
 
-## 5. Nice-to-have: failed-test widget in MRs
+## 5. Failed-test widget in MRs — done
 
-Add the [JunitXml.TestLogger](https://www.nuget.org/packages/JunitXml.TestLogger)
-NuGet package to your test projects, change `--logger trx` to
-`--logger "junit;LogFilePath=TestResults/{assembly}.junit.xml"` in
-`.gitlab/ci/test.yml`, and uncomment the `reports: junit:` block in the test
-template. Failed tests then appear inline in the MR instead of only in job logs.
+`JunitXml.TestLogger` is added to both test projects (`Directory.Packages.props`),
+`.gitlab/ci/test.yml` logs `--logger "junit;LogFileName={assembly}.junit.xml"`,
+and the `reports: junit:` block in the shared test template is live. Failed
+tests surface inline in the MR, not just in job logs.
 
 ## What else fits in `.gitlab/`
 
@@ -98,8 +99,8 @@ you ever want them:
 
 ## How the flow looks day-to-day
 
-1. Dev opens an MR → pipeline runs build → unit → integration. Red pipeline =
-   merge button locked until they push a fix.
+1. Dev opens an MR → pipeline runs lint → build → unit → integration. Red
+   pipeline = merge button locked until they push a fix.
 2. Dev pushes more commits → pipeline re-runs automatically (old run auto-cancels).
 3. Someone else merges to main → this MR's next run tests against the new main
    (auto-triggered on Premium; manual "Run pipeline"/rebase on Free).
