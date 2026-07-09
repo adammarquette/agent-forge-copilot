@@ -12,9 +12,13 @@ namespace GauntletAI.AgentForge.Agent;
 /// references ("her", "that lab") and chain tools when one result is needed before the next call.
 /// Grounding discipline and refusal boundaries live in <see cref="CardiologyProfile"/> (the
 /// prompt); patient-scoping enforcement lives in <see cref="McpToolCatalog"/> and the tool
-/// dispatcher (below the model). Every draft answer passes through <see cref="IClinicalResponseVerifier"/>
-/// before it becomes an <see cref="AgentTurnResult"/> - the mandatory gate FR-VERIF-0 requires;
-/// nothing returned by this class bypasses it.
+/// dispatcher (below the model). Every LLM-synthesized draft answer passes through
+/// <see cref="IClinicalResponseVerifier"/> before it becomes an <see cref="AgentTurnResult"/> -
+/// the mandatory gate FR-VERIF-0 requires. The one deliberate exception is the deterministic
+/// fallback path (PRD.md §13.1, Epic 10): when the LLM call itself fails after retries exhausted,
+/// or the turn exceeds its tool-call round budget, the result is raw tool JSON, not synthesized
+/// prose - there is no claim to ground, so it bypasses the verifier by design rather than being
+/// stripped to nothing by a citation check built for prose.
 /// </summary>
 public sealed class AgentOrchestrator(
     ILlmProvider llmProvider,
@@ -24,9 +28,9 @@ public sealed class AgentOrchestrator(
     ILogger<AgentOrchestrator> logger) : IAgentOrchestrator
 {
     /// <summary>
-    /// Safety bound on tool-call rounds within a single turn. NFR-REL-1's full graceful-degradation
-    /// story (return the verified core instead of failing outright) is Epic 10's scope; for now,
-    /// exceeding this throws rather than looping indefinitely against a misbehaving model.
+    /// Safety bound on tool-call rounds within a single turn against a misbehaving model that
+    /// never stops calling tools. Exceeding this degrades to the deterministic fallback (below)
+    /// rather than looping indefinitely.
     /// </summary>
     private const int MaxToolCallRounds = 5;
 
@@ -79,7 +83,20 @@ public sealed class AgentOrchestrator(
         {
             using var llmActivity = AgentForgeActivitySource.Instance.StartActivity("llm.complete");
             var request = new LlmRequest(CardiologyProfile.SystemPrompt, messages, McpToolCatalog.AllTools);
-            var response = await llmProvider.CompleteAsync(request, cancellationToken).ConfigureAwait(false);
+
+            LlmResponse response;
+            try
+            {
+                response = await llmProvider.CompleteAsync(request, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // PRD.md §13.1: the HttpClient-level resilience pipeline (Polly, Epic 10) has
+                // already retried transient failures before this exception ever reaches here -
+                // this is the exhausted, final failure, so degrade rather than propagate.
+                return BuildDeterministicFallback(state, messages, toolResultJsonThisTurn, ex.Message);
+            }
+
             metrics.RecordLlmUsage(response.Usage.InputTokens, response.Usage.OutputTokens, response.Usage.EstimatedCostUsd);
 
             if (response.StopReason != LlmStopReason.ToolUse || response.ToolCalls.Count == 0)
@@ -106,8 +123,28 @@ public sealed class AgentOrchestrator(
             messages = [.. messages, new LlmMessage(LlmRole.User, toolResults)];
         }
 
-        throw new InvalidOperationException(
-            $"Exceeded {MaxToolCallRounds} tool-call rounds without a final answer.");
+        return BuildDeterministicFallback(
+            state, messages, toolResultJsonThisTurn, $"Exceeded {MaxToolCallRounds} tool-call rounds without a final answer.");
+    }
+
+    /// <summary>
+    /// Builds the PRD.md §13.1 "deterministic, non-LLM fallback" - raw source data pulled straight
+    /// from whatever tools already succeeded this turn, no synthesis, never silent. Bypasses
+    /// <see cref="IClinicalResponseVerifier"/> deliberately (see class doc comment).
+    /// </summary>
+    private AgentTurnResult BuildDeterministicFallback(
+        ConversationState state, IReadOnlyList<LlmMessage> messages, List<string> toolResultJsonThisTurn, string reason)
+    {
+        AgentOrchestratorLog.DegradedToDeterministicFallback(logger, reason);
+
+        var answer = toolResultJsonThisTurn.Count == 0
+            ? "Summary unavailable right now, and no data could be retrieved this turn either. Please try again."
+            : "Summary unavailable right now - here is the source data retrieved this turn instead:\n\n" +
+              string.Join("\n\n", toolResultJsonThisTurn.Select((json, index) => $"Source {index + 1}: {json}"));
+
+        var updatedMessages = messages.Append(new LlmMessage(LlmRole.Assistant, [new LlmTextContent(answer)]));
+
+        return new AgentTurnResult(answer, state with { Messages = [.. updatedMessages] }, [], [], IsDeterministicFallback: true);
     }
 
     private async Task<LlmToolResultContent> DispatchAndLogAsync(

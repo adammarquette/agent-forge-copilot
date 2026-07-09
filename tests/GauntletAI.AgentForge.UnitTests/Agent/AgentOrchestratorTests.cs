@@ -146,17 +146,21 @@ public sealed class AgentOrchestratorTests
     }
 
     [Fact]
-    public async Task StartBriefAsync_ExceedsMaxToolCallRounds_ThrowsRatherThanLoopingForever()
+    public async Task StartBriefAsync_ExceedsMaxToolCallRounds_ReturnsADeterministicFallbackInsteadOfThrowing()
     {
+        // PRD.md §13.1 / Epic 10 (NFR-REL-1): a misbehaving model that never stops calling tools
+        // must still yield a bounded, honest result to the clinician - not an unhandled exception
+        // that surfaces as a crash.
         var call = new LlmToolCall("call_x", "get_labs", "{}");
         A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
             .Returns(Task.FromResult(new LlmResponse(string.Empty, [call], LlmStopReason.ToolUse, new LlmUsage(1, 1, 0m))));
         A.CallTo(() => _toolDispatcher.DispatchAsync(A<string>._, A<string>._, A<LlmToolCall>._, A<CancellationToken>._))
-            .Returns(Task.FromResult(new LlmToolResultContent("call_x", "{}")));
+            .Returns(Task.FromResult(new LlmToolResultContent("call_x", """{"labs":[]}""")));
 
-        var act = () => _sut.StartBriefAsync("default", "1", CancellationToken.None);
+        var result = await _sut.StartBriefAsync("default", "1", CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        result.IsDeterministicFallback.Should().BeTrue();
+        result.Answer.Should().Contain("""{"labs":[]}""", "the raw tool data gathered so far must be handed back, never silently dropped");
     }
 
     [Fact]
@@ -254,18 +258,20 @@ public sealed class AgentOrchestratorTests
     }
 
     [Fact]
-    public async Task StartBriefAsync_ExceedsMaxToolCallRounds_RecordsAnAgentTurnMetricTaggedFailure()
+    public async Task StartBriefAsync_ExceedsMaxToolCallRounds_RecordsAnAgentTurnMetricTaggedSuccess()
     {
+        // A deterministic fallback is a graceful degradation, not a failure: the turn delivered
+        // something honest and useful rather than crashing, so it counts as succeeded for
+        // reliability metrics (PRD.md §13.1 - "partial-but-honest beats complete-but-untrustworthy").
         var call = new LlmToolCall("call_x", "get_labs", "{}");
         A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
             .Returns(Task.FromResult(new LlmResponse(string.Empty, [call], LlmStopReason.ToolUse, new LlmUsage(1, 1, 0m))));
         A.CallTo(() => _toolDispatcher.DispatchAsync(A<string>._, A<string>._, A<LlmToolCall>._, A<CancellationToken>._))
             .Returns(Task.FromResult(new LlmToolResultContent("call_x", "{}")));
 
-        var act = () => _sut.StartBriefAsync("default", "1", CancellationToken.None);
+        await _sut.StartBriefAsync("default", "1", CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
-        A.CallTo(() => _metrics.RecordAgentTurn(false, A<TimeSpan>._)).MustHaveHappenedOnceExactly();
+        A.CallTo(() => _metrics.RecordAgentTurn(true, A<TimeSpan>._)).MustHaveHappenedOnceExactly();
     }
 
     [Fact]
@@ -277,6 +283,77 @@ public sealed class AgentOrchestratorTests
         await _sut.StartBriefAsync("default", "1", CancellationToken.None);
 
         A.CallTo(() => _metrics.RecordLlmUsage(120, 45, 0.03m)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_LlmProviderThrowsBeforeAnyToolCalls_ReturnsADeterministicFallbackNotingNoDataAvailable()
+    {
+        // PRD.md §13.1's "LLM timeout / provider error" row: after the resilience pipeline
+        // (Polly, wired at the HttpClient level) exhausts its retries and the call still fails,
+        // the orchestrator must degrade to a deterministic answer rather than propagate the
+        // exception - even when there is no tool data yet to fall back on.
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .ThrowsAsync(new HttpRequestException("LLM provider unreachable"));
+
+        var result = await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        result.IsDeterministicFallback.Should().BeTrue();
+        result.Answer.Should().NotBeNullOrEmpty("silence is never an acceptable failure mode - PRD.md §13.1");
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_LlmProviderThrowsAfterAToolCallSucceeded_ReturnsADeterministicFallbackContainingTheRawToolData()
+    {
+        var summaryCall = new LlmToolCall("call_1", "get_patient_summary", "{}");
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmResponse(string.Empty, [summaryCall], LlmStopReason.ToolUse, new LlmUsage(1, 1, 0m))))
+            .Once()
+            .Then.ThrowsAsync(new HttpRequestException("LLM provider unreachable"));
+        A.CallTo(() => _toolDispatcher.DispatchAsync("default", "1", summaryCall, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmToolResultContent("call_1", """{"patient":"Ada Testpatient"}""")));
+
+        var result = await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        result.IsDeterministicFallback.Should().BeTrue();
+        result.Answer.Should().Contain("""{"patient":"Ada Testpatient"}""");
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_LlmProviderThrows_NeverRunsTheFallbackThroughTheVerifier()
+    {
+        // The fallback is raw tool JSON, not LLM-synthesized prose making claims - there is
+        // nothing for FR-VERIF-0's citation gate to check, and running it through the verifier
+        // (which expects [ResourceType/Id]-style prose citations) would only strip it to nothing.
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .ThrowsAsync(new HttpRequestException("LLM provider unreachable"));
+
+        await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_LlmProviderThrows_RecordsAnAgentTurnMetricTaggedSuccess()
+    {
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .ThrowsAsync(new HttpRequestException("LLM provider unreachable"));
+
+        await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        A.CallTo(() => _metrics.RecordAgentTurn(true, A<TimeSpan>._)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_OperationCanceled_PropagatesRatherThanDegradingToFallback()
+    {
+        // Cancellation is not a degradation case - it means the caller stopped waiting, so it
+        // must propagate as a cancellation, not get silently swallowed into a fallback "answer".
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .ThrowsAsync(new OperationCanceledException());
+
+        var act = () => _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
     }
 
     [Fact]

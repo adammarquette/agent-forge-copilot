@@ -10,5 +10,17 @@ namespace GauntletAI.AgentForge.Agent;
 /// Lines the verifier removed from the draft for failing source attribution this turn (PRD.md
 /// §13.1's "Claim can't be grounded" row - "suppressed items noted", never a silent gap).
 /// </param>
+/// <param name="IsDeterministicFallback">
+/// True when <see cref="Answer"/> is raw, source-cited tool data rather than a model-synthesized
+/// draft - the LLM call failed after retries exhausted, or the turn exceeded its tool-call round
+/// budget (PRD.md §13.1's "LLM timeout / provider error" row: degrade to a deterministic,
+/// non-LLM fallback rather than fail outright). Callers should render this distinctly (e.g. a
+/// "Summary unavailable right now - here is the source data" banner) rather than presenting it as
+/// if the model said it.
+/// </param>
 public sealed record AgentTurnResult(
-    string Answer, ConversationState State, IReadOnlyList<DomainConstraintFlag> SafetyFlags, IReadOnlyList<SuppressedClaim> SuppressedClaims);
+    string Answer,
+    ConversationState State,
+    IReadOnlyList<DomainConstraintFlag> SafetyFlags,
+    IReadOnlyList<SuppressedClaim> SuppressedClaims,
+    bool IsDeterministicFallback = false);
