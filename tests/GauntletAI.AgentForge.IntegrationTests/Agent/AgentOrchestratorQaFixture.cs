@@ -2,6 +2,7 @@ using GauntletAI.AgentForge.Agent;
 using GauntletAI.AgentForge.Integration.OpenEmr.Fhir;
 using GauntletAI.AgentForge.IntegrationTests.Llm;
 using GauntletAI.AgentForge.IntegrationTests.Support;
+using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Mcp;
 using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
@@ -26,12 +27,20 @@ public sealed class AgentOrchestratorQaFixture
     /// <summary>The underlying OpenEMR QA connection (base URL, site, test patient id).</summary>
     public OpenEmrQaFixture OpenEmr { get; }
 
+    /// <summary>The real LLM options (model, etc.) - for tests building a deliberately-broken provider.</summary>
+    public LlmProviderOptions LlmOptions { get; }
+
     /// <summary>The real orchestrator, ready to run a turn.</summary>
     public AgentOrchestrator Orchestrator { get; }
+
+    private readonly IMcpToolDispatcher _dispatcher;
+    private readonly IClinicalResponseVerifier _verifier;
+    private readonly IAgentForgeMetrics _metrics;
 
     public AgentOrchestratorQaFixture()
     {
         var llm = new AnthropicQaFixture();
+        LlmOptions = llm.Options;
         OpenEmr = new OpenEmrQaFixture();
 
         if (string.IsNullOrEmpty(OpenEmr.Options.TestAccessToken) || string.IsNullOrEmpty(OpenEmr.Options.TestPatientId))
@@ -48,15 +57,24 @@ public sealed class AgentOrchestratorQaFixture
             fhirClient,
             new FixedCorrelationIdAccessor("qa-agent-orchestrator-test"),
             NullLogger<McpToolServer>.Instance);
-        var metrics = new AgentForgeMetrics();
-        var dispatcher = new McpToolDispatcher(toolServer, metrics, NullLogger<McpToolDispatcher>.Instance);
-        var verifier = new ClinicalResponseVerifier(
+        _metrics = new AgentForgeMetrics();
+        _dispatcher = new McpToolDispatcher(toolServer, _metrics, NullLogger<McpToolDispatcher>.Instance);
+        _verifier = new ClinicalResponseVerifier(
             new SourceAttributionEngine(),
             new CardiologyConstraintEngine(CardiologyConstraintRules.Default),
             NullLogger<ClinicalResponseVerifier>.Instance);
 
-        Orchestrator = new AgentOrchestrator(
-            llm.Provider, dispatcher, verifier, metrics,
-            Options.Create(new AgentOptions()), NullLogger<AgentOrchestrator>.Instance);
+        Orchestrator = BuildOrchestrator(llm.Provider, TimeSpan.FromSeconds(60));
     }
+
+    /// <summary>
+    /// Builds a fresh orchestrator sharing this fixture's real dispatcher/verifier (real FHIR data,
+    /// real verification) but with <paramref name="provider"/> and <paramref name="turnDeadline"/>
+    /// swapped in - for fault-injection tests (Epic 10) that need a deliberately-broken LLM
+    /// provider or an artificially tight deadline without duplicating the real-dependency wiring
+    /// above.
+    /// </summary>
+    public AgentOrchestrator BuildOrchestrator(ILlmProvider provider, TimeSpan turnDeadline) => new(
+        provider, _dispatcher, _verifier, _metrics,
+        Options.Create(new AgentOptions { TurnDeadline = turnDeadline }), NullLogger<AgentOrchestrator>.Instance);
 }
