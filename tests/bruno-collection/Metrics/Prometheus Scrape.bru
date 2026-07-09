@@ -1,0 +1,21 @@
+meta {
+  name: Prometheus Scrape (/metrics)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/metrics
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  FR-OBS-3: the self-hosted dashboard's data source. Text-exposition-format Prometheus metrics,
+  including AgentForgeMetrics' custom counters/histograms (agent turns, tool calls, LLM usage,
+  verification outcomes) and Polly's retry/circuit-breaker telemetry (Epic 10).
+}
