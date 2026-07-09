@@ -37,8 +37,15 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
+    <!-- Real process CPU%/RSS (Runtime above is GC/heap only) - no stable release exists upstream yet. -->
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Process" Version="1.16.0-rc.1" />
     <PackageVersion Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.16.0-beta.1" />
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.16.0" />
+
+    <!-- Automates the real browser SMART login/consent step for QA token minting (GitLab issue
+         #30) - removes the manual "open this URL, log in, paste back the redirect" step from
+         OpenEmrQaFixture/tools/MintQaIdentityToken/tools/LoadTestChat. -->
+    <PackageVersion Include="Microsoft.Playwright" Version="1.61.0" />
 
     <!-- Composition root plumbing for the integration test host (real HttpClient, real config
          binding from environment variables - never hard-coded QA credentials/URLs) -->

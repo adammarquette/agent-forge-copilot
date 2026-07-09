@@ -23,6 +23,18 @@ public interface IOpenEmrAuthClient
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Redeems a refresh token (issued when the original login requested <c>offline_access</c>) for a
+    /// fresh access token, using the refresh_token grant - avoids repeating an interactive browser
+    /// login every time a previously-minted, patient-scoped token expires.
+    /// </summary>
+    Task<TokenResponse> RefreshAccessTokenAsync(
+        string site,
+        string refreshToken,
+        string clientId,
+        string? clientSecret,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Validates <paramref name="accessToken"/> and returns its active claims. OpenEMR's introspect
     /// endpoint requires the caller to authenticate as a registered client via
     /// <paramref name="clientId"/>/<paramref name="clientSecret"/> form parameters (confirmed

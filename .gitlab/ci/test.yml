@@ -85,6 +85,8 @@ unit-tests:
 #   OpenEmrQa__TestAccessToken, LlmQa__ApiKey, LlmQa__Model
 # (see documentation/RAILWAY.md). The fixtures throw on startup if these are missing,
 # which is intentional - a meaningful check, not an unconditional 200 (NFR-REL-2).
+# OpenEmrQa__LoginUsername/LoginPassword (GitLab issue #30) are optional - only QA staff
+# credentials, gating OpenEmrQaFixture's last-resort Playwright login self-heal.
 #
 # The `rules` below gate the job on OpenEmrQa__BaseUrl: until that variable is set the
 # job is simply not added to the pipeline (keeping the pipeline green), and it activates
@@ -105,9 +107,27 @@ integration-tests:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       allow_failure: true
     - when: on_success
+  # Cache the downloaded browser binary (~180MB) across runs - it's pinned to the
+  # Microsoft.Playwright package version below, so a version bump naturally busts it.
+  cache:
+    key: playwright-chromium-1.61.0
+    paths:
+      - .cache/ms-playwright/
+  variables:
+    PLAYWRIGHT_BROWSERS_PATH: $CI_PROJECT_DIR/.cache/ms-playwright
   script:
     - |
       set -e
+      # OpenEmrQaFixture's last-resort self-heal (GitLab issue #30) drives a real, headless
+      # browser login when neither a refresh token nor a still-valid static token is
+      # configured - install the browser binary it needs. Skipped when the login
+      # credentials aren't set, since nothing would exercise that code path anyway.
+      if [ -n "$OpenEmrQa__LoginUsername" ]; then
+        echo "Installing Playwright's Chromium (for OpenEmrQaFixture's login self-heal)..."
+        dotnet tool install --global Microsoft.Playwright.CLI --version 1.61.0 > /dev/null
+        export PATH="$PATH:$HOME/.dotnet/tools"
+        playwright install --with-deps chromium
+      fi
       projects=$(find . -type f -name "$INTEGRATION_TEST_PATTERN" -not -path "*/bin/*" -not -path "*/obj/*")
       if [ -z "$projects" ]; then
         echo "No integration test projects matched '$INTEGRATION_TEST_PATTERN'. Fix INTEGRATION_TEST_PATTERN in .gitlab-ci.yml."

@@ -138,6 +138,10 @@ builder.Services.AddOpenTelemetry()
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddRuntimeInstrumentation()
+        // Runtime above is GC/heap only - Process gives real process CPU%/RSS for Epic 12's
+        // load-test baselines (PRD.md NFR-PERF-2/4), also useful ongoing since none of the other
+        // instrumentation here surfaces true OS-level resource usage.
+        .AddProcessInstrumentation()
         .AddPrometheusExporter())
     .WithTracing(tracing => tracing
         .AddSource(AgentForgeActivitySource.Name)
