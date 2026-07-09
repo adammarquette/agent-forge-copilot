@@ -27,7 +27,7 @@ public sealed class DynamicClientRegistrationTests : IClassFixture<OpenEmrQaFixt
             _fixture.Options.Site,
             clientName: $"agentforge-integration-test-{Guid.NewGuid():N}",
             redirectUris: ["https://sidecar.invalid/callback"],
-            scopes: ["launch", "patient/patient.read", "openid", "fhirUser"],
+            scopes: ["launch", "patient/Patient.read", "openid", "fhirUser", "api:fhir"],
             CancellationToken.None);
 
         response.ClientId.Should().NotBeNullOrWhiteSpace();

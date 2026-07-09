@@ -62,6 +62,8 @@ public sealed class OpenEmrQaFixture
             Site = site,
             TestAccessToken = section["TestAccessToken"],
             TestPatientId = section["TestPatientId"],
+            TestClientId = section["TestClientId"],
+            TestClientSecret = section["TestClientSecret"],
             SecondTestAccessToken = section["SecondTestAccessToken"],
             SecondTestPatientId = section["SecondTestPatientId"],
         };
