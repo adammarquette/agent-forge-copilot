@@ -161,6 +161,47 @@ on `openemr-Uubp`, kept in sync so a re-setup recreates the same credentials).
    depend on a static, expiring `OpenEmrQa__TestAccessToken`.
 6. Optional cleanup: rename `openemr-Uubp` → `openemr`.
 
+## Rollback
+
+`agent-forge-api` is deployed by CI running `railway up --service agent-forge-api --ci`
+against whatever commit triggered the `deploy` job (auto on `main`) - there is
+no separate release/tag step, so "rolling back" means re-deploying a known-good
+build, not flipping a version pointer.
+
+**Fastest path - re-run a prior deploy job.** Railway keeps every build it
+ran for the service. In the Railway dashboard: `agent-forge-api` → Deployments
+→ find the last known-good deployment → **Redeploy**. This re-uses that
+build's already-built image, so it comes back up in the time it takes the
+container to restart (no rebuild), independent of GitLab/CI being reachable.
+
+**From GitLab, if you need to re-trigger CI instead** (e.g. the Railway
+dashboard route isn't available): revert the bad commit(s) on `main` with a
+normal `git revert` (never `git reset --hard` on a shared branch) and push -
+the `deploy` job runs again automatically and ships the reverted code.
+
+**Manual, from a known-good local checkout** (fastest if CI itself is the
+problem, not the app):
+
+```bash
+git checkout <last-known-good-sha>
+railway up --service agent-forge-api --environment development
+```
+
+**What a rollback does NOT touch:** the `openemr-Uubp` and `MySQL` services
+redeploy independently (`agent-forge-api` is the only service this repo's CI
+touches) - a bad `agent-forge-api` deploy never risks OpenEMR's data. Railway
+service *variables* (`OpenEmr__ClientId`, `Llm__ApiKey`, etc.) aren't
+versioned with the code and aren't reverted by any of the above - if a
+rollback is needed because of a bad variable change rather than a bad code
+change, fix the variable in the dashboard directly instead.
+
+**Detecting the need to roll back:** watch `/health` (process up) and `/ready`
+(real dependency checks - Epic 10) on the public domain after any deploy;
+`/ready` failing immediately after a deploy that previously passed is the
+signal, not a slow first-boot (OpenEMR's first-boot delay, see Known quirks
+below, doesn't apply to `agent-forge-api` - it has no persistent volume/setup
+step).
+
 ## Known quirks
 
 - OpenEMR first boot takes several minutes (key generation + DB seed). The
