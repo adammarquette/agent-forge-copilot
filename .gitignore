@@ -493,3 +493,7 @@ appsettings.*.local.json
 secrets.json
 .env.local
 *.dev.env
+
+# tools/LoadTestChat's LoadTest__Debug=1 capture (screenshots/HTML dumps of live OpenEMR pages)
+debug-*.html
+debug-*.png

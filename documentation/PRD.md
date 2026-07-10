@@ -310,10 +310,14 @@ Priority uses MoSCoW. Each FR lists acceptance criteria (AC) and the use case(s)
 
 ## 8. Non-Functional Requirements
 
-- **NFR-PERF-1 (Must) — Interactive latency.** Target p95 end-to-end response within a few seconds for
-  single-patient queries; define and record the exact target during baselining. *Speed-vs-completeness policy:*
-  return a fast, verified core answer first and defer/stream deeper synthesis; communicate when more is
-  pending rather than blocking. *AC:* p50/p95/p99 recorded at load; policy documented.
+- **NFR-PERF-1 (Must) — Interactive latency.** Target p95 ≤ 26 seconds end-to-end for a single-patient
+  `RequestBrief` turn at up to 50 concurrent users (fixed during baselining — measured p95 was 20.8s at 10
+  concurrent, 25.8s at 50; see `PERFORMANCE_BASELINES.md`). This is well above the original "a few seconds"
+  aspiration; the gap is sequential multi-step LLM tool-calling plus real external API latency, not
+  `agent-forge-api`'s own compute (baseline shows <1% CPU at 50 concurrent users). Closing it is future work
+  via the *speed-vs-completeness policy:* return a fast, verified core answer first and defer/stream deeper
+  synthesis; communicate when more is pending rather than blocking — not yet implemented in v1. *AC:*
+  p50/p95/p99 recorded at load ✓; policy documented (implementation deferred).
 - **NFR-PERF-2 (Should) — Baseline profiles.** Capture CPU, memory, latency, throughput baselines under the
   load scenarios so future changes are measurable. *AC:* baselines included in submission.
 - **NFR-PERF-3 (Should) — Load behavior.** Characterize behavior at ≥10 and ≥50 concurrent users (p50/p95/p99
@@ -607,7 +611,9 @@ which you'd refuse to.
 5. **Memory/state model** for multi-turn context within a patient session.
 6. **Domain-constraint source of truth:** where the cardiology rule set lives, how it's validated, and how
    its limits are documented.
-7. **Latency target number** for NFR-PERF-1, fixed during baselining.
+7. ~~**Latency target number** for NFR-PERF-1, fixed during baselining.~~ **Resolved** — p95 ≤ 26s for a
+   single-patient `RequestBrief` turn at up to 50 concurrent users, based on real measured load-test results.
+   See `PERFORMANCE_BASELINES.md`.
 8. **Production host decision** if Railway Enterprise BAA isn't pursued (§11).
 
 ---

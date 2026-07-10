@@ -65,6 +65,11 @@ public static class SessionBootstrap
             };
         }
 
+        if (debug)
+        {
+            await File.WriteAllTextAsync("debug-consent-page.html", await page.ContentAsync(), cancellationToken).ConfigureAwait(false);
+        }
+
         await page.ClickAsync("button[name=proceed]").ConfigureAwait(false);
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 15000 })
             .ConfigureAwait(false);
