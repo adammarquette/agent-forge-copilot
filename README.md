@@ -159,8 +159,17 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 ## Related repositories
 
-- **OpenEMR fork (`agent-forge`)** — the audited EHR base + the thin custom module that iFrame-launches this
-  sidecar. This repo integrates with it only through published FHIR/OAuth/SMART interfaces.
+- **OpenEMR fork — [`agent-forge`](https://labs.gauntletai.com/adammarquette/agent-forge)** — the audited EHR
+  base + the thin custom module that iFrame-launches this sidecar. The two repos are **highly coupled and
+  sometimes need coordinated deploys**: this sidecar is a first-class dependency of `agent-forge`, not merely a
+  system it happens to integrate with over a published interface — the fork's own module/shim (embedding the
+  chat SPA, `ARCHITECTURE.md` §9's request flow) depends on this sidecar being deployed and working, so a
+  sidecar-side change or outage can break `agent-forge` itself. Everything still crosses the boundary only
+  through published FHIR/OAuth/SMART interfaces (no direct DB access, no shared code) — but when diagnosing a
+  fork-specific quirk (auth flow, FHIR shape, scope handling), it's often faster to read the fork's actual PHP
+  source (`src/RestControllers/AuthorizationController.php`, `SMARTAuthorizationController.php`,
+  `TokenIntrospectionRestController.php`, etc. — see `INTERFACE_CONTROL.md` A's "Confirmed in fork" note) than
+  to guess from HTTP responses/logs alone.
 
 ---
 
