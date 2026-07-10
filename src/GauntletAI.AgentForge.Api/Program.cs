@@ -65,23 +65,27 @@ builder.Services.AddTransient<AuthHandler>();
 builder.Services.AddTransient<CorrelationIdHandler>();
 builder.Services.AddTransient<AnthropicAuthHandler>();
 
-// HandlerLifetime = Zero on both: AuthHandler and CorrelationIdHandler are Transient but inject
-// Scoped state (the current call's access token / correlation id). IHttpClientFactory pools and
-// reuses the underlying HttpMessageHandler chain for up to 2 minutes by default *across unrelated
-// DI scopes* - whichever scope happens to trigger a given named client's handler construction gets
-// its scoped state permanently captured into that pooled handler, and every other scope/session/hub
-// call reusing it (this HttpClient's OpenEmrHealthCheck doesn't share this - it's a separate named
+// HandlerLifetime on both: AuthHandler and CorrelationIdHandler are Transient but inject Scoped
+// state (the current call's access token / correlation id). IHttpClientFactory pools and reuses the
+// underlying HttpMessageHandler chain for up to 2 minutes by default *across unrelated DI scopes* -
+// whichever scope happens to trigger a given named client's handler construction gets its scoped
+// state permanently captured into that pooled handler, and every other scope/session/hub call
+// reusing it (this HttpClient's OpenEmrHealthCheck doesn't share this - it's a separate named
 // client) silently reads the SAME stale value regardless of whose request it actually is. Confirmed
 // live 2026-07-10: every real FHIR tool call failed FR-AUTH-1's "no token" check, not just some -
-// the pooled handler had captured a scope where the token was never set. Forcing the handler to
-// rebuild (and its handlers to be re-resolved from the current scope) on every use is what actually
-// keeps this scoped per call, at the cost of connection-reuse; see the follow-up issue for
-// revisiting that tradeoff.
+// the pooled handler had captured a scope where the token was never set.
+//
+// 1 second (SetHandlerLifetime's documented floor - TimeSpan.Zero throws ArgumentException at
+// startup, confirmed the hard way) shrinks the window a stale scope can be reused from 2 minutes to
+// 1 second; it is a mitigation, not a complete fix - two calls landing in the same 1s window can
+// still share a handler built for a different scope. Tracked as a known gap in #39 pending the
+// fully robust fix (token passed explicitly per Refit call, bypassing handler pooling for this
+// dependency entirely) rather than risk a less-tested change under time pressure.
 builder.Services.AddRefitClient<IOpenEmrAuthApi>()
     .ConfigureHttpClient((sp, client) =>
         client.BaseAddress = new Uri(sp.GetRequiredService<IOptions<OpenEmrOptions>>().Value.BaseUrl))
     .AddHttpMessageHandler<CorrelationIdHandler>()
-    .SetHandlerLifetime(TimeSpan.Zero)
+    .SetHandlerLifetime(TimeSpan.FromSeconds(1))
     .AddStandardResilienceHandler();
 
 builder.Services.AddRefitClient<IOpenEmrFhirApi>()
@@ -89,7 +93,7 @@ builder.Services.AddRefitClient<IOpenEmrFhirApi>()
         client.BaseAddress = new Uri(sp.GetRequiredService<IOptions<OpenEmrOptions>>().Value.BaseUrl))
     .AddHttpMessageHandler<AuthHandler>()
     .AddHttpMessageHandler<CorrelationIdHandler>()
-    .SetHandlerLifetime(TimeSpan.Zero)
+    .SetHandlerLifetime(TimeSpan.FromSeconds(1))
     .AddStandardResilienceHandler();
 
 builder.Services.AddRefitClient<IAnthropicMessagesApi>()
