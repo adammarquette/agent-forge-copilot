@@ -11,11 +11,17 @@ build:
     paths:
       - "**/bin/"
       - "**/obj/"
-    # Microsoft.Playwright's MSBuild target copies a full multi-platform Node.js runtime bundle
-    # (~100MB per project per build config) into bin/.playwright/ - unused by CI, which installs
-    # browsers straight from the NuGet package cache instead (see integration-tests' script).
-    # Left in, this blew the artifact upload past GitLab's size limit (413 Request Entity Too
-    # Large, job 41413).
+    # Microsoft.Playwright's MSBuild target copies its Node driver (~90-100MB) into bin/.playwright/
+    # for whichever platform actually built it - this is NOT redundant with integration-tests'
+    # separate browser-binary install step (that installs Chromium into a NuGet-cache path;
+    # .NET's own Playwright.CreateAsync() still needs bin/.playwright/node/<platform>/node to
+    # launch its driver process at all - confirmed by job 41431's "Driver not found" failure after
+    # a first attempt wrongly excluded it entirely).
+    #
+    # tools/LoadTestChat also references Microsoft.Playwright (for its own, CI-never-run session
+    # bootstrap) and picks up the same ~90-100MB - safe to drop, since no CI job ever executes
+    # anything under tools/ (unit-tests/integration-tests filter by project filename). Excluding
+    # just that copy is what actually fixed the original 413 (job 41413).
     exclude:
-      - "**/bin/**/.playwright/**"
+      - "tools/**/bin/**/.playwright/**"
     expire_in: 2 hours
