@@ -36,7 +36,10 @@ public sealed class SmartLaunchService(
             Scopes: options.Scopes,
             State: state,
             Pkce: pkce,
-            Aud: options.BaseUrl,
+            // The FHIR base, not the bare server base - OpenEMR rejects the latter with
+            // "invalid_request - Aud parameter did not match authorized server" (confirmed live
+            // against the QA server; masked until now behind a never-registered OpenEmr__ClientId).
+            Aud: $"{options.BaseUrl.TrimEnd('/')}/apis/{options.Site}/fhir",
             Launch: launchToken);
 
         return (AuthorizeUrlBuilder.Build(request), new PendingLaunchContext(state, pkce.CodeVerifier));
