@@ -14,13 +14,19 @@ namespace GauntletAI.AgentForge.IntegrationTests.Support;
 /// </summary>
 public sealed class OpenEmrQaFixture
 {
-    // Matches tools/MintQaIdentityToken's scope list - what McpToolServer.GetPatientSummaryAsync
-    // needs (Patient/Condition/MedicationRequest/AllergyIntolerance), plus offline_access so a
-    // Playwright-driven mint also comes back with a refresh token for next time.
+    // Full FHIR resource set IOpenEmrFhirApi.cs queries (GitLab issue #41's PascalCase-casing fix,
+    // confirmed working against the production sidecar) - was previously missing Observation,
+    // Encounter, DocumentReference, Procedure, and DiagnosticReport, so every MCP tool other than
+    // get_patient_summary 401'd against a live server (issue #43's follow-up). offline_access so a
+    // Playwright-driven mint also comes back with a refresh token for next time. MedicationDispense
+    // deliberately excluded - not present in this fork's active (.read-suffix) scope catalog at all
+    // (confirmed live: requesting it hard-fails the whole /authorize call as invalid_scope).
     private static readonly string[] CrossIdentityScopes =
     [
         "openid", "fhirUser", "launch/patient", "api:fhir", "offline_access",
         "patient/Patient.read", "patient/Condition.read", "patient/MedicationRequest.read", "patient/AllergyIntolerance.read",
+        "patient/Observation.read", "patient/Encounter.read", "patient/DocumentReference.read",
+        "patient/Procedure.read", "patient/DiagnosticReport.read",
     ];
 
     /// <summary>QA connection details resolved from environment variables.</summary>
@@ -142,6 +148,19 @@ public sealed class OpenEmrQaFixture
             // still-valid static token already produced an access token above - a real Playwright
             // login is far slower than a refresh_token exchange, so it's the fallback, not the
             // primary path (see issue #30's "relationship to #29" note).
+            //
+            // testAccessToken (FhirApi, most McpToolServerQaFixture-based tests) previously had no
+            // fallback here at all - only crossIdentityAccessTokenA/secondTestAccessToken did (GitLab
+            // issue #43). Minted first and separately from crossIdentityAccessTokenA below: they serve
+            // distinct fixture properties even when pointed at the same patient, and keeping one mint
+            // call per token matches this method's existing shape for secondTestAccessToken.
+            if (string.IsNullOrWhiteSpace(testAccessToken) && !string.IsNullOrWhiteSpace(testPatientId))
+            {
+                testAccessToken = PlaywrightLoginAutomation.AcquireTokenAsync(
+                        baseUrl, site, loginUsername, loginPassword, testPatientId, CrossIdentityScopes, CancellationToken.None)
+                    .GetAwaiter().GetResult().AccessToken;
+            }
+
             if (string.IsNullOrWhiteSpace(crossIdentityAccessTokenA) && !string.IsNullOrWhiteSpace(testPatientId))
             {
                 crossIdentityAccessTokenA = PlaywrightLoginAutomation.AcquireTokenAsync(
