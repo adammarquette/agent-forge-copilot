@@ -122,11 +122,19 @@ integration-tests:
       # browser login when neither a refresh token nor a still-valid static token is
       # configured - install the browser binary it needs. Skipped when the login
       # credentials aren't set, since nothing would exercise that code path anyway.
+      #
+      # Runs Playwright's own bundled Node runtime + CLI directly - both ship inside the
+      # Microsoft.Playwright NuGet package itself, so this needs nothing beyond the restore
+      # below. Deliberately not playwright.ps1 (needs pwsh, absent from the base SDK image
+      # and non-trivial to install reliably) or the dotnet global tool
+      # Microsoft.Playwright.CLI (abandoned upstream - stuck at 1.2.3, no release matching
+      # the library version pinned in Directory.Packages.props).
       if [ -n "$OpenEmrQa__LoginUsername" ]; then
+        echo "dotnet restore $SOLUTION"
+        dotnet restore "$SOLUTION"
         echo "Installing Playwright's Chromium (for OpenEmrQaFixture's login self-heal)..."
-        dotnet tool install --global Microsoft.Playwright.CLI --version 1.61.0 > /dev/null
-        export PATH="$PATH:$HOME/.dotnet/tools"
-        playwright install --with-deps chromium
+        pw_dir="${NUGET_PACKAGES:-$HOME/.nuget/packages}/microsoft.playwright/1.61.0/.playwright"
+        "$pw_dir/node/linux-x64/node" "$pw_dir/package/cli.js" install --with-deps chromium
       fi
       projects=$(find . -type f -name "$INTEGRATION_TEST_PATTERN" -not -path "*/bin/*" -not -path "*/obj/*")
       if [ -z "$projects" ]; then
