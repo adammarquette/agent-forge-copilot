@@ -15,6 +15,6 @@ public sealed record IntrospectionResponse(
     [property: JsonPropertyName("active")] bool Active,
     [property: JsonPropertyName("scope")] string? Scope,
     [property: JsonPropertyName("client_id")] string? ClientId,
-    [property: JsonPropertyName("exp")] long? ExpiresAtUnixSeconds,
+    [property: JsonPropertyName("exp"), JsonConverter(typeof(LenientUnixSecondsConverter))] long? ExpiresAtUnixSeconds,
     [property: JsonPropertyName("sub")] string? Subject,
     [property: JsonPropertyName("patient")] string? Patient);
