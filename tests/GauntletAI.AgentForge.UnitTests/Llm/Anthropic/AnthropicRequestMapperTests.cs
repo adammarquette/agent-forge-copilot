@@ -8,12 +8,11 @@ namespace GauntletAI.AgentForge.UnitTests.Llm.Anthropic;
 public sealed class AnthropicRequestMapperTests
 {
     [Fact]
-    public void Map_ValidRequest_MapsModelSystemPromptMaxTokensAndTemperature()
+    public void Map_ValidRequest_MapsModelSystemPromptAndMaxTokens()
     {
         var request = new LlmRequest(
             SystemPrompt: "You are a cardiology co-pilot.",
             Messages: [],
-            Temperature: 0.2,
             MaxOutputTokens: 2048);
 
         var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
@@ -21,7 +20,22 @@ public sealed class AnthropicRequestMapperTests
         wire.Model.Should().Be("claude-sonnet-5");
         wire.System.Should().Be("You are a cardiology co-pilot.");
         wire.MaxTokens.Should().Be(2048);
-        wire.Temperature.Should().Be(0.2);
+    }
+
+    [Fact]
+    public void Map_Always_SerializedRequestOmitsTemperatureField()
+    {
+        // Regression test: the real Anthropic API rejects an explicit "temperature" with 400
+        // invalid_request_error "`temperature` is deprecated for this model" - confirmed live
+        // against the deployed app, where it silently degraded ~10-15% of real chat turns to the
+        // deterministic fallback until diagnosed (GitLab issue #38). Same failure shape as #25's
+        // "tools": null - the field must be omitted entirely, not sent at all.
+        var request = new LlmRequest("system", []);
+
+        var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
+        var json = JsonSerializer.Serialize(wire);
+
+        json.Should().NotContain("\"temperature\"");
     }
 
     [Fact]
