@@ -37,6 +37,19 @@ public sealed class SmartLaunchServiceTests
     }
 
     [Fact]
+    public void BeginLaunch_ValidLaunchToken_SendsTheFhirBaseAsAudNotTheBareServerBaseUrl()
+    {
+        // OpenEMR rejects a bare-server-base aud with "invalid_request - Aud parameter did not
+        // match authorized server" (confirmed live) - it expects the FHIR base
+        // ({BaseUrl}/apis/{Site}/fhir), the same value every other real client in this repo
+        // (tools/MintQaIdentityToken, the QA test fixtures) already sends successfully.
+        var (authorizeUrl, _) = _sut.BeginLaunch("launch-token-abc");
+
+        authorizeUrl.ToString().Should().Contain(
+            $"aud={Uri.EscapeDataString("https://openemr.example.org/apis/default/fhir")}");
+    }
+
+    [Fact]
     public void BeginLaunch_CalledTwice_MintsADifferentStateAndCodeVerifierEachTime()
     {
         // Guards CSRF protection and PKCE: a reused state/verifier across launches would let one
