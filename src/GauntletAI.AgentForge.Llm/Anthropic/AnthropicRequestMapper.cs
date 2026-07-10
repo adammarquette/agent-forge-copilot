@@ -11,8 +11,7 @@ public static class AnthropicRequestMapper
         MaxTokens: request.MaxOutputTokens,
         System: request.SystemPrompt,
         Messages: [.. request.Messages.Select(MapMessage)],
-        Tools: request.Tools is null ? null : [.. request.Tools.Select(MapTool)],
-        Temperature: request.Temperature);
+        Tools: request.Tools is null ? null : [.. request.Tools.Select(MapTool)]);
 
     private static AnthropicMessage MapMessage(LlmMessage message) =>
         new(MapRole(message.Role), [.. message.Content.Select(MapContent)]);

@@ -3,14 +3,18 @@ using System.Text.Json.Serialization;
 
 namespace GauntletAI.AgentForge.Llm.Anthropic;
 
-/// <summary>Wire-format request body for the Anthropic Messages API.</summary>
+/// <summary>
+/// Wire-format request body for the Anthropic Messages API. Deliberately has no
+/// <c>temperature</c> field - the real API rejects an explicit value for the current model with a
+/// 400 <c>invalid_request_error</c> ("`temperature` is deprecated for this model"), confirmed live
+/// against the deployed app (GitLab issue #38).
+/// </summary>
 public sealed record AnthropicMessageRequest(
     [property: JsonPropertyName("model")] string Model,
     [property: JsonPropertyName("max_tokens")] int MaxTokens,
     [property: JsonPropertyName("system")] string System,
     [property: JsonPropertyName("messages")] IReadOnlyList<AnthropicMessage> Messages,
-    [property: JsonPropertyName("tools"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<AnthropicToolDefinition>? Tools,
-    [property: JsonPropertyName("temperature")] double Temperature);
+    [property: JsonPropertyName("tools"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<AnthropicToolDefinition>? Tools);
 
 /// <summary>One conversation turn in Anthropic wire format.</summary>
 public sealed record AnthropicMessage(
