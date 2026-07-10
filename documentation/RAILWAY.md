@@ -90,7 +90,7 @@ Variables (Options-pattern, `__` = section separator):
 | `OpenEmr__ClientId` | **placeholder — register an OAuth client in OpenEMR** |
 | `OpenEmr__Scopes__0` | `patient/patient.read` |
 | `Bff__PublicBaseUrl` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
-| `Llm__ApiKey` | **placeholder — set a real Anthropic key** |
+| `Llm__ApiKey` | real Anthropic key — **set via the `Llm__ApiKey` GitLab CI variable, not the Railway dashboard** (see CI/deployment flow below) |
 | `Llm__Model` | `claude-sonnet-5` |
 | `Llm__InputPricePerMillionTokensUsd` / `Output…` | `0` (set real prices when cost tracking matters) |
 
@@ -151,12 +151,28 @@ Pipeline: lint → build → test (unit + integration) → deploy.
 > preserving the multi-line PEM exactly — inline `Variable`-type values are
 > fragile for this). When `System__ClientId`/`PrivateKeyPath` aren't set, the
 > fixture falls back to the static `OpenEmrQa__TestAccessToken` unchanged.
-- **deploy** (auto on `main`): `railway up --service agent-forge-api --ci` with
-  `RAILWAY_TOKEN=$RAILWAY_TOKEN_DEV`. Railway builds the Dockerfile server-side.
+
+- **deploy** (auto on `main`): sets `Llm__ApiKey` on the Railway service from
+  the GitLab CI variable of the same name (`railway variable set`), then runs
+  `railway up --service agent-forge-api --ci` with `RAILWAY_TOKEN=$RAILWAY_TOKEN_DEV`.
+  Railway builds the Dockerfile server-side.
 
 Create the Railway project token in Railway (Project Settings > Tokens, scoped
 to the development environment) and store it as the `RAILWAY_TOKEN_DEV` GitLab
 CI variable.
+
+> **Secrets live in GitLab CI/CD variables, not the Railway dashboard.** Railway
+> service variables and GitLab CI/CD variables are two independent stores —
+> nothing propagates between them automatically. `Llm__ApiKey` used to be
+> hand-edited directly on the Railway service; it silently drifted to an
+> invalid value there, and every SMART launch's LLM call 401'd for a full
+> session before anyone noticed (the deterministic-fallback path returns a
+> normal-looking "success", so nothing failed loudly). Fixed by having the
+> `deploy` job push `Llm__ApiKey` from GitLab into Railway on every run, so
+> GitLab is the one source of truth and a bad manual edit in the Railway
+> dashboard self-heals on the next deploy. **To rotate this key, update the
+> `Llm__ApiKey` GitLab CI/CD variable and push to `main` — don't edit it in
+> the Railway dashboard, it'll just be overwritten on the next deploy.**
 
 ## Manual deploys (ad hoc)
 
@@ -185,7 +201,9 @@ on `openemr-Uubp`, kept in sync so a re-setup recreates the same credentials).
 
 1. Set `OpenEmr__ClientId = qvWoMFSM6euSm-qziKL-_aU_fI_na0hoZO1xtzOMtl0` on the
    agent-forge-api service, and the OAuth client id/secret in the CI variables.
-2. Set a real `Llm__ApiKey` on agent-forge-api and `LlmQa__ApiKey` in CI.
+2. Set a real `Llm__ApiKey` **in the GitLab CI `Llm__ApiKey` variable** (the
+   `deploy` job pushes it to Railway automatically — don't set it directly on
+   agent-forge-api) and `LlmQa__ApiKey` in CI.
 3. Create `RAILWAY_TOKEN_DEV` (Railway > Project Settings > Tokens, dev scope)
    as a masked/protected GitLab CI variable.
 4. In the dashboard, confirm `agent-forge-api`'s domain targets port 8080 and
@@ -223,11 +241,17 @@ railway up --service agent-forge-api --environment development
 
 **What a rollback does NOT touch:** the `openemr-Uubp` and `MySQL` services
 redeploy independently (`agent-forge-api` is the only service this repo's CI
-touches) - a bad `agent-forge-api` deploy never risks OpenEMR's data. Railway
-service *variables* (`OpenEmr__ClientId`, `Llm__ApiKey`, etc.) aren't
-versioned with the code and aren't reverted by any of the above - if a
-rollback is needed because of a bad variable change rather than a bad code
-change, fix the variable in the dashboard directly instead.
+touches) - a bad `agent-forge-api` deploy never risks OpenEMR's data. Most
+Railway service *variables* (`OpenEmr__ClientId`, etc.) aren't versioned with
+the code and aren't reverted by any of the above - if a rollback is needed
+because of a bad variable change rather than a bad code change, fix the
+variable in the dashboard directly instead. `Llm__ApiKey` is the one
+exception: it's re-pushed from the GitLab CI variable on every run of the
+**deploy** job specifically (see CI/deployment flow above), so the "fastest
+path" (dashboard Redeploy) and CI-triggered rollback both leave whatever's
+currently in GitLab in place, unchanged - only the "manual, from a known-good
+local checkout" path bypasses that push, since it calls `railway up` directly
+rather than going through `deploy.yml`.
 
 **Detecting the need to roll back:** watch `/health` (process up) and `/ready`
 (real dependency checks - Epic 10) on the public domain after any deploy;
