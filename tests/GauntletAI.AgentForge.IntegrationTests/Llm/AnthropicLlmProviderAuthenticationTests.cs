@@ -1,6 +1,6 @@
+using System.Net;
 using FluentAssertions;
 using GauntletAI.AgentForge.Llm;
-using Refit;
 
 namespace GauntletAI.AgentForge.IntegrationTests.Llm;
 
@@ -23,7 +23,11 @@ public sealed class AnthropicLlmProviderAuthenticationTests
 
         var act = () => provider.CompleteAsync(request, CancellationToken.None);
 
-        var exception = await act.Should().ThrowAsync<ApiException>();
-        ((int)exception.Which.StatusCode).Should().Be(401);
+        // AnthropicLlmProvider re-throws Refit's ApiException as a plain HttpRequestException with
+        // the response body folded into the message (GitLab issue #36) - the real Anthropic 401
+        // body is asserted here as the regression guard for that unwrap.
+        var exception = await act.Should().ThrowAsync<HttpRequestException>();
+        exception.Which.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        exception.Which.Message.Should().Contain("\"type\":\"error\"", "the real response body should be folded into the message, not just the bare status line");
     }
 }

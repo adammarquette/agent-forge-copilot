@@ -27,7 +27,7 @@ public sealed class AnthropicLlmProvider(IAnthropicMessagesApi api, IOptions<Llm
             // body in here is what makes a real invalid-request failure diagnosable at all; kept a
             // plain HttpRequestException rather than a Refit type so ILlmProvider stays
             // provider/transport-agnostic for whoever catches it upstream.
-            throw new HttpRequestException($"{ex.Message} {ex.Content}", ex);
+            throw new HttpRequestException($"{ex.Message} {ex.Content}", ex, ex.StatusCode);
         }
 
         return AnthropicResponseMapper.Map(
