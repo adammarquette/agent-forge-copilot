@@ -11,4 +11,11 @@ build:
     paths:
       - "**/bin/"
       - "**/obj/"
+    # Microsoft.Playwright's MSBuild target copies a full multi-platform Node.js runtime bundle
+    # (~100MB per project per build config) into bin/.playwright/ - unused by CI, which installs
+    # browsers straight from the NuGet package cache instead (see integration-tests' script).
+    # Left in, this blew the artifact upload past GitLab's size limit (413 Request Entity Too
+    # Large, job 41413).
+    exclude:
+      - "**/bin/**/.playwright/**"
     expire_in: 2 hours
