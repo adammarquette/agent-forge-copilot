@@ -24,11 +24,20 @@ default:
   image: mcr.microsoft.com/dotnet/sdk:10.0
   interruptible: true
 
+# Deliberately no catch-all "$CI_COMMIT_BRANCH" rule (GitLab issue #40): every feature/fix branch in
+# this repo's workflow gets an MR opened right after its first push, so a bare branch-push rule ran
+# a full pipeline on the raw branch ref and then a *second*, separate one once the MR pipeline
+# (merge_request_event) kicked in - the same commits tested twice on every change. The MR pipeline
+# is strictly more informative anyway: it tests the actual merge against the target branch, not a
+# stale snapshot (see before_script below). One consequence worth knowing: `develop` no longer gets
+# its own pipeline immediately after each feature MR merges into it - only `main` (the default
+# branch) triggers on a bare push. `develop`'s state is still verified twice over: once by the
+# feature MR's own pipeline before it merges, and again by the develop -> main MR's pipeline when
+# that promotion happens.
 workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-    - if: '$CI_COMMIT_BRANCH'
 
 # Every MR pipeline tests "your changes + current target branch", not a stale snapshot -
 # a real conflict with the target branch fails the pipeline immediately instead of
