@@ -18,6 +18,20 @@
 #
 # `railway up --ci` streams build logs and exits non-zero on build/deploy
 # failure, so a red job means the deploy did not go out.
+#
+# Secrets live in exactly one place - GitLab CI/CD variables - and flow to
+# Railway from here, not the other way around. `Llm__ApiKey` used to be set
+# by hand directly on the Railway service, independent of anything in git or
+# GitLab; it drifted out of sync with LlmQa__ApiKey (both meant to hold a real
+# Anthropic key), landed on an invalid value, and every SMART launch's LLM
+# call 401'd for a full session before the mismatch was found (nothing surfaced
+# it sooner because the deterministic fallback path returns a normal-looking
+# "success" - see AgentOrchestrator's fallback doc comment). Setting it here,
+# from the same GitLab variable an operator actually edits, means there is one
+# source of truth and every deploy re-asserts it - a bad manual edit in the
+# Railway dashboard self-heals on the next push to main instead of silently
+# persisting. Add further Railway secrets the same way as they come up, rather
+# than back in the dashboard.
 # -----------------------------------------------------------------------------
 
 deploy:
@@ -37,4 +51,5 @@ deploy:
     - railway --version
   script:
     - export RAILWAY_TOKEN="$RAILWAY_TOKEN_DEV"
+    - railway variable set "Llm__ApiKey=$Llm__ApiKey" --service agent-forge-api
     - railway up --service agent-forge-api --ci
