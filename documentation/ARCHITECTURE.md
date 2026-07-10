@@ -211,8 +211,10 @@ The orchestrator is a **multi-turn agent**, not a report generator:
 - **Follow-up turns (UC-2):** maintain conversation state; resolve references ("her," "that lab"); chain tools
   when needed (resolve patient → fetch INR → compute range/score). This loop is the justification for
   multi-turn + tool chaining — remove UC-2 and both features are cut.
-- **Grounding discipline:** low temperature; extractive-summarization framing (not open reasoning); every
-  claim must cite a tool-result span; uncited content is dropped or regenerated (feeds §9).
+- **Grounding discipline:** extractive-summarization framing (not open reasoning); every claim must cite a
+  tool-result span; uncited content is dropped or regenerated (feeds §9). (Originally also low temperature,
+  but the current model deprecated the parameter entirely - the real API rejects an explicit value; the other
+  three mechanisms, especially the citation/regeneration gate, now carry grounding alone.)
 - **Speed vs. completeness:** return the verified core within the interactive budget, defer/stream deeper
   synthesis, and signal when more is pending (NFR-PERF-1).
 
