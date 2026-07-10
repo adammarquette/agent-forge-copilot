@@ -108,7 +108,9 @@ public sealed class AgentOrchestrator(
             {
                 // PRD.md §13.1: the HttpClient-level resilience pipeline (Polly, Epic 10) has
                 // already retried transient failures before this exception ever reaches here -
-                // this is the exhausted, final failure, so degrade rather than propagate.
+                // this is the exhausted, final failure, so degrade rather than propagate. Whatever
+                // detail ex.Message carries (AnthropicLlmProvider enriches this with the provider's
+                // actual error body, not just the bare status line) flows straight into the log.
                 return BuildDeterministicFallback(state, messages, toolResultJsonThisTurn, ex.Message);
             }
 

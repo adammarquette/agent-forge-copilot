@@ -1,8 +1,10 @@
+using System.Net;
 using FakeItEasy;
 using FluentAssertions;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Llm.Anthropic;
 using Microsoft.Extensions.Options;
+using Refit;
 
 namespace GauntletAI.AgentForge.UnitTests.Llm.Anthropic;
 
@@ -64,5 +66,34 @@ public sealed class AnthropicLlmProviderTests
         await provider.CompleteAsync(new LlmRequest("system", []), cts.Token);
 
         A.CallTo(() => api.CreateMessageAsync(A<AnthropicMessageRequest>._, cts.Token)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task CompleteAsync_ApiReturnsAnErrorResponse_ThrowsWithTheResponseBodyInTheMessage()
+    {
+        // Confirmed live against the deployed app (2026-07-10): Refit.ApiException.Message is just
+        // "Response status code does not indicate success: 400 (Bad Request)." - the actual reason
+        // (Anthropic's error JSON) lives in .Content, which was being dropped entirely, making a
+        // real ~10-15% invalid-request rate undiagnosable from AgentOrchestrator's fallback logs
+        // (ARCHITECTURE.md §13.1 - "never fail silently" requires the detail to be observable
+        // somewhere). AgentOrchestrator just logs ex.Message verbatim on any non-cancellation
+        // exception, so enriching it here - the one place that actually knows about Refit - reaches
+        // the log without coupling the provider-agnostic orchestrator to a Refit-specific type.
+        var api = A.Fake<IAnthropicMessagesApi>();
+        var httpResponse = new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("""{"type":"error","error":{"type":"invalid_request_error","message":"max_tokens: field required"}}""")
+        };
+        var apiException = await ApiException.Create(
+            new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages"),
+            HttpMethod.Post, httpResponse, new RefitSettings());
+        A.CallTo(() => api.CreateMessageAsync(A<AnthropicMessageRequest>._, A<CancellationToken>._))
+            .ThrowsAsync(apiException);
+        var provider = new AnthropicLlmProvider(api, Options);
+
+        var act = () => provider.CompleteAsync(new LlmRequest("system", []), CancellationToken.None);
+
+        (await act.Should().ThrowAsync<HttpRequestException>())
+            .WithMessage("*max_tokens: field required*");
     }
 }
