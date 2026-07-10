@@ -83,7 +83,12 @@ public static class LoadTestRunner
         {
             await connection.StartAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException)
+        {
+            // Duration elapsed before the connection even finished starting - a graceful stop, not a failure.
+            return;
+        }
+        catch (Exception ex)
         {
             results.Add(new CallResult(false, 0, $"connect failed: {ex.Message}"));
             return;
@@ -98,7 +103,13 @@ public static class LoadTestRunner
                 await connection.InvokeAsync("RequestBrief", cancellationToken).ConfigureAwait(false);
                 results.Add(new CallResult(true, stopwatch.Elapsed.TotalMilliseconds, null));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (OperationCanceledException)
+            {
+                // TaskCanceledException derives from OperationCanceledException - this fires when the
+                // duration elapses mid-call. That's the runner's normal stop signal, not a failed call.
+                break;
+            }
+            catch (Exception ex)
             {
                 results.Add(new CallResult(false, stopwatch.Elapsed.TotalMilliseconds, ex.Message));
             }
