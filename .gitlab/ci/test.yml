@@ -132,8 +132,18 @@ integration-tests:
       if [ -n "$OpenEmrQa__LoginUsername" ]; then
         echo "dotnet restore $SOLUTION"
         dotnet restore "$SOLUTION"
-        echo "Installing Playwright's Chromium (for OpenEmrQaFixture's login self-heal)..."
         pw_dir="${NUGET_PACKAGES:-$HOME/.nuget/packages}/microsoft.playwright/1.61.0/.playwright"
+        # Microsoft.Playwright's own MSBuild target (copying .playwright/ into each project's
+        # build output) has proven non-deterministic in this pipeline - one run's build job
+        # artifact had it, the very next run's didn't (891 vs 1043 files in **/bin/, same
+        # commit), breaking OpenEmrQaFixture with "Driver not found" despite nothing having
+        # changed. Copying it explicitly here, straight from the NuGet cache the restore above
+        # just repopulated, makes this deterministic instead of hoping the build job's copy
+        # step ran this time.
+        dest_dir="tests/GauntletAI.AgentForge.IntegrationTests/bin/$BUILD_CONFIG/net10.0/.playwright"
+        mkdir -p "$dest_dir"
+        cp -r "$pw_dir"/. "$dest_dir"/
+        echo "Installing Playwright's Chromium (for OpenEmrQaFixture's login self-heal)..."
         "$pw_dir/node/linux-x64/node" "$pw_dir/package/cli.js" install --with-deps chromium
       fi
       projects=$(find . -type f -name "$INTEGRATION_TEST_PATTERN" -not -path "*/bin/*" -not -path "*/obj/*")
