@@ -164,6 +164,32 @@ public sealed class BffQaFixture : WebApplicationFactory<global::Program>
     }
 
     /// <summary>
+    /// Seeds a real, authenticated <c>AgendaSessionContext</c> (and, if provided, its roster) via
+    /// the test-only route - the agenda-flow counterpart to <see cref="SeedAuthenticatedSessionAsync"/>.
+    /// Unlike that method, this does not require a real registered agenda OAuth client: the
+    /// authorization-boundary behavior it exists to test (401 with no session, 403 for a patient
+    /// outside the seeded roster) never depends on the token being real.
+    /// </summary>
+    public async Task<CookieContainer> SeedAuthenticatedAgendaSessionAsync(
+        IReadOnlyList<string>? rosterPatientIds, CancellationToken cancellationToken)
+    {
+        var cookies = new CookieContainer();
+        using var client = CreateHttpClient(cookies);
+
+        var query = "?accessToken=test-agenda-token" +
+            $"&site={Uri.EscapeDataString(OpenEmr.Options.Site)}" +
+            "&clinicianIdentity=qa-test-clinician" +
+            (rosterPatientIds is { Count: > 0 }
+                ? $"&rosterPatientIds={Uri.EscapeDataString(string.Join(',', rosterPatientIds))}"
+                : string.Empty);
+        var response = await client.PostAsync(SeedSessionStartupFilter.SeedAgendaSessionPath + query, content: null, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        return cookies;
+    }
+
+    /// <summary>
     /// Builds a <see cref="HubConnection"/> to the real chat hub, carrying <paramref name="cookies"/>
     /// so the hub sees whatever session they hold. Forces long-polling: the in-memory TestServer
     /// transport has no real sockets, so WebSocket negotiation would fail.

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 
 namespace GauntletAI.AgentForge.Api.Session;
@@ -94,5 +95,31 @@ public static class SessionExtensions
         session.Remove(AgendaAccessTokenKey);
         session.Remove(AgendaSiteKey);
         session.Remove(AgendaClinicianIdentityKey);
+    }
+
+    private const string AgendaRosterPatientIdsKey = "agenda-session.roster-patient-ids";
+
+    /// <summary>
+    /// Saves the patient ids from the most recently fetched agenda - the drill-down gate
+    /// (<see cref="Agenda.AgendaRosterGate"/>) checks a selected patient against this, so a client
+    /// can never select a patient outside what its own agenda actually returned.
+    /// </summary>
+    public static void SaveAgendaRoster(this ISession session, IEnumerable<string> patientIds) =>
+        session.SetString(AgendaRosterPatientIdsKey, JsonSerializer.Serialize(patientIds));
+
+    /// <summary>
+    /// Reads the roster saved by <see cref="SaveAgendaRoster"/>, or an empty set if none was ever
+    /// saved - deliberately not nullable, since the gate can use an empty set directly (it
+    /// correctly rejects everything) without a separate null check.
+    /// </summary>
+    public static IReadOnlySet<string> TryGetAgendaRoster(this ISession session)
+    {
+        var json = session.GetString(AgendaRosterPatientIdsKey);
+        if (string.IsNullOrEmpty(json))
+        {
+            return new HashSet<string>();
+        }
+
+        return JsonSerializer.Deserialize<HashSet<string>>(json) ?? new HashSet<string>();
     }
 }
