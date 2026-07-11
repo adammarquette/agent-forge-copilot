@@ -8,8 +8,7 @@ public sealed class OpenEmrAuthClient(IOpenEmrAuthApi api) : IOpenEmrAuthClient
 {
     /// <summary>
     /// Exchanges an authorization code for an access token using the authorization_code grant
-    /// with PKCE. <paramref name="clientSecret"/> is omitted (public client) unless the
-    /// registered client is confidential.
+    /// with PKCE.
     /// </summary>
     public Task<TokenResponse> ExchangeAuthorizationCodeAsync(
         string site,
@@ -27,7 +26,10 @@ public sealed class OpenEmrAuthClient(IOpenEmrAuthApi api) : IOpenEmrAuthClient
             RedirectUri = redirectUri,
             ClientId = clientId,
             CodeVerifier = codeVerifier,
-            ClientSecret = clientSecret,
+            // Same reasoning as IntrospectAsync below: a public client's registered secret is an
+            // empty string, not absent - never let a null reach Refit's UrlEncoded serializer,
+            // which would omit the field entirely instead of sending client_secret=.
+            ClientSecret = clientSecret ?? string.Empty,
         };
 
         return api.ExchangeTokenAsync(site, request, cancellationToken);

@@ -7,8 +7,12 @@ namespace GauntletAI.AgentForge.UnitTests.Integration.OpenEmr.Auth;
 public sealed class OpenEmrAuthClientTests
 {
     [Fact]
-    public async Task ExchangeAuthorizationCodeAsync_PublicClient_SendsAuthorizationCodeGrantWithPkceVerifier()
+    public async Task ExchangeAuthorizationCodeAsync_PublicClientNullSecret_SendsEmptyStringNotNull()
     {
+        // A public client's registered secret is an empty string, not absent (same server behavior
+        // confirmed for introspection - see OpenEmrAuthClientIntrospectionTests). A null ClientSecret
+        // must never reach Refit's UrlEncoded body serializer, which omits null properties entirely -
+        // coerce to string.Empty so the form still carries client_secret=.
         var api = A.Fake<IOpenEmrAuthApi>();
         var expectedResponse = new TokenResponse("access-abc", "Bearer", 3600, "launch patient/patient.read", "refresh-xyz", "123", null);
         TokenRequest? capturedRequest = null;
@@ -33,7 +37,7 @@ public sealed class OpenEmrAuthClientTests
         capturedRequest.RedirectUri.Should().Be("https://sidecar.example.org/callback");
         capturedRequest.ClientId.Should().Be("sidecar-client");
         capturedRequest.CodeVerifier.Should().Be("verifier-abc");
-        capturedRequest.ClientSecret.Should().BeNull();
+        capturedRequest.ClientSecret.Should().Be(string.Empty);
     }
 
     [Fact]
