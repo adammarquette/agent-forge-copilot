@@ -120,7 +120,17 @@ widened. **Confirmed against the fork source, not assumed:** `ScopeRepository::f
 against the registered client's own stored scope list and **silently drops** anything outside it — no error
 at authorize time. A second registered OAuth client (its own `client_id`, registered with the agenda's
 `user/*.read` scope set) is required; reusing the existing single-patient launch's `client_id` would
-silently omit the new scopes from the granted token rather than fail loudly.)*
+silently omit the new scopes from the granted token rather than fail loudly.
+
+**Registered against the QA staging server 2026-07-11** (`agent-forge-copilot#56`) —
+`openid fhirUser launch api:fhir user/Patient.read user/encounter.read user/medication.read
+user/prescription.read user/drug.read user/list.read user/allergy.read user/vital.read
+user/procedure.read user/surgery.read user/document.read user/Appointment.read`, confidential
+client (`token_endpoint_auth_method: client_secret_post`), enabled via Admin → System → API
+Clients. Credentials live as `OpenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret` GitLab CI
+variables. Casing beyond `Patient`/`Appointment` (both PascalCase, matching the one confirmed-live
+casing rule above) is still best-effort, not individually re-verified per resource — `[CONFIRM]`
+against actual QA-tier test results once they run.)*
 
 > **Scope casing, confirmed live:** the deployed server's `scopes_supported` uses **PascalCase FHIR resource
 > names** (`patient/Patient.read`, not `patient/patient.read`) — the lowercase form this table originally

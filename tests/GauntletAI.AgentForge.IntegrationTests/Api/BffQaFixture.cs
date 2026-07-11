@@ -66,6 +66,8 @@ public sealed class BffQaFixture : WebApplicationFactory<global::Program>
 
     private readonly string _llmApiKey;
     private readonly string _llmModel;
+    private readonly string _agendaClientId;
+    private readonly string _agendaClientSecret;
 
     public BffQaFixture()
     {
@@ -90,6 +92,24 @@ public sealed class BffQaFixture : WebApplicationFactory<global::Program>
 
         _llmApiKey = apiKey;
         _llmModel = model;
+
+        // Daily Agenda's own registered confidential client (ARCHITECTURE.md §19.2) - a
+        // separately registered client, not OpenEmr__ClientId, per ScopeRepository::finalizeScopes
+        // silently dropping scopes outside a client's own registration (INTERFACE_CONTROL.md A.4).
+        // Registered against the QA staging server 2026-07-11 (agent-forge-copilot#56).
+        var agendaConfig = new ConfigurationBuilder().AddEnvironmentVariables().Build().GetSection("OpenEmrAgenda");
+        var agendaClientId = agendaConfig["ClientId"];
+        var agendaClientSecret = agendaConfig["ClientSecret"];
+        if (string.IsNullOrWhiteSpace(agendaClientId) || string.IsNullOrWhiteSpace(agendaClientSecret))
+        {
+            throw new InvalidOperationException(
+                "BFF Daily Agenda integration tests require OpenEmrAgenda__ClientId and " +
+                "OpenEmrAgenda__ClientSecret environment variables - the agenda launch flow " +
+                "exercised here needs a real registered confidential client, not a mock.");
+        }
+
+        _agendaClientId = agendaClientId;
+        _agendaClientSecret = agendaClientSecret;
     }
 
     /// <inheritdoc />
@@ -102,14 +122,29 @@ public sealed class BffQaFixture : WebApplicationFactory<global::Program>
             ["OpenEmr:ClientId"] = "qa-integration-test-client",
             ["OpenEmr:Scopes:0"] = "patient/patient.read",
             ["Bff:PublicBaseUrl"] = "https://bff-integration-test.invalid",
-            // Daily Agenda (ARCHITECTURE.md §19) - its own registered client per
+            // Daily Agenda (ARCHITECTURE.md §19) - its own registered confidential client, per
             // ScopeRepository::finalizeScopes silently dropping scopes outside a client's own
-            // registration (INTERFACE_CONTROL.md A.4). Not yet a real registered QA client - see
-            // agent-forge-copilot#56/agent-forge#19 - this only satisfies AgendaOpenEmrOptions'
-            // ValidateOnStart() so the host still boots; agenda-launch tests that need a real
-            // token exchange are deferred until that registration exists.
-            ["OpenEmrAgenda:ClientId"] = "qa-integration-test-agenda-client",
-            ["OpenEmrAgenda:Scopes:0"] = "user/Patient.read",
+            // registration (INTERFACE_CONTROL.md A.4). Scope list matches exactly what was
+            // registered against the QA staging server (agent-forge-copilot#56) - keep this list
+            // and the registered client's own scope list in sync if either ever changes.
+            ["OpenEmrAgenda:ClientId"] = _agendaClientId,
+            ["OpenEmrAgenda:ClientSecret"] = _agendaClientSecret,
+            ["OpenEmrAgenda:Scopes:0"] = "openid",
+            ["OpenEmrAgenda:Scopes:1"] = "fhirUser",
+            ["OpenEmrAgenda:Scopes:2"] = "launch",
+            ["OpenEmrAgenda:Scopes:3"] = "api:fhir",
+            ["OpenEmrAgenda:Scopes:4"] = "user/Patient.read",
+            ["OpenEmrAgenda:Scopes:5"] = "user/encounter.read",
+            ["OpenEmrAgenda:Scopes:6"] = "user/medication.read",
+            ["OpenEmrAgenda:Scopes:7"] = "user/prescription.read",
+            ["OpenEmrAgenda:Scopes:8"] = "user/drug.read",
+            ["OpenEmrAgenda:Scopes:9"] = "user/list.read",
+            ["OpenEmrAgenda:Scopes:10"] = "user/allergy.read",
+            ["OpenEmrAgenda:Scopes:11"] = "user/vital.read",
+            ["OpenEmrAgenda:Scopes:12"] = "user/procedure.read",
+            ["OpenEmrAgenda:Scopes:13"] = "user/surgery.read",
+            ["OpenEmrAgenda:Scopes:14"] = "user/document.read",
+            ["OpenEmrAgenda:Scopes:15"] = "user/Appointment.read",
             ["Llm:ApiKey"] = _llmApiKey,
             ["Llm:Model"] = _llmModel,
             ["Llm:InputPricePerMillionTokensUsd"] = "0",
