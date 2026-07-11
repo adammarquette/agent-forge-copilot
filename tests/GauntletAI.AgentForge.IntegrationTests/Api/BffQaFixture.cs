@@ -102,6 +102,14 @@ public sealed class BffQaFixture : WebApplicationFactory<global::Program>
             ["OpenEmr:ClientId"] = "qa-integration-test-client",
             ["OpenEmr:Scopes:0"] = "patient/patient.read",
             ["Bff:PublicBaseUrl"] = "https://bff-integration-test.invalid",
+            // Daily Agenda (ARCHITECTURE.md §19) - its own registered client per
+            // ScopeRepository::finalizeScopes silently dropping scopes outside a client's own
+            // registration (INTERFACE_CONTROL.md A.4). Not yet a real registered QA client - see
+            // agent-forge-copilot#56/agent-forge#19 - this only satisfies AgendaOpenEmrOptions'
+            // ValidateOnStart() so the host still boots; agenda-launch tests that need a real
+            // token exchange are deferred until that registration exists.
+            ["OpenEmrAgenda:ClientId"] = "qa-integration-test-agenda-client",
+            ["OpenEmrAgenda:Scopes:0"] = "user/Patient.read",
             ["Llm:ApiKey"] = _llmApiKey,
             ["Llm:Model"] = _llmModel,
             ["Llm:InputPricePerMillionTokensUsd"] = "0",

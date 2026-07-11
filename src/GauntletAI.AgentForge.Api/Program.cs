@@ -31,6 +31,10 @@ builder.Services.AddOptions<BffOptions>()
     .Bind(builder.Configuration.GetSection(BffOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+builder.Services.AddOptions<AgendaOpenEmrOptions>()
+    .Bind(builder.Configuration.GetSection(AgendaOpenEmrOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 builder.Services.AddOptions<LlmProviderOptions>()
     .Bind(builder.Configuration.GetSection(LlmProviderOptions.SectionName))
     .ValidateDataAnnotations()
@@ -120,6 +124,7 @@ builder.Services.AddSingleton<IClinicalResponseVerifier, ClinicalResponseVerifie
 builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 
 builder.Services.AddScoped<SmartLaunchService>();
+builder.Services.AddScoped<AgendaLaunchService>();
 builder.Services.AddScoped<ChatSessionCoordinator>();
 
 // Epic 9 (Observability): the app-side metrics/tracing that feed the self-hosted dashboard, and
@@ -195,6 +200,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapLaunchEndpoints();
+app.MapAgendaLaunchEndpoints();
 app.MapHub<ChatHub>("/hubs/chat");
 
 // /health: liveness only (the process is up and serving) - no dependency checks, so it can't flap
