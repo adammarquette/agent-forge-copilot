@@ -31,7 +31,12 @@ public sealed record TokenRequest
     [AliasAs("refresh_token")]
     public string? RefreshToken { get; init; }
 
-    /// <summary>Present only for a confidential client; a public client omits this entirely.</summary>
+    /// <summary>
+    /// Required even for a public client - see <see cref="IntrospectionRequest.ClientSecret"/> for
+    /// why (nullable here only so callers can pass through an unconfigured value; always coerced to
+    /// <see cref="string.Empty"/> before this record is built - see
+    /// <see cref="OpenEmrAuthClient.ExchangeAuthorizationCodeAsync"/>).
+    /// </summary>
     [AliasAs("client_secret")]
     public string? ClientSecret { get; init; }
 }
