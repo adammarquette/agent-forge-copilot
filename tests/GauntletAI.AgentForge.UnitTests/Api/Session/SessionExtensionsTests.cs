@@ -101,4 +101,20 @@ public sealed class SessionExtensionsTests
         _session.TryGetAgendaSession().Should().Be(new AgendaSessionContext("agenda-token", "default", "dr-jones"));
         _session.TryGetPatientSession().Should().Be(new PatientSessionContext("patient-token", "default", "123", "dr-jones"));
     }
+
+    [Fact]
+    public void SaveAgendaRoster_ThenTryGetAgendaRoster_RoundTripsEveryPatientId()
+    {
+        _session.SaveAgendaRoster(["patient-1", "patient-2", "patient-3"]);
+
+        _session.TryGetAgendaRoster().Should().BeEquivalentTo(["patient-1", "patient-2", "patient-3"]);
+    }
+
+    [Fact]
+    public void TryGetAgendaRoster_NothingSaved_ReturnsEmptySetRatherThanNull()
+    {
+        // The drill-down gate (AgendaRosterGate.Authorize) takes a set unconditionally - an empty
+        // set correctly rejects every patientId rather than requiring a separate null check.
+        _session.TryGetAgendaRoster().Should().BeEmpty();
+    }
 }
