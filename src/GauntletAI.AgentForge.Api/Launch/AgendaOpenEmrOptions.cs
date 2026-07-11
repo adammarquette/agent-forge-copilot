@@ -30,8 +30,14 @@ public sealed class AgendaOpenEmrOptions : IValidatableObject
     /// <inheritdoc />
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (Scopes.Count == 0)
+        if (Scopes is null || Scopes.Count == 0)
         {
+            // Scopes is `required`, but that's a compile-time-only guarantee - IConfiguration
+            // binding via reflection leaves it genuinely null when the OpenEmrAgenda config
+            // section is absent entirely (a legitimate case: not every environment/fixture
+            // configures the Daily Agenda feature), rather than an empty list. Confirmed live:
+            // this exact unguarded check threw NullReferenceException at host startup for
+            // HealthEndpointReadinessTests, which has no reason to set OpenEmrAgenda config.
             yield return new ValidationResult(
                 "At least one OAuth scope is required.",
                 [nameof(Scopes)]);

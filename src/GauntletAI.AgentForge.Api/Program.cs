@@ -32,14 +32,20 @@ builder.Services.AddOptions<BffOptions>()
     .Bind(builder.Configuration.GetSection(BffOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+// Daily Agenda (ARCHITECTURE.md §19) is an optional, additive feature - not every environment
+// configures it yet (confirmed live: ValidateOnStart here crashed the whole host at startup for
+// tests/deployments with no reason to set OpenEmrAgenda config, e.g. HealthEndpointReadinessTests).
+// No ValidateOnStart, matching ObservabilityOptions' precedent below: the app must still boot and
+// serve the existing single-patient flow without this configured. Validation still runs lazily
+// the first time these options are actually resolved (AgendaLaunchService/AgendaRosterService),
+// producing a clean error there rather than an unguarded NullReferenceException
+// (AgendaOpenEmrOptions.Validate).
 builder.Services.AddOptions<AgendaOpenEmrOptions>()
     .Bind(builder.Configuration.GetSection(AgendaOpenEmrOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
+    .ValidateDataAnnotations();
 builder.Services.AddOptions<AgendaOptions>()
     .Bind(builder.Configuration.GetSection(AgendaOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
+    .ValidateDataAnnotations();
 builder.Services.AddOptions<LlmProviderOptions>()
     .Bind(builder.Configuration.GetSection(LlmProviderOptions.SectionName))
     .ValidateDataAnnotations()
