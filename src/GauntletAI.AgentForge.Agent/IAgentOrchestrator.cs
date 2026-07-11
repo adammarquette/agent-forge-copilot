@@ -12,4 +12,11 @@ public interface IAgentOrchestrator
 
     /// <summary>Asks a follow-up question within an existing session, maintaining context (UC-2).</summary>
     Task<AgentTurnResult> AskFollowUpAsync(ConversationState state, string question, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Starts a new session for a patient and generates a short, list-friendly summary for the
+    /// Daily Agenda (UC-6) - distinct from <see cref="StartBriefAsync"/>'s fuller in-room brief,
+    /// but reusing the same tool-calling/verification turn loop.
+    /// </summary>
+    Task<AgentTurnResult> StartAgendaSummaryAsync(string site, string patientId, CancellationToken cancellationToken);
 }

@@ -1,4 +1,5 @@
 using GauntletAI.AgentForge.Agent;
+using GauntletAI.AgentForge.Api.Agenda;
 using GauntletAI.AgentForge.Api.Chat;
 using GauntletAI.AgentForge.Api.Health;
 using GauntletAI.AgentForge.Api.Launch;
@@ -33,6 +34,10 @@ builder.Services.AddOptions<BffOptions>()
     .ValidateOnStart();
 builder.Services.AddOptions<AgendaOpenEmrOptions>()
     .Bind(builder.Configuration.GetSection(AgendaOpenEmrOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddOptions<AgendaOptions>()
+    .Bind(builder.Configuration.GetSection(AgendaOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
 builder.Services.AddOptions<LlmProviderOptions>()
@@ -126,6 +131,12 @@ builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 builder.Services.AddScoped<SmartLaunchService>();
 builder.Services.AddScoped<AgendaLaunchService>();
 builder.Services.AddScoped<ChatSessionCoordinator>();
+
+// TimeProvider.System, not DateTimeOffset.UtcNow directly: gives AgendaRosterServiceTests a fake
+// clock seam instead of a bespoke IClock (ARCHITECTURE.md §19.1's single-captured-"now" design).
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<IAgendaPatientSummaryRunner, AgendaPatientSummaryRunner>();
+builder.Services.AddScoped<AgendaRosterService>();
 
 // Epic 9 (Observability): the app-side metrics/tracing that feed the self-hosted dashboard, and
 // the readiness checks NFR-HEALTH-1 requires against OpenEMR, the LLM provider, and that dashboard's
