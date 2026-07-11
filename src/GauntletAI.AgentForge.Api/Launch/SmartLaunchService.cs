@@ -1,6 +1,7 @@
 using GauntletAI.AgentForge.Api.Session;
 using GauntletAI.AgentForge.Integration.OpenEmr;
 using GauntletAI.AgentForge.Integration.OpenEmr.Auth;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace GauntletAI.AgentForge.Api.Launch;
@@ -16,7 +17,8 @@ namespace GauntletAI.AgentForge.Api.Launch;
 public sealed class SmartLaunchService(
     IOpenEmrAuthClient authClient,
     IOptions<OpenEmrOptions> openEmrOptions,
-    IOptions<BffOptions> bffOptions)
+    IOptions<BffOptions> bffOptions,
+    ILogger<SmartLaunchService> logger)
 {
     /// <summary>
     /// Builds the authorize redirect for a launch carrying <paramref name="launchToken"/> (the
@@ -81,6 +83,7 @@ public sealed class SmartLaunchService(
             .ConfigureAwait(false);
         if (string.IsNullOrEmpty(introspection.Subject))
         {
+            SmartLaunchServiceLog.IntrospectionMissingSubject(logger, introspection.ClientId, introspection.Active);
             throw new SmartLaunchException(
                 "Token introspection returned no subject claim - cannot establish an audited clinician " +
                 "identity for this session (FR-AUTH-4).");

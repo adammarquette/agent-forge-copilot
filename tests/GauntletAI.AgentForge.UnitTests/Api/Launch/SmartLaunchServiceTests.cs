@@ -3,6 +3,7 @@ using FluentAssertions;
 using GauntletAI.AgentForge.Api.Launch;
 using GauntletAI.AgentForge.Integration.OpenEmr;
 using GauntletAI.AgentForge.Integration.OpenEmr.Auth;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace GauntletAI.AgentForge.UnitTests.Api.Launch;
@@ -10,6 +11,7 @@ namespace GauntletAI.AgentForge.UnitTests.Api.Launch;
 public sealed class SmartLaunchServiceTests
 {
     private readonly IOpenEmrAuthClient _authClient = A.Fake<IOpenEmrAuthClient>();
+    private readonly ILogger<SmartLaunchService> _logger = A.Fake<ILogger<SmartLaunchService>>();
     private readonly SmartLaunchService _sut;
 
     public SmartLaunchServiceTests()
@@ -22,7 +24,7 @@ public sealed class SmartLaunchServiceTests
             Scopes = ["patient/patient.read", "launch/patient"],
         });
         var bffOptions = Options.Create(new BffOptions { PublicBaseUrl = "https://sidecar.example.org" });
-        _sut = new SmartLaunchService(_authClient, openEmrOptions, bffOptions);
+        _sut = new SmartLaunchService(_authClient, openEmrOptions, bffOptions, _logger);
     }
 
     [Fact]
@@ -123,5 +125,27 @@ public sealed class SmartLaunchServiceTests
         var act = () => _sut.CompleteLaunchAsync("auth-code", pending.State, pending, CancellationToken.None);
 
         await act.Should().ThrowAsync<SmartLaunchException>();
+    }
+
+    [Fact]
+    public async Task CompleteLaunchAsync_IntrospectionReturnsNoSubject_LogsActiveAndClientIdForDiagnosis()
+    {
+        // A missing subject is otherwise indistinguishable in the thrown exception between "OpenEMR
+        // rejected our client" (active:false) and "active but no subject for some other reason" -
+        // this warning is what lets an operator tell the two apart from logs alone, with no PHI.
+        A.CallTo(() => _logger.IsEnabled(LogLevel.Warning)).Returns(true);
+        var (_, pending) = _sut.BeginLaunch("launch-token-abc");
+        A.CallTo(() => _authClient.ExchangeAuthorizationCodeAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<string>._, A<string?>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new TokenResponse("access-token-abc", "Bearer", 3600, "patient/patient.read", null, "patient-123", null)));
+        A.CallTo(() => _authClient.IntrospectAsync(
+                A<string>._, A<string>._, A<string>._, A<string?>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new IntrospectionResponse(false, "patient/patient.read", "sidecar-client", null, Subject: null, "patient-123")));
+
+        var act = () => _sut.CompleteLaunchAsync("auth-code", pending.State, pending, CancellationToken.None);
+
+        await act.Should().ThrowAsync<SmartLaunchException>();
+        A.CallTo(_logger).Where(call => call.Method.Name == "Log")
+            .MustHaveHappenedOnceExactly();
     }
 }
