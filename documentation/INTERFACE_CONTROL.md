@@ -110,6 +110,18 @@ Confirmed available scopes relevant to the cardiology read paths. Request **only
 DiagnosticReport and problems via `lists`. Resolve the exact scope→resource mapping per resource on the running
 stack — `[CONFIRM]`.)*
 
+*(**On-demand Daily Agenda** (`ARCHITECTURE.md` §19): the agenda launch has no single-patient launch
+context, so it cannot rely on any `patient/*.read` scope above — it needs the `user/*.read` equivalent for
+every resource type currently fetched via `patient/*.read` (at minimum `user/Patient.read`,
+`user/encounter.read`; the remaining rows already use `user/*.read`). Requested under its own, separately
+configured scope list distinct from the single-patient launch's — the existing launch's scopes are never
+widened. **Confirmed against the fork source, not assumed:** `ScopeRepository::finalizeScopes()`
+(`src/Common/Auth/OpenIDConnect/Repositories/ScopeRepository.php:137-167`) intersects every requested scope
+against the registered client's own stored scope list and **silently drops** anything outside it — no error
+at authorize time. A second registered OAuth client (its own `client_id`, registered with the agenda's
+`user/*.read` scope set) is required; reusing the existing single-patient launch's `client_id` would
+silently omit the new scopes from the granted token rather than fail loudly.)*
+
 > **Scope casing, confirmed live:** the deployed server's `scopes_supported` uses **PascalCase FHIR resource
 > names** (`patient/Patient.read`, not `patient/patient.read`) — the lowercase form this table originally
 > documented is rejected with `invalid_scope` at both `/authorize` and `/registration`. Only the `Patient`
@@ -145,12 +157,21 @@ Confirmed in fork: routes in `apis/routes/_rest_routes_fhir_r4_us_core_3_1_0.inc
 | Procedures (PCI, ablation) | `Procedure` | `procedure_order`/`procedures` | |
 | **EF / echo findings** | `DiagnosticReport` / `DocumentReference` | `documents`/narrative | **unstructured → extraction; label "derived" (FR-DATA-4)** `[CONFIRM]` |
 | **Device (pacemaker/ICD)** | `Device` / `DocumentReference` | narrative | interrogation likely narrative `[CONFIRM]` |
+| **Schedule (UC-6, `ARCHITECTURE.md` §19)** | `Appointment` | `openemr_postcalendar_events` | date-only roster query, filtered to the current provider **sidecar-side**, not query-side — see search params below |
 
 ### B.2 Operations
 - **Read:** `GET /apis/{site}/fhir/{Resource}/{id}` → single resource.
 - **Search:** `GET /apis/{site}/fhir/{Resource}?patient={id}&...` → `Bundle` (searchset).
 - **Observation search params** (confirmed in `FhirObservationService`): `_id`, `patient`, `category`, `code`,
   `date`, `status`. Example: `GET /apis/default/fhir/Observation?patient=1&category=laboratory&date=ge2026-01-01`.
+- **Appointment search params (UC-6), confirmed against `FhirAppointmentService::loadSearchParameters()`:**
+  only `patient`, `_id`, `date`, `_lastUpdated` — **no `practitioner` parameter exists**. The agenda query is
+  therefore `GET /apis/{site}/fhir/Appointment?date=ge{today}&date=lt{tomorrow}`, returning every provider's
+  appointments for the day; the sidecar filters to the current clinician by matching each returned
+  `Appointment.participant[].actor` against `Practitioner/{sub}` — falling back to `Person/{sub}` for a
+  provider with no NPI on file, per `FhirAppointmentService::parseOpenEMRRecord`'s own conditional. `{sub}`
+  is the introspection `Subject` value (`ClinicianIdentity`) — confirmed identical to FHIR `Practitioner.id`
+  (both key off `users.uuid`; see `ARCHITECTURE.md` §19.2), no separate `Practitioner` lookup required.
 - **Pagination:** follow `Bundle.link[rel=next]`; do not assume a single page.
 
 ### B.3 Data & error semantics

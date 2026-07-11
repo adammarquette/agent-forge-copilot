@@ -144,6 +144,25 @@ dashboard/list/chart), and **what the agent must refuse to do**. These IDs are t
   judgment a static report doesn't make.
 - **Must refuse:** to present an unverified or inferred value as fact to close a gap.
 
+### UC‑6 — On-demand day's agenda: "who's left, and what should I know before each"
+- **Trigger:** the clinician opens the agenda from outside any single patient's chart (calendar/tab-level
+  entry point, not the per-patient launch) at any point during the clinic day.
+- **Need:** a list of every patient still on today's schedule whose appointment hasn't happened yet
+  (appointment time > now), each with a short, independent summary — the same grounding/citation discipline
+  as UC-1, compressed for a scannable list rather than the ~75-second in-room read.
+- **Output:** an ordered list (soonest appointment first), one short cited summary per patient. Opening any
+  one patient from the list drops into that patient's own live conversational session (UC-1/UC-2) for
+  follow-up — **never** a session or query spanning more than one patient.
+- **Why an agent, not a dashboard:** same reasoning as UC-1 — the value is judgment about what's worth
+  surfacing per patient, not a raw list. This is the **interactive** counterpart to the batch "pre-clinic
+  sweep" mentioned in §2: same underlying need (triage the day), but on-demand and mid-day, driven by a live
+  clinician session rather than an unattended early-morning job.
+- **Must refuse:** everything UC-4 already requires, **plus**: any question that names or implies a second
+  patient ("compare to my other AFib patients," "any of today's other patients on warfarin") — refused or
+  scoped-blocked and logged, identical to FR-CHAT-3's existing acceptance test. The agenda view is not an
+  exception to patient-scoped context; it changes *how many patients get a summary in one screen*, not
+  *whether more than one patient's data can enter a single conversation*.
+
 ---
 
 ## 5. Capability → Use Case traceability (the handle ARCHITECTURE.md grabs)
@@ -158,6 +177,7 @@ dashboard/list/chart), and **what the agent must refuse to do**. These IDs are t
 | Domain-constraint / safety flags | UC‑3 | …drop the rules engine |
 | Role/relationship authorization below the model | UC‑4 | …single-role assumption (unacceptable in clinic) |
 | Graceful degradation + uncertainty signaling | UC‑5 | …drop partial-answer handling (unacceptable in-domain) |
+| On-demand multi-patient roster summary (per-patient isolated, no cross-patient session) | UC‑6 | …no agenda view; the doctor stays without a "who's left today" entry point outside the chart |
 
 > **Rule for `ARCHITECTURE.md`:** every capability you design must appear in the left column with a live use
 > case beside it. A capability with no use case is scope to cut, not build.

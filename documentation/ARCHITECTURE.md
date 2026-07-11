@@ -535,5 +535,112 @@ principal (backend-services or offline token) alongside the interactive SMART to
 
 ---
 
+## 19. Post-v1 Extension — On-Demand Daily Agenda
+
+A doctor-facing button (fork-side, tracked as `agent-forge#19`, `SMARTLaunchToken::INTENT_MAIN_TAB`) that
+lists every not-yet-seen patient on the current provider's schedule today, each with a short independent
+summary, ordered by appointment time. Traces to **UC-6** (`USERS.md`).
+
+**Design principle — a sibling to §18, not a variant of it.** Same underlying idea (enumerate the panel,
+run the per-patient pipeline, one failure never kills the run) but simpler in the one place §18 is hardest:
+this always has a **live clinician with a valid interactive token** at request time, so §18.2's batch-
+authorization problem (no clinician present at 5am) does not apply. The agenda gets its own token via a
+normal interactive SMART launch — differently scoped, never unattended.
+
+### 19.1 Flow
+1. **Agenda launch.** A new, parallel SMART launch path (`/agenda/launch` → `/agenda/callback`) — same PKCE/
+   state/introspection mechanics as the existing single-patient launch, but the resulting token carries **no
+   single-patient launch context**. The existing single-patient launch path is untouched.
+2. **Enumerate the panel.** FHIR `Appointment` search filtered by `date` (today) — **confirmed the fork's
+   `FhirAppointmentService` supports no `practitioner` search parameter at all** (only `patient`, `_id`,
+   `date`, `_lastUpdated` — `src/Services/FHIR/FhirAppointmentService.php` `loadSearchParameters()`), so the
+   query returns every provider's appointments for the practice today, and the sidecar filters to this
+   clinician's own rows client-side by matching `participant[].actor` against `Practitioner/{clinicianIdentity}`
+   (see §19.2a). This is a genuine, explicitly-flagged exception to the "every FHIR search is patient-scoped"
+   rule the rest of the FHIR client layer holds (§8.1) — and, unusually, to "scoped" at all: filtering by
+   provider happens in the sidecar, not the query.
+3. **Per-patient short summary.** For each patient, the same orchestrator/tool-calling/verification pipeline
+   as UC-1, seeded with a shorter, list-friendly prompt (distinct from the in-room brief prompt — this output
+   is read in a scan, not a 75-second sit-down). Per-patient isolation: one failure surfaces as a gap on that
+   row, never kills the run (UC-5).
+4. **Display**, ordered by appointment time (soonest first) — not ranked by actionability like §18.3; this is
+   a "who's next" list, not a pre-clinic triage queue.
+5. **Drill-down.** Selecting a patient mints an ordinary single-patient session (the existing UC-1/UC-2 chat,
+   completely unchanged) scoped to that one patient, gated by a sidecar-side check that the patient was
+   actually part of the roster this session already fetched.
+
+### 19.2 Authorization — a token-scope problem, not a batch-authorization problem
+Unlike §18.2, there is always a live clinician and a live interactive token — the hard problem here is
+**scope**, not *who authorizes an unattended job*. OpenEMR's `patient/*.read` scopes are server-enforced to
+a single launch-context patient (`INTERFACE_CONTROL.md` A.4); a roster launch has no such context, so any
+resource type currently fetched via `patient/*.read` needs its `user/*.read` equivalent instead (several
+resource types already use `user/*.read`, which is provider-wide by SMART spec, not launch-context-bound).
+The agenda launch therefore requests its **own, separately-configured scope set** — the existing
+single-patient launch's scope configuration is never widened.
+
+This is a deliberate widening of the PHI-exposure surface, in **three** parts, all requiring the ACL/audit
+review `agent-forge#19` calls for before merge: (a) one roster request touches N patients' data; (b) once a
+clinician drills into one patient, that follow-up chat runs under the **provider-wide** agenda token, not a
+launch-context-bound single-patient token; (c) per §19.1 step 2 and §19.2a, the raw `Appointment` fetch
+briefly holds every provider's appointments in sidecar memory before being filtered to just this clinician's
+own. (b) and (c) are easy to miss because the code paths around them (drill-down chat, the FHIR client call
+shape) look unchanged from existing patterns — only the token scope or the response's actual contents are
+broader than before.
+
+**Confirmed against the fork source (`agent-forge` repo, `src/Common/Auth/OpenIDConnect/` and
+`src/Services/`) — not guessed, per this project's established practice:**
+- **`sub` → `Practitioner.id`: direct, no lookup needed.** `AccessTokenEntity::relatedTo($this->getUserIdentifier())`
+  sets the JWT `sub` claim from `UserRepository`'s `UuidRegistry::uuidToString($uuid)`, where `$uuid` comes
+  from `SELECT uuid FROM users WHERE id = ?`. `PractitionerService extends BaseService` with
+  `parent::__construct('users')` — FHIR `Practitioner` resources are read directly from that same `users`
+  table, keyed by that same `uuid` column. So `introspection.Subject` (already captured today as
+  `ClinicianIdentity`) **is** the FHIR `Practitioner.id` value — `GET /apis/{site}/fhir/Practitioner/{sub}`
+  works with no intermediate lookup.
+- **A second registered OAuth client is required for the agenda flow — confirmed, not assumed.**
+  `ScopeRepository::finalizeScopes()` (`src/Common/Auth/OpenIDConnect/Repositories/ScopeRepository.php:137-167`)
+  explicitly states in its own comment: *"we only let scopes that the client initially registered with
+  through instead of whatever they request in their grant."* It intersects every requested scope against
+  `$clientEntity->getScopes()` (the client's own stored registration) and **silently drops** anything not in
+  that set — not a rejection, a silent narrowing. Requesting `user/*.read` agenda scopes under the *same*
+  `client_id` as the existing single-patient launch would silently omit them from the granted token, with no
+  error surfaced at authorize time. `AgendaOpenEmrOptions` (§19, Phase 1) therefore needs its own `ClientId`
+  (and likely `ClientSecret`), registered with the fork specifically with the agenda's `user/*.read` scope
+  set — this is fork-side configuration/deployment work coordinated with `agent-forge#19`, not something the
+  sidecar's code alone can work around.
+
+### 19.2a Provider filtering on `Appointment` — sidecar-side, not query-side
+No `practitioner` FHIR search parameter exists on this fork's `Appointment` resource (§19.1 step 2). Every
+`Appointment` participant with role "primary performer" carries an actor reference — **`Practitioner/{uuid}`
+only if the provider has an NPI configured** (`FhirAppointmentService::parseOpenEMRRecord`,
+`pce_aid_npi`/`pce_aid_uuid`); otherwise the same provider is referenced as `Person/{uuid}` instead. The
+sidecar's roster filter must therefore match **either** `Practitioner/{clinicianIdentity}` **or**
+`Person/{clinicianIdentity}` against each appointment's provider participant — matching only the
+`Practitioner/` form would silently drop every appointment for a provider without an NPI on file, which is a
+plausible state for demo/QA data and must be covered by a test case, not assumed away. Confirming the QA
+demo provider has an NPI configured is a Phase 2 setup check, not a code fix.
+
+### 19.3 PHI-at-rest
+Unlike §18.4's triage store, this design **persists nothing beyond the session** — no summary text at rest,
+only the roster's patient IDs (needed for the drill-down gate), for the lifetime of the existing session
+cookie. Recomputing on every `GET /agenda` call trades a little latency for not creating a new PHI-at-rest
+surface at all.
+
+### 19.4 Ops, cost, scale
+- **Concurrency:** bounded fan-out (not full parallelism) across the roster — bounds both concurrent LLM
+  calls and concurrent FHIR calls against a 20–30-patient panel, respecting `INTERFACE_CONTROL.md` B.2's
+  server-load expectations.
+- **Correlation:** one correlation ID per patient (per-patient isolation for observability, matching §18.6's
+  intent), not one shared ID for the whole roster request.
+- **Latency:** no existing NFR-PERF target covers this shape — `PRD.md` NFR-PERF-1 targets the ~75s
+  single-patient in-room read. A rough working budget should be set once the concurrency bound is chosen,
+  rather than left undefined.
+
+### 19.5 v1 seams this relies on
+Same as §18.7 — orchestrator/MCP tools/verification are already invocation-source-agnostic and reusable
+per-patient with no shared mutable state. Unlike §18, this extension needs **no** new non-interactive-
+principal support in the auth layer, since the clinician is always present.
+
+---
+
 *Draft v0.1 — reconciles the early architecture doc with USERS.md and audit findings. Begins with a ~1-page
 summary per the Stage 5 hard gate. §18 is a documented post-v1 extension (D14), not part of the MVP.*
