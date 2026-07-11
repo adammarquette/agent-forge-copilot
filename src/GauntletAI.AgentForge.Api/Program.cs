@@ -212,6 +212,7 @@ app.UseStaticFiles();
 
 app.MapLaunchEndpoints();
 app.MapAgendaLaunchEndpoints();
+app.MapAgendaEndpoints();
 app.MapHub<ChatHub>("/hubs/chat");
 
 // /health: liveness only (the process is up and serving) - no dependency checks, so it can't flap

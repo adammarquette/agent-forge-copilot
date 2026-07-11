@@ -563,11 +563,13 @@ normal interactive SMART launch — differently scoped, never unattended.
    as UC-1, seeded with a shorter, list-friendly prompt (distinct from the in-room brief prompt — this output
    is read in a scan, not a 75-second sit-down). Per-patient isolation: one failure surfaces as a gap on that
    row, never kills the run (UC-5).
-4. **Display**, ordered by appointment time (soonest first) — not ranked by actionability like §18.3; this is
-   a "who's next" list, not a pre-clinic triage queue.
-5. **Drill-down.** Selecting a patient mints an ordinary single-patient session (the existing UC-1/UC-2 chat,
-   completely unchanged) scoped to that one patient, gated by a sidecar-side check that the patient was
-   actually part of the roster this session already fetched.
+4. **Display.** `GET /agenda` returns the ordered rows (soonest appointment first — not ranked by
+   actionability like §18.3; this is a "who's next" list, not a pre-clinic triage queue) and persists the
+   roster's patient ids into the session for step 5's gate.
+5. **Drill-down.** `POST /agenda/select-patient` mints an ordinary single-patient session (the existing
+   UC-1/UC-2 chat, completely unchanged) scoped to the requested patient, gated by `AgendaRosterGate`
+   checking that patient id against the roster `GET /agenda` already persisted — a request for a patient
+   outside that set is rejected (403) and logged, never silently allowed.
 
 ### 19.2 Authorization — a token-scope problem, not a batch-authorization problem
 Unlike §18.2, there is always a live clinician and a live interactive token — the hard problem here is
