@@ -89,6 +89,14 @@ public sealed class SmartLaunchService(
                 "identity for this session (FR-AUTH-4).");
         }
 
+        if (!introspection.Active)
+        {
+            SmartLaunchServiceLog.IntrospectionInactive(logger, introspection.ClientId);
+            throw new SmartLaunchException(
+                "Token introspection reports the token is not active - a revoked or expired token " +
+                "cannot start a session (FR-AUTH-4).");
+        }
+
         return new PatientSessionContext(token.AccessToken, options.Site, token.Patient, introspection.Subject);
     }
 
