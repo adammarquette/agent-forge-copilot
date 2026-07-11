@@ -65,7 +65,13 @@ public sealed class OpenEmrAuthClient(IOpenEmrAuthApi api) : IOpenEmrAuthClient
             Token = accessToken,
             TokenTypeHint = "access_token",
             ClientId = clientId,
-            ClientSecret = clientSecret,
+            // A public client's registered secret is an empty string, not absent - the server
+            // authenticates the caller by matching client_secret exactly (confirmed live: omitting
+            // the form field entirely is treated as an unauthenticated call and silently returns
+            // {"active":false} rather than an error). A null here must never reach Refit's
+            // UrlEncoded body serializer, which omits null properties - coerce to string.Empty so
+            // the form still carries client_secret=.
+            ClientSecret = clientSecret ?? string.Empty,
         };
         return api.IntrospectAsync(site, request, cancellationToken);
     }
