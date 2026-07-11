@@ -99,7 +99,8 @@ Variables (Options-pattern, `__` = section separator):
 |---|---|
 | `OpenEmr__BaseUrl` | `https://openemr-staging-25fc.up.railway.app` |
 | `OpenEmr__Site` | `default` |
-| `OpenEmr__ClientId` | a registered public SMART client, admin-enabled (client id held in the Railway service variable, not here) |
+| `OpenEmr__ClientId` | a registered **confidential** SMART client, admin-enabled (client id held in the Railway service variable, not here) |
+| `OpenEmr__ClientSecret` | the client's real secret (Railway service variable, not here — see the note below on why this is confidential, not public) |
 | `OpenEmr__Scopes__0..14` | PascalCase FHIR resource scopes, e.g. `patient/Patient.read` (see `ServerScopeListEntity::fhirResourceScopesV1()` in the OpenEMR fork for the exact catalog — casing matters, `patient/encounter.read` is rejected) |
 | `Bff__PublicBaseUrl` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
 | `Llm__ApiKey` | real Anthropic key — **set via the `Llm__ApiKey` GitLab CI variable, not the Railway dashboard** (see CI/deployment flow below) |
@@ -209,24 +210,42 @@ railway up --service agent-forge-api-staging --environment staging
 
 ## OpenEMR API configuration — DONE
 
-Completed 2026-07-09/10 against the fresh staging OpenEMR:
+Completed 2026-07-09 through 2026-07-11 against the fresh staging OpenEMR:
 
 - API enabled (Globals > Connectors): REST API, FHIR service.
 - Site Address Override set (see the quirk above) so the server self-declares
   `https://openemr-staging-25fc.up.railway.app` instead of a bare `http://` URL.
-- OAuth client registered and admin-enabled — a public SMART client,
-  `client_id = Q7lOmvEz9VB_wMTzwnGKRej5GSfKLWbS-NMpEjblLOU` — used by
-  `agent-forge-api-staging`'s own `OpenEmr__ClientId`.
+- OAuth client registered as **confidential** (`token_endpoint_auth_method:
+  client_secret_post`, a real generated secret — not public/empty-secret) and
+  admin-enabled — used by `agent-forge-api-staging`'s `OpenEmr__ClientId` /
+  `OpenEmr__ClientSecret`.
 - 20 synthetic demo patients seeded via `tools/SeedDemoPatients`; the one CI
   uses by default is FHIR id `a23a7ed4-54de-4dc7-b5c4-93d3e1d03fd4`
   (`OpenEmrQa__TestPatientId`).
-- Verified end to end through token exchange (login → consent → callback →
-  token). **Not yet verified:** introspection currently 401s for every token
-  due to `agent-forge` issue #11 (an operator-precedence bug in the fork's
-  `TokenIntrospectionRestController.php` — `intval($x !== 1)` instead of
-  `intval($x) !== 1`), which blocks the FR-AUTH-4 clinician-identity check.
-  Fix is out of scope for this repo; re-run the `tools/LoadTestChat` smoke
-  test once it lands and deploys.
+- **Verified fully end to end** (2026-07-11): login → patient-select → consent
+  → callback → token exchange → introspection → session established →
+  redirected to the chat SPA placeholder. Real, complete SMART launch works.
+
+> **Why confidential, not public:** the architecture calls for a public client
+> (D11 - no client secret held anywhere in the browser). Getting there required
+> three real bugs to be found and fixed, in order: (1) `agent-forge` issue #11 -
+> an operator-precedence bug in the fork's `TokenIntrospectionRestController.php`
+> (`intval($x !== 1)` instead of `intval($x) !== 1`) that rejected introspection
+> for enabled clients; (2)/(3) this repo's own `OpenEmrAuthClient` passed a null
+> `ClientSecret` straight through to both `ExchangeAuthorizationCodeAsync` and
+> `IntrospectAsync`, which Refit's `UrlEncoded` body serializer then omitted
+> from the wire entirely - OpenEMR treats a missing `client_secret` field as an
+> unauthenticated call and silently returns `{"active":false}`, even for a
+> public client whose own registered secret is an empty string (issues #47,
+> #52; both fixed - the null-to-`string.Empty` coercion is still correct and
+> necessary). Even with all three fixed, a live end-to-end test against a
+> properly-registered public/empty-secret client **still** failed identically,
+> pointing at some remaining gap specific to how this OpenEMR fork handles an
+> empty-secret client in the real request sequence, not reproducible in
+> isolation, not root-caused. Switching to a confidential client (real secret)
+> is what actually got the flow working; revisit the public-client path only
+> if there's a concrete reason to (see issue #44's closing note for the full
+> investigation trail).
 
 Admin login (demo): `admin` / `P@ssw0rd1` (also the `OE_PASS` service variable
 on `openemr`, kept in sync so a re-setup recreates the same credentials).
