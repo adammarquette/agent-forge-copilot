@@ -140,4 +140,20 @@ public sealed class OpenEmrFhirClientTests
 
         A.CallTo(() => api.SearchDocumentReferencesAsync("default", "1", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
     }
+
+    [Fact]
+    public async Task GetAppointmentsAsync_DateProvided_PassesDateThroughWithNoPatientScoping()
+    {
+        // Deliberately not patient-scoped (ARCHITECTURE.md §19.2a) - unlike every other method on
+        // this client, there is no patientId parameter at all here.
+        var api = A.Fake<IOpenEmrFhirApi>();
+        A.CallTo(() => api.SearchAppointmentsAsync("default", "eq2026-07-11", A<CancellationToken>._))
+            .Returns(Task.FromResult(EmptyBundleJson));
+        var client = new OpenEmrFhirClient(api);
+
+        var result = await client.GetAppointmentsAsync("default", "eq2026-07-11", CancellationToken.None);
+
+        result.Should().BeEmpty();
+        A.CallTo(() => api.SearchAppointmentsAsync("default", "eq2026-07-11", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+    }
 }
