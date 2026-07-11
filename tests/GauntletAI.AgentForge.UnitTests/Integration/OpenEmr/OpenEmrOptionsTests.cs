@@ -1,11 +1,41 @@
 using System.ComponentModel.DataAnnotations;
 using FluentAssertions;
 using GauntletAI.AgentForge.Integration.OpenEmr;
+using Microsoft.Extensions.Configuration;
 
 namespace GauntletAI.AgentForge.UnitTests.Integration.OpenEmr;
 
 public sealed class OpenEmrOptionsTests
 {
+    [Fact]
+    public void Validate_ScopesNeverBoundFromConfiguration_ProducesErrorRatherThanThrowing()
+    {
+        // Every other test here constructs OpenEmrOptions via object-initializer syntax, which
+        // enforces `required` at compile time - Scopes is never actually null in those tests. The
+        // `required` keyword gives no such runtime guarantee for reflection-based IConfiguration
+        // binding: a config section with no "Scopes" key at all leaves the property genuinely
+        // null. This is the gap that let Validate()'s unguarded Scopes.Count throw a
+        // NullReferenceException in production (confirmed live: HealthEndpointReadinessTests'
+        // fixture, which has no reason to configure OpenEmrAgenda, crashed the whole host at
+        // startup - GauntletAI.AgentForge.Api.Launch.AgendaOpenEmrOptions carries the identical
+        // pattern and was where this was actually caught).
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["OpenEmr:BaseUrl"] = "https://emr.example.org",
+                ["OpenEmr:Site"] = "default",
+                ["OpenEmr:ClientId"] = "sidecar-client",
+                // Deliberately no OpenEmr:Scopes:* keys at all.
+            })
+            .Build();
+        var options = configuration.GetSection(OpenEmrOptions.SectionName).Get<OpenEmrOptions>()!;
+
+        var act = () => Validate(options);
+
+        act.Should().NotThrow();
+        Validate(options).Should().ContainSingle(r => r.MemberNames.Contains(nameof(OpenEmrOptions.Scopes)));
+    }
+
     [Fact]
     public void Validate_AllRequiredFieldsPresentAndHttpsBaseUrl_ProducesNoErrors()
     {
