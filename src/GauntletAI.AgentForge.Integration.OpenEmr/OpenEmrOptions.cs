@@ -39,8 +39,12 @@ public sealed class OpenEmrOptions : IValidatableObject
     /// <inheritdoc />
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (Scopes.Count == 0)
+        if (Scopes is null || Scopes.Count == 0)
         {
+            // Scopes is `required`, but that's a compile-time-only guarantee - IConfiguration
+            // binding via reflection leaves it genuinely null when the config section carries no
+            // Scopes key at all, rather than an empty list (confirmed live: this exact unguarded
+            // check threw NullReferenceException in production for the sibling AgendaOpenEmrOptions).
             yield return new ValidationResult(
                 "At least one OAuth scope is required.",
                 [nameof(Scopes)]);
