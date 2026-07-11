@@ -26,6 +26,11 @@ The `documentation/` folder is authoritative; these AGENTS files summarize and p
 - **Every capability traces to a `USERS.md` use case.** If it doesn't, don't build it.
 - **Contracts are the source of truth** (strict tool I/O schemas; NFR-CONTRACT-1). External calls conform to
   `INTERFACE_CONTROL.md`.
+- **Comments are terse.** Inline comments are one short line, only for non-obvious *why* (a hidden constraint,
+  a workaround, a surprising invariant) — never restate *what* the code does. XML doc comments on public
+  methods describe behavior/contract only; **never cite `documentation/` files, FR-/NFR- IDs, `USERS.md`
+  use cases, or GitLab issue numbers inside them** — that traceability belongs in commit messages and MR
+  descriptions, not code.
 - **Commits:** Conventional Commits; add `Assisted-by:` trailer when authored by an AI agent.
 - **No orphaned MRs.** Every MR references a tracking issue (`Closes #N` / `Related to #N`) that states the
   problem or requirement being addressed, opened *before* the MR. If no issue exists yet for the work, open
