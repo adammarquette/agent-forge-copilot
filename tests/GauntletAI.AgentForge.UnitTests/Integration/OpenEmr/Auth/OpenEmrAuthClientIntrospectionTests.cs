@@ -40,4 +40,26 @@ public sealed class OpenEmrAuthClientIntrospectionTests
 
         A.CallTo(() => api.IntrospectAsync("default", A<IntrospectionRequest>._, cts.Token)).MustHaveHappenedOnceExactly();
     }
+
+    [Fact]
+    public async Task IntrospectAsync_NullClientSecret_SendsEmptyStringNotNull()
+    {
+        // Regression test (GitLab issue TBD): a public client's registered secret is an empty
+        // string, not absent - the introspection endpoint authenticates the caller by matching
+        // client_secret exactly, including empty-string-to-empty-string. Refit's UrlEncoded body
+        // serialization omits null properties entirely, which the live server treats as an
+        // unauthenticated call and silently returns {"active":false} rather than erroring, so a
+        // null ClientSecret here must never reach the wire as "the field is missing" - it must be
+        // coerced to string.Empty so the form still carries client_secret=.
+        var api = A.Fake<IOpenEmrAuthApi>();
+        IntrospectionRequest? captured = null;
+        A.CallTo(() => api.IntrospectAsync("default", A<IntrospectionRequest>._, A<CancellationToken>._))
+            .Invokes((string _, IntrospectionRequest req, CancellationToken _) => captured = req)
+            .Returns(Task.FromResult(new IntrospectionResponse(false, null, null, null, null, null)));
+        var client = new OpenEmrAuthClient(api);
+
+        await client.IntrospectAsync("default", "access-token-abc", "public-client", null, CancellationToken.None);
+
+        captured!.ClientSecret.Should().Be(string.Empty);
+    }
 }

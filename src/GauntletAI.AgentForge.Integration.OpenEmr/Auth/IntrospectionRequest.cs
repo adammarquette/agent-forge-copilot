@@ -23,7 +23,14 @@ public sealed record IntrospectionRequest
     [AliasAs("client_id")]
     public required string ClientId { get; init; }
 
-    /// <summary>Present only for a confidential client; a public client omits this entirely.</summary>
+    /// <summary>
+    /// Required even for a public client - OpenEMR's registration issues an empty-string secret
+    /// for those, and authenticates the introspecting caller by matching it exactly. Omitting this
+    /// field (nullable here only so callers can pass through an unconfigured value; always coerced
+    /// to <see cref="string.Empty"/> before this record is built - see
+    /// <see cref="OpenEmrAuthClient.IntrospectAsync"/>) is treated as an unauthenticated call and
+    /// silently returns <c>{"active":false}</c> rather than erroring - confirmed live.
+    /// </summary>
     [AliasAs("client_secret")]
     public string? ClientSecret { get; init; }
 }
