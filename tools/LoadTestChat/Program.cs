@@ -2,7 +2,7 @@ using System.Globalization;
 using GauntletAI.AgentForge.LoadTestChat;
 
 var baseUrl = Environment.GetEnvironmentVariable("LoadTest__BaseUrl")
-    ?? "https://agent-forge-api-development.up.railway.app";
+    ?? "https://agent-forge-api-staging-staging.up.railway.app";
 var durationSeconds = int.Parse(
     Environment.GetEnvironmentVariable("LoadTest__DurationSeconds") ?? "15", CultureInfo.InvariantCulture);
 var concurrencyLevels = (Environment.GetEnvironmentVariable("LoadTest__ConcurrencyLevels") ?? "10")

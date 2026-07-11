@@ -34,7 +34,7 @@ For the full picture, read the docs below in order.
 
 A running OpenEMR instance (synthetic data only) is deployed on Railway — see [Deployment](#deployment):
 
-**[openemr-uubp-development.up.railway.app](https://openemr-uubp-development.up.railway.app)**
+**[openemr-staging-25fc.up.railway.app](https://openemr-staging-25fc.up.railway.app)**
 
 | | |
 |---|---|
