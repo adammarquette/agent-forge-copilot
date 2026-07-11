@@ -1,6 +1,6 @@
 using GauntletAI.AgentForge.SeedDemoPatients;
 
-var baseUrl = Environment.GetEnvironmentVariable("SeedDemo__BaseUrl") ?? "https://openemr-uubp-development.up.railway.app";
+var baseUrl = Environment.GetEnvironmentVariable("SeedDemo__BaseUrl") ?? "https://openemr-staging-25fc.up.railway.app";
 var site = Environment.GetEnvironmentVariable("SeedDemo__Site") ?? "default";
 
 Console.WriteLine($"Seeding {DemoPatientCatalog.Patients.Count} demo patients into {baseUrl} (site: {site}).");

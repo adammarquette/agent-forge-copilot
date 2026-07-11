@@ -1,10 +1,16 @@
 # Performance Baselines
 
 Epic 12 (issue #20) load/stress-test results — PRD.md NFR-PERF-2/3/4. Run against the real deployed
-`agent-forge-api` (development environment, `agent-forge-api-development.up.railway.app`) with real OpenEMR
+`agent-forge-api` (`development` environment, `agent-forge-api-development.up.railway.app`) with real OpenEMR
 and real Anthropic LLM calls — nothing mocked, nothing synthetic. Generated with `tools/LoadTestChat`
 (README.md there explains the harness: a small pool of real, browser-obtained session cookies multiplexed
 across many concurrent SignalR connections, each repeatedly invoking `ChatHub.RequestBrief`).
+
+> **Note:** the `development` Railway environment used for this run was decommissioned 2026-07-10 after an
+> unrecoverable deploy hang; `staging` is now the sole environment (see `documentation/RAILWAY.md`). The
+> numbers below remain valid as a compute/latency baseline — the run measured `agent-forge-api`'s own
+> processing characteristics, which aren't environment-specific — but the URL and deployment id are
+> historical, not live.
 
 **Run date:** 2026-07-10. **Deployment:** `fdf1f7ea` (post issue #39 AsyncLocal fix + issue #41 partial scope
 fix — see Known limitation below). **Session pool:** 3 real sessions, bootstrapped via Playwright against

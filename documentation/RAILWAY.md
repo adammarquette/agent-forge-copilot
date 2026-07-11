@@ -7,19 +7,23 @@ what CI needs to keep it working. Everything runs as Docker containers.
 
 Railway project **lucid-clarity** (workspace: Marquette Specifications).
 
-**Single environment.** Everything lives in the `development` environment.
+**Single environment.** Everything lives in the `staging` environment.
 Merges to `main` build and deploy the API there, and automated tests run
-against that same environment. (The former `staging` and `production`
-environments were deleted to keep the setup simple.)
+against that same environment. (The former `development` environment hit an
+unrecoverable deploy hang — `openemr-Uubp` stopped producing any log output
+past "Starting Container" across three redeploy attempts, and SSH access
+never became available to diagnose it further — and was decommissioned
+2026-07-10. `staging` is a fresh install and is now the sole environment.)
 
 | Service | Image / source | Notes |
 |---|---|---|
-| `agent-forge-api` | this repo's root `Dockerfile` (.NET 10) | The BFF/API. Deployed by CI via `railway up`. Public domain → port 8080. |
-| `openemr-Uubp`* | `openemr/openemr:7.0.2` | OpenEMR EHR. Public domain → port 80. Test target. |
-| `MySQL` | `mysql:9.4` | OpenEMR's database. Private TCP only (port 3306). |
+| `agent-forge-api-staging` | this repo's root `Dockerfile` (.NET 10) | The BFF/API. Deployed by CI via `railway up`. Public domain → port 8080. |
+| `openemr` | `openemr/openemr:7.0.2` | OpenEMR EHR. Public domain → port 80. Test target. |
+| `MySQL-gDNR` | `mysql:9.4` | OpenEMR's database. Private TCP only (port 3306). |
 
-\* `openemr-Uubp` is just an auto-generated name — rename to `openemr` in the
-dashboard when convenient (the Railway agent API can't rename services).
+Railway service names are unique per-project, not per-environment, which is
+why the staging services carry a `-staging`/`-gDNR` suffix instead of reusing
+the old `development` names.
 
 ### Environment & deployment flow
 
@@ -34,17 +38,17 @@ flowchart TB
         test --- itest
     end
 
-    subgraph RW["Railway project: lucid-clarity &mdash; development environment"]
+    subgraph RW["Railway project: lucid-clarity &mdash; staging environment"]
         direction TB
-        api["agent-forge-api<br/>.NET 10 · Dockerfile<br/>public :8080"]
-        oe["openemr-Uubp<br/>openemr/openemr:7.0.2<br/>public :80 · volume"]
-        db["MySQL<br/>mysql:9.4<br/>private :3306 · volume"]
+        api["agent-forge-api-staging<br/>.NET 10 · Dockerfile<br/>public :8080"]
+        oe["openemr<br/>openemr/openemr:7.0.2<br/>public :80 · volume"]
+        db["MySQL-gDNR<br/>mysql:9.4<br/>private :3306 · volume"]
         api -->|FHIR / OAuth| oe
         oe -->|SQL| db
     end
 
     dev -->|git push / merge to main| lint
-    deploy -->|"railway up --service agent-forge-api<br/>RAILWAY_TOKEN_DEV"| api
+    deploy -->|"railway up --service agent-forge-api-staging<br/>RAILWAY_TOKEN_STAGING"| api
     itest -.->|FHIR / OAuth over HTTPS| oe
 
     classDef svc fill:#e8f0fe,stroke:#4285f4,color:#111;
@@ -55,12 +59,20 @@ flowchart TB
 
 ### Service configuration
 
-**openemr-Uubp** — image `openemr/openemr:7.0.2`, volume at
+**openemr** — image `openemr/openemr:7.0.2`, volume at
 `/var/www/localhost/htdocs/openemr/sites`, public domain on port 80.
-Variables: `MYSQL_HOST/PORT/ROOT_PASS` (references to the MySQL service),
-`MYSQL_USER=openemr_dev`, `MYSQL_PASS`, `MYSQL_DATABASE=openemr_dev`,
+Variables: `MYSQL_HOST/PORT/ROOT_PASS` (references to the MySQL-gDNR service),
+`MYSQL_USER=openemr`, `MYSQL_PASS`, `MYSQL_DATABASE`,
 `OE_USER=admin`, `OE_PASS`, and **`SWARM_MODE=yes`**.
-URL: `https://openemr-uubp-development.up.railway.app`.
+URL: `https://openemr-staging-25fc.up.railway.app`.
+
+> **Site Address Override:** Railway terminates TLS at the edge, so a fresh
+> OpenEMR install self-declares its FHIR base URL (`implementation.url` in
+> `/apis/default/fhir/metadata`, and the `aud` the SMART `/authorize` flow
+> expects) as `http://...` unless corrected. Set the **"Site Address
+> Override"** global (Admin → Configuration → Connectors, `site_addr_oath`) to
+> the real `https://openemr-staging-25fc.up.railway.app` URL — otherwise every
+> SMART launch fails before reaching a login form.
 
 > **Why SWARM_MODE=yes matters:** Railway volumes mount empty — they do NOT
 > auto-populate from image contents the way Docker named volumes do. The
@@ -78,36 +90,38 @@ URL: `https://openemr-uubp-development.up.railway.app`.
 > Settings → Networking → set the domain's target port (80 for openemr, 8080
 > for agent-forge-api).
 
-**agent-forge-api** — built from this repo's root `Dockerfile` (multi-stage
-.NET 10, binds Kestrel to Railway's `$PORT`). Public domain on port 8080.
-Deployed by CI via `railway up`, not by image.
+**agent-forge-api-staging** — built from this repo's root `Dockerfile`
+(multi-stage .NET 10, binds Kestrel to Railway's `$PORT`). Public domain on
+port 8080. Deployed by CI via `railway up`, not by image.
 Variables (Options-pattern, `__` = section separator):
 
 | Variable | Value |
 |---|---|
-| `OpenEmr__BaseUrl` | `https://openemr-uubp-development.up.railway.app` |
+| `OpenEmr__BaseUrl` | `https://openemr-staging-25fc.up.railway.app` |
 | `OpenEmr__Site` | `default` |
-| `OpenEmr__ClientId` | **placeholder — register an OAuth client in OpenEMR** |
-| `OpenEmr__Scopes__0` | `patient/patient.read` |
+| `OpenEmr__ClientId` | a registered public SMART client, admin-enabled (client id held in the Railway service variable, not here) |
+| `OpenEmr__Scopes__0..14` | PascalCase FHIR resource scopes, e.g. `patient/Patient.read` (see `ServerScopeListEntity::fhirResourceScopesV1()` in the OpenEMR fork for the exact catalog — casing matters, `patient/encounter.read` is rejected) |
 | `Bff__PublicBaseUrl` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
 | `Llm__ApiKey` | real Anthropic key — **set via the `Llm__ApiKey` GitLab CI variable, not the Railway dashboard** (see CI/deployment flow below) |
 | `Llm__Model` | `claude-sonnet-5` |
-| `Llm__InputPricePerMillionTokensUsd` / `Output…` | `0` (set real prices when cost tracking matters) |
+| `Llm__InputPricePerMillionTokensUsd` / `Output…` | `0` (set real prices when cost tracking matters — `agentforge_llm_cost_usd_total` reads 0 until then) |
 
 ## CI / deployment flow
 
 Pipeline: lint → build → test (unit + integration) → deploy.
 
 - **Integration tests** run the BFF **in-process** on the GitLab runner and
-  talk to the development OpenEMR over FHIR/OAuth. They need these GitLab CI
-  variables (Settings > CI/CD > Variables, masked + protected). Section name is
-  still `OpenEmrQa__*` in code — it now points at the development environment:
-  - `OpenEmrQa__BaseUrl` = `https://openemr-uubp-development.up.railway.app`
+  talk to the staging OpenEMR over FHIR/OAuth. They need these GitLab CI
+  variables (Settings > CI/CD > Variables, masked + protected):
+  - `OpenEmrQa__BaseUrl` = `https://openemr-staging-25fc.up.railway.app`
   - `OpenEmrQa__Site` = `default`
-  - `OpenEmrQa__TestPatientId` = `a2362388-35e0-43de-97dc-450bd53e624e`
-    (seeded FHIR patient "Ada Testpatient")
-  - `OpenEmrQa__TestAccessToken` = an OAuth access token (fallback only, see
-    token note below — the durable path no longer depends on this)
+  - `OpenEmrQa__TestPatientId` = `a23a7ed4-54de-4dc7-b5c4-93d3e1d03fd4`
+    (one of 20 demo patients seeded into staging)
+  - `OpenEmrQa__SecondTestPatientId` = a second seeded demo patient, for
+    cross-identity scope tests
+  - `OpenEmrQa__TestAccessToken` — deliberately unset; when absent,
+    `OpenEmrQaFixture` mints it itself via a Playwright login fallback (see
+    `tests/GauntletAI.AgentForge.IntegrationTests/Support/OpenEmrQaFixture.cs`)
   - `OpenEmrQa__System__ClientId`, `OpenEmrQa__System__PrivateKeyPath` (**File**
     type), `OpenEmrQa__System__KeyId`, `OpenEmrQa__System__Scope` — see below
   - `LlmQa__ApiKey`, `LlmQa__Model` = real Anthropic key + model for test runs
@@ -119,6 +133,16 @@ Pipeline: lint → build → test (unit + integration) → deploy.
 > durable fix: `OpenEmrQaFixture` mints a fresh token itself, per test run, via
 > `client_credentials` + a JWT-bearer client assertion (RFC 7523) — never
 > expires in practice, no interactive browser flow ever again. Needs:
+>
+> **Current state on `staging` (as of the 2026-07-10 environment cutover):**
+> `OpenEmrQa__System__ClientId` is unset (no system JWT-bearer client has been
+> re-registered on the fresh staging install yet), so `OpenEmrQaFixture` falls
+> through to its Playwright-login fallback for every token instead (see
+> `PlaywrightLoginAutomation.cs` — issue #43 / MR !74 extended this path to
+> cover the plain `TestAccessToken`, not just the cross-identity ones). Slower
+> and browser-dependent, but functionally sufficient. Re-registering a system
+> client on staging (steps below) would restore the faster, token-refresh-free
+> path if CI runtime becomes a concern.
 >
 > - A **confidential** OAuth client registered with `application_type: private`,
 >   `token_endpoint_auth_method` can be anything the registration endpoint
@@ -136,7 +160,7 @@ Pipeline: lint → build → test (unit + integration) → deploy.
 >   `system/*` scope is rejected as `invalid_scope` regardless of naming.
 > - The **"Site Address Override"** global (same Connectors tab,
 >   `site_addr_oath`) set to this environment's real base URL (e.g.
->   `https://openemr-uubp-development.up.railway.app`). It defaults to an
+>   `https://openemr-staging-25fc.up.railway.app`). It defaults to an
 >   *empty string*, which PHP's `??` does not treat as unset — so every OAuth
 >   URL the server computes (including the token endpoint used to validate the
 >   JWT assertion's `aud` claim) comes out as a bare path with no scheme/host.
@@ -154,11 +178,12 @@ Pipeline: lint → build → test (unit + integration) → deploy.
 
 - **deploy** (auto on `main`): sets `Llm__ApiKey` on the Railway service from
   the GitLab CI variable of the same name (`railway variable set`), then runs
-  `railway up --service agent-forge-api --ci` with `RAILWAY_TOKEN=$RAILWAY_TOKEN_DEV`.
-  Railway builds the Dockerfile server-side.
+  `railway up --service agent-forge-api-staging --ci` with
+  `RAILWAY_TOKEN=$RAILWAY_TOKEN_STAGING`. Railway builds the Dockerfile
+  server-side.
 
 Create the Railway project token in Railway (Project Settings > Tokens, scoped
-to the development environment) and store it as the `RAILWAY_TOKEN_DEV` GitLab
+to the staging environment) and store it as the `RAILWAY_TOKEN_STAGING` GitLab
 CI variable.
 
 > **Secrets live in GitLab CI/CD variables, not the Railway dashboard.** Railway
@@ -179,52 +204,68 @@ CI variable.
 ```bash
 railway login                      # once
 railway link --project lucid-clarity
-railway up --service agent-forge-api --environment development
+railway up --service agent-forge-api-staging --environment staging
 ```
 
 ## OpenEMR API configuration — DONE
 
-Completed 2026-07-08 against the development OpenEMR:
+Completed 2026-07-09/10 against the fresh staging OpenEMR:
 
-- API enabled (Globals > Connectors): REST API, FHIR service, OAuth2 password grant.
-- OAuth client registered and admin-enabled: **AgentForge Integration Tests**,
-  `client_id = qvWoMFSM6euSm-qziKL-_aU_fI_na0hoZO1xtzOMtl0` (client secret held
-  in CI variables, not here).
-- Test patient seeded: **Ada Testpatient**,
-  FHIR id `a2362388-35e0-43de-97dc-450bd53e624e`.
-- Verified end to end: password-grant token → FHIR `Patient/{id}` read returns 200.
+- API enabled (Globals > Connectors): REST API, FHIR service.
+- Site Address Override set (see the quirk above) so the server self-declares
+  `https://openemr-staging-25fc.up.railway.app` instead of a bare `http://` URL.
+- OAuth client registered and admin-enabled — a public SMART client,
+  `client_id = Q7lOmvEz9VB_wMTzwnGKRej5GSfKLWbS-NMpEjblLOU` — used by
+  `agent-forge-api-staging`'s own `OpenEmr__ClientId`.
+- 20 synthetic demo patients seeded via `tools/SeedDemoPatients`; the one CI
+  uses by default is FHIR id `a23a7ed4-54de-4dc7-b5c4-93d3e1d03fd4`
+  (`OpenEmrQa__TestPatientId`).
+- Verified end to end through token exchange (login → consent → callback →
+  token). **Not yet verified:** introspection currently 401s for every token
+  due to `agent-forge` issue #11 (an operator-precedence bug in the fork's
+  `TokenIntrospectionRestController.php` — `intval($x !== 1)` instead of
+  `intval($x) !== 1`), which blocks the FR-AUTH-4 clinician-identity check.
+  Fix is out of scope for this repo; re-run the `tools/LoadTestChat` smoke
+  test once it lands and deploys.
 
 Admin login (demo): `admin` / `P@ssw0rd1` (also the `OE_PASS` service variable
-on `openemr-Uubp`, kept in sync so a re-setup recreates the same credentials).
+on `openemr`, kept in sync so a re-setup recreates the same credentials).
 
 ## Remaining setup (one-time)
 
-1. Set `OpenEmr__ClientId = qvWoMFSM6euSm-qziKL-_aU_fI_na0hoZO1xtzOMtl0` on the
-   agent-forge-api service, and the OAuth client id/secret in the CI variables.
-2. Set a real `Llm__ApiKey` **in the GitLab CI `Llm__ApiKey` variable** (the
-   `deploy` job pushes it to Railway automatically — don't set it directly on
-   agent-forge-api) and `LlmQa__ApiKey` in CI.
-3. Create `RAILWAY_TOKEN_DEV` (Railway > Project Settings > Tokens, dev scope)
-   as a masked/protected GitLab CI variable.
-4. In the dashboard, confirm `agent-forge-api`'s domain targets port 8080 and
-   `openemr-Uubp`'s domain targets port 80 (see the domain-port gotcha above).
-5. ~~Adopt runtime token minting~~ — **done** (GitLab issue #22): `OpenEmrQaFixture`
-   mints via `client_credentials` + JWT-bearer assertion; see the access-token
-   expiry note above for the one-time OpenEMR setup this required.
-6. Optional cleanup: rename `openemr-Uubp` → `openemr`.
+1. ~~Set `OpenEmr__ClientId` on the agent-forge-api service~~ — **done**, see above.
+2. ~~Set a real `Llm__ApiKey`~~ — **done**. The GitLab CI `Llm__ApiKey`
+   variable is shared across environments; it was also copied directly onto
+   `agent-forge-api-staging` ahead of this cutover so the service worked
+   before CI started pushing to it. Going forward `deploy` re-asserts it on
+   every run, same as it did for `development`.
+3. ~~Create the Railway project token~~ — **done**: `RAILWAY_TOKEN_STAGING`
+   (Railway > Project Settings > Tokens, staging scope), masked/protected
+   GitLab CI variable.
+4. In the dashboard, confirm `agent-forge-api-staging`'s domain targets port
+   8080 and `openemr`'s domain targets port 80 (see the domain-port gotcha
+   above) — both were hit by this exact gotcha during the staging cutover.
+5. ~~Adopt runtime token minting~~ — **done** (GitLab issue #22), though on
+   `staging` the fixture currently runs the Playwright-fallback path rather
+   than the JWT-bearer system-client path — see the access-token-expiry note
+   above.
+6. Set real `Llm__InputPricePerMillionTokensUsd`/`Output…` so
+   `agentforge_llm_cost_usd_total` stops reading 0 — not yet done.
 
 ## Rollback
 
-`agent-forge-api` is deployed by CI running `railway up --service agent-forge-api --ci`
-against whatever commit triggered the `deploy` job (auto on `main`) - there is
-no separate release/tag step, so "rolling back" means re-deploying a known-good
-build, not flipping a version pointer.
+`agent-forge-api-staging` is deployed by CI running
+`railway up --service agent-forge-api-staging --ci` against whatever commit
+triggered the `deploy` job (auto on `main`) - there is no separate
+release/tag step, so "rolling back" means re-deploying a known-good build,
+not flipping a version pointer.
 
 **Fastest path - re-run a prior deploy job.** Railway keeps every build it
-ran for the service. In the Railway dashboard: `agent-forge-api` → Deployments
-→ find the last known-good deployment → **Redeploy**. This re-uses that
-build's already-built image, so it comes back up in the time it takes the
-container to restart (no rebuild), independent of GitLab/CI being reachable.
+ran for the service. In the Railway dashboard: `agent-forge-api-staging` →
+Deployments → find the last known-good deployment → **Redeploy**. This
+re-uses that build's already-built image, so it comes back up in the time it
+takes the container to restart (no rebuild), independent of GitLab/CI being
+reachable.
 
 **From GitLab, if you need to re-trigger CI instead** (e.g. the Railway
 dashboard route isn't available): revert the bad commit(s) on `main` with a
@@ -236,12 +277,13 @@ problem, not the app):
 
 ```bash
 git checkout <last-known-good-sha>
-railway up --service agent-forge-api --environment development
+railway up --service agent-forge-api-staging --environment staging
 ```
 
-**What a rollback does NOT touch:** the `openemr-Uubp` and `MySQL` services
-redeploy independently (`agent-forge-api` is the only service this repo's CI
-touches) - a bad `agent-forge-api` deploy never risks OpenEMR's data. Most
+**What a rollback does NOT touch:** the `openemr` and `MySQL-gDNR` services
+redeploy independently (`agent-forge-api-staging` is the only service this
+repo's CI touches) - a bad `agent-forge-api-staging` deploy never risks
+OpenEMR's data. Most
 Railway service *variables* (`OpenEmr__ClientId`, etc.) aren't versioned with
 the code and aren't reverted by any of the above - if a rollback is needed
 because of a bad variable change rather than a bad code change, fix the
