@@ -84,4 +84,12 @@ public sealed class OpenEmrFhirClient(IOpenEmrFhirApi api) : IOpenEmrFhirClient
         var json = await api.SearchDocumentReferencesAsync(site, patientId, cancellationToken).ConfigureAwait(false);
         return DocumentReferenceMapper.MapBundle(json);
     }
+
+    /// <summary>Fetches appointments for <paramref name="dateFilter"/> across every provider.</summary>
+    public async Task<IReadOnlyList<AppointmentRecord>> GetAppointmentsAsync(
+        string site, string dateFilter, CancellationToken cancellationToken)
+    {
+        var json = await api.SearchAppointmentsAsync(site, dateFilter, cancellationToken).ConfigureAwait(false);
+        return AppointmentMapper.MapBundle(json);
+    }
 }
