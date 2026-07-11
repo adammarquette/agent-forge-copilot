@@ -128,6 +128,26 @@ public sealed class SmartLaunchServiceTests
     }
 
     [Fact]
+    public async Task CompleteLaunchAsync_IntrospectionReturnsInactiveWithASubject_ThrowsRatherThanStartingARevokedSession()
+    {
+        // FR-AUTH-4: a token that OpenEMR reports as no-longer-active (revoked or expired) must not
+        // be allowed to start a session, even if introspection still carries a subject claim - this
+        // fork's introspection endpoint has a history of not behaving per RFC 7662 (#44, #47), so
+        // "subject present but active:false" is a plausible real state, not just a spec nicety.
+        var (_, pending) = _sut.BeginLaunch("launch-token-abc");
+        A.CallTo(() => _authClient.ExchangeAuthorizationCodeAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<string>._, A<string?>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new TokenResponse("access-token-abc", "Bearer", 3600, "patient/patient.read", null, "patient-123", null)));
+        A.CallTo(() => _authClient.IntrospectAsync(
+                A<string>._, A<string>._, A<string>._, A<string?>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new IntrospectionResponse(false, "patient/patient.read", "sidecar-client", null, "dr-jones", "patient-123")));
+
+        var act = () => _sut.CompleteLaunchAsync("auth-code", pending.State, pending, CancellationToken.None);
+
+        await act.Should().ThrowAsync<SmartLaunchException>();
+    }
+
+    [Fact]
     public async Task CompleteLaunchAsync_IntrospectionReturnsNoSubject_LogsActiveAndClientIdForDiagnosis()
     {
         // A missing subject is otherwise indistinguishable in the thrown exception between "OpenEMR

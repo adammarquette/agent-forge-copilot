@@ -12,4 +12,9 @@ internal static partial class SmartLaunchServiceLog
         Level = LogLevel.Warning,
         Message = "Introspection returned no subject claim for client {ClientId}: active={Active}")]
     public static partial void IntrospectionMissingSubject(ILogger logger, string? clientId, bool active);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Introspection reports the token is not active for client {ClientId}")]
+    public static partial void IntrospectionInactive(ILogger logger, string? clientId);
 }
