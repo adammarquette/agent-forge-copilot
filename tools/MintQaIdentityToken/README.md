@@ -61,7 +61,7 @@ The access token this produces lives only in the process's memory - never logged
 
 | Variable | Purpose |
 |---|---|
-| `MintToken__BaseUrl` | OpenEMR base URL (defaults to the development Railway instance) |
+| `MintToken__BaseUrl` | OpenEMR base URL (defaults to the staging Railway instance) |
 | `MintToken__Site` | OpenEMR multi-site segment (defaults to `default`) |
 | `MintToken__ClientId` / `MintToken__ClientSecret` | Reuse an already-registered, already-enabled client instead of registering a new one |
 | `OpenEmrQa__TestPatientId` | Identity A's patient id, read only to run the isolation check above |

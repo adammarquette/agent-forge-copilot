@@ -46,7 +46,7 @@ written to disk.
 
 | Variable | Purpose |
 |---|---|
-| `SeedDemo__BaseUrl` | OpenEMR base URL (defaults to the development Railway instance) |
+| `SeedDemo__BaseUrl` | OpenEMR base URL (defaults to the staging Railway instance) |
 | `SeedDemo__Site` | OpenEMR multi-site segment (defaults to `default`) |
 | `SeedDemo__ClientId` / `SeedDemo__ClientSecret` | Reuse an already-registered, already-enabled client instead of registering a new one |
 | `SeedDemo__AccessToken` | Skip the whole login flow entirely and use a token you already have (for quick reruns within that token's lifetime) |
