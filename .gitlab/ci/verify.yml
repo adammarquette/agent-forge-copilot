@@ -22,7 +22,7 @@ post-deploy-smoke-test:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   variables:
     GIT_STRATEGY: none
-    DEPLOYED_URL: https://agent-forge-api-development.up.railway.app
+    DEPLOYED_URL: https://agent-forge-api-staging-staging.up.railway.app
   script:
     - |
       check() {

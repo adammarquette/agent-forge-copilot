@@ -18,7 +18,7 @@ under load - what NFR-PERF-3/4 measures - without touching production auth surfa
 
 ## Getting a session cookie
 
-1. Open `https://agent-forge-api-development.up.railway.app/launch` in a real browser.
+1. Open `https://agent-forge-api-staging-staging.up.railway.app/launch` in a real browser.
 2. Log in and approve as usual - you'll land on the chat SPA once the session is established.
 3. Open DevTools → Application (Chrome) / Storage (Firefox) → Cookies, find the session cookie (default
    ASP.NET Core session cookie name: `.AspNetCore.Session`), and copy its value.
@@ -44,7 +44,7 @@ actually works before running the full 10/50-concurrent-user pass.
 | Variable | Purpose |
 |---|---|
 | `LoadTest__SessionCookies` | **Required.** `;`-separated `Name=Value` session cookies from real browser logins |
-| `LoadTest__BaseUrl` | Deployed base URL (defaults to the development Railway instance) |
+| `LoadTest__BaseUrl` | Deployed base URL (defaults to the staging Railway instance) |
 | `LoadTest__ConcurrencyLevels` | `,`-separated concurrency levels to run in sequence (default `10`) |
 | `LoadTest__DurationSeconds` | How long to hammer each concurrency level, in seconds (default `15`) |
 

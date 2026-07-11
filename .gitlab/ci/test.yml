@@ -74,7 +74,7 @@ unit-tests:
     - *verify_results
 
 # Integration tests exercise the real deployed OpenEMR (FHIR/OAuth/SMART) in the
-# single Railway "development" environment - per ENGINEERING_STANDARDS.md §8.2 /
+# single Railway "staging" environment - per ENGINEERING_STANDARDS.md §8.2 /
 # tests/AGENTS.md, nothing here is mocked and there is no throwaway service container:
 # the sidecar talks to OpenEMR only over FHIR (ARCHITECTURE.md - FHIR-first, no direct
 # DB access in v1), so the target is a stable URL, not a fresh MySQL instance per run.
