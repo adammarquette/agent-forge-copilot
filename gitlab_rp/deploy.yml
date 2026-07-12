@@ -3,12 +3,12 @@
 # front door, via `railway up`.
 #
 # Manual and separate from the main deploy job (`.gitlab/ci/deploy.yml`) on
-# purpose: per agent-forge-copilot#62, this deploys to a SEPARATE Railway
-# environment first (not "staging", where the current OpenEMR + sidecar
-# deployment lives) - the existing deployment stays untouched until the full
-# launch round-trip and a full OpenEMR regression pass (agent-forge#28, #29)
-# are verified against this one. Once that's confirmed, traffic cuts over;
-# this job is not meant to run unattended on every merge to main until then.
+# purpose: this deploys to a SEPARATE Railway environment first (not
+# "staging", where the current OpenEMR + sidecar deployment lives) - the
+# existing deployment stays untouched until the full launch round-trip and a
+# full OpenEMR regression pass are verified against this one. Once that's
+# confirmed, traffic cuts over; this job is not meant to run unattended on
+# every merge to main until then.
 #
 # One-time setup needed before this job can run (none of this exists yet):
 #   1. Create the target Railway environment (e.g. "reverse-proxy") with
