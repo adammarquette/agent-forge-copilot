@@ -55,7 +55,7 @@ counts, verification pass/fail) with ≥3 alerts; load tests at 10/50 concurrent
 collection. **(D7)**
 
 **Primary tradeoffs.** Latency vs. completeness (fast verified core first, defer deeper synthesis) within the
-90-second budget; grounding safety over model breadth (low-temp extractive framing + mandatory verification);
+90-second budget; grounding safety over model breadth (extractive framing + mandatory verification);
 architecture-for-scale seams (provider abstraction, caching points) described but not over-built for week one.
 
 ---
@@ -182,7 +182,7 @@ undercut the trust model — avoid unless FHIR genuinely lacks the data.
 
 | Cardiology need (UC) | FHIR resource (confirmed in fork) | Notes / gaps |
 |---|---|---|
-| Medications (UC-1/3) | `MedicationRequest`, `MedicationDispense` | `FhirMedicationRequestService` present |
+| Medications (UC-1/3) | `MedicationRequest` | `FhirMedicationRequestService` present; `MedicationDispense` not in fork scope catalog (`invalid_scope`) |
 | Labs (INR, K⁺, Cr, lipids, BNP) (UC-1/3) | `Observation` (laboratory), `DiagnosticReport` | lab Observation + report services present |
 | Vitals (BP, HR) (UC-1) | `Observation` (vital-signs) | dedicated `FhirObservationVitalsService` |
 | Problems (AFib, HFrEF, CAD) (UC-1) | `Condition` | `FhirConditionService` present |
@@ -285,7 +285,7 @@ sequenceDiagram
     MCP->>FHIR: FHIR queries (clinician-scoped token)
     FHIR-->>MCP: resources (source-tagged)
     Note over MCP: every call → audit + provenance (correlation ID)
-    Orch->>LLM: cardiology profile + tool results (low temp, citations required)
+    Orch->>LLM: cardiology profile + tool results (citations required)
     LLM-->>Orch: brief with per-claim citations
     Orch->>Orch: verify — attribution + domain constraints
     Orch-->>BFF: cited brief (+ any safety flags / gaps)

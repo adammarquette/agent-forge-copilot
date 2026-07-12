@@ -78,7 +78,7 @@ Enforced by pipeline stage ordering: `deploy` is the last stage, and a failed
 `lint`, `build`, `unit-tests`, or `integration-tests` job stops the pipeline
 before `deploy` ever runs. `deploy` itself runs **automatically** on `main`
 (`.gitlab/ci/deploy.yml`, `rules: if $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH` —
-no manual gate) and ships via `railway up --service agent-forge-api --ci`; see
+no manual gate) and ships via `railway up --service agent-forge-api-staging --ci`; see
 `RAILWAY.md` for the deployed target and rollback procedure.
 
 ## 5. Failed-test widget in MRs — done
