@@ -18,9 +18,9 @@ defaults (`SameSite=Lax`/`Strict`) instead of `SameSite=None`.
 `OPENEMR_UPSTREAM` / `SIDECAR_UPSTREAM` (see `Dockerfile`) are Railway private-networking
 hostnames (`<service-name>.railway.internal`). This deploys as a new sibling service in the
 same "staging" Railway environment (project `lucid-clarity`) OpenEMR and the sidecar already
-run in - one deployment, not a duplicate/parallel copy of the stack. The sidecar's hostname
-is confirmed against Railway's real service list; OpenEMR's hostname and the actual port are
-still placeholders pending confirmation.
+run in - one deployment, not a duplicate/parallel copy of the stack. Both service names and
+OpenEMR's port (80) are confirmed - the sidecar's own port (8080) is a reasonable default but
+not yet confirmed as the actual private-networking port Railway assigned it.
 
 `DNS_RESOLVER` defaults to Railway's real internal resolver (`[fd12::10]` - fixed and documented,
 not per-deployment: see [Railway's private networking docs](https://docs.railway.com/networking/private-networking/how-it-works)).

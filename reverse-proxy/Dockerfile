@@ -10,10 +10,13 @@ COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Real service names in the "staging" Railway project this now deploys into
 # (RAILWAY_TOKEN_RP is a copy of RAILWAY_TOKEN_STAGING) - confirmed against
-# Railway's own service list, not guessed. Port 8080 matches the sidecar's
-# own Dockerfile default (ASPNETCORE_URLS binds ${PORT:-8080}) but hasn't
-# been confirmed as the actual private-networking port Railway assigned it -
-# verify once this can actually be tested end to end.
+# Railway's own service list, not guessed. Port 80 for OpenEMR is confirmed
+# against the fork's actual Dockerfile (Apache hardcoded to `Listen
+# 0.0.0.0:80`, `EXPOSE 80 443` - no PORT-env override). Port 8080 for the
+# sidecar matches its own Dockerfile default (ASPNETCORE_URLS binds
+# ${PORT:-8080}) but hasn't been confirmed as the actual private-networking
+# port Railway assigned it - verify once this can actually be tested end to
+# end.
 ENV OPENEMR_UPSTREAM=openemr.railway.internal:80 \
     SIDECAR_UPSTREAM=agent-forge-api-staging.railway.internal:8080
 
