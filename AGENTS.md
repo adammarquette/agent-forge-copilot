@@ -28,9 +28,12 @@ The `documentation/` folder is authoritative; these AGENTS files summarize and p
   `INTERFACE_CONTROL.md`.
 - **Comments are terse.** Inline comments are one short line, only for non-obvious *why* (a hidden constraint,
   a workaround, a surprising invariant) — never restate *what* the code does. XML doc comments on public
-  methods describe behavior/contract only; **never cite `documentation/` files, FR-/NFR- IDs, `USERS.md`
-  use cases, or GitLab issue numbers inside them** — that traceability belongs in commit messages and MR
-  descriptions, not code.
+  methods describe behavior/contract only.
+- **Reference comments are allowed, but must be prefixed `reference:`.** A comment may point to a
+  `documentation/` file/section or a GitLab issue/MR/epic (e.g., `// reference: documentation/ARCHITECTURE.md
+  §9` or `// reference: gitlab#62`) when it's the fastest way to point a future agent at fuller context. The
+  `reference:` prefix keeps these grep-able and visually distinct from an ordinary comment — it never
+  substitutes for the *why*, which must still be stated inline, not left implicit behind the link.
 - **Commits:** Conventional Commits; add `Assisted-by:` trailer when authored by an AI agent.
 - **No orphaned MRs.** Every MR references a tracking issue (`Closes #N` / `Related to #N`) that states the
   problem or requirement being addressed, opened *before* the MR. If no issue exists yet for the work, open
