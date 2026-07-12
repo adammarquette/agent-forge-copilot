@@ -61,9 +61,3 @@ include:
   - local: ".gitlab/ci/test.yml"
   - local: ".gitlab/ci/deploy.yml"
   - local: ".gitlab/ci/verify.yml"
-  # Reverse-proxy front door (agent-forge#22, #62) - separate service, separate
-  # Railway environment; deploy/verify stay manual/gated until that environment
-  # and its Railway token exist (see gitlab_rp/deploy.yml).
-  - local: "gitlab_rp/lint.yml"
-  - local: "gitlab_rp/deploy.yml"
-  - local: "gitlab_rp/verify.yml"

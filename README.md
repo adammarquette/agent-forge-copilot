@@ -51,8 +51,7 @@ A running OpenEMR instance (synthetic data only) is deployed on Railway — see 
 | `GauntletAI.AgentForge.slnx` | Solution file (repo root) |
 | `src/` | Production projects (`GauntletAI.AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
 | `tests/` | Two test projects: `…UnitTests` (mocked) and `…IntegrationTests` (real deps in QA) |
-| `reverse-proxy/` | Nginx front-door container/config for a **deferred** same-origin reverse-proxy design (issue #62, agent-forge#22) — not yet deployed; see its own README |
-| `gitlab_rp/` | CI pipeline (lint/deploy/verify) for `reverse-proxy/` — lint runs unconditionally, deploy/verify stay manual and gated until that Railway environment exists |
+| `reverse-proxy/` | Nginx front-door container/config for the same-origin reverse-proxy rearchitecture (issue #62, agent-forge#22) — CI lives inline in `.gitlab/ci/`; deploy/verify stay manual and gated until that Railway environment exists; see its own README |
 | `AGENTS.md` · `src/AGENTS.md` · `tests/AGENTS.md` | Instructions for AI coding agents (root + per-role) |
 | `CLAUDE.md` (each level) | One-line shims so Claude Code honors the same `AGENTS.md` rules |
 
