@@ -29,6 +29,14 @@ public sealed class BffOptions : IValidatableObject
     public string AgendaPath { get; init; } = "/agenda";
 
     /// <summary>
+    /// Path prefix this sidecar is reached under behind a reverse proxy (e.g. <c>/agentforge</c>),
+    /// or empty when root-hosted. Drives <c>UsePathBase</c> and the session cookie's <c>Path</c>/
+    /// <c>SameSite</c> - non-empty means same-origin with the proxy, so <c>SameSite=Lax</c> suffices;
+    /// empty preserves today's cross-origin-iframe behavior.
+    /// </summary>
+    public string PathBase { get; init; } = string.Empty;
+
+    /// <summary>
     /// Permits a non-HTTPS <see cref="PublicBaseUrl"/>. Must be true only on an isolated local
     /// development path - never in QA/prod (ENGINEERING_STANDARDS.md §4, §11).
     /// </summary>
@@ -49,6 +57,13 @@ public sealed class BffOptions : IValidatableObject
                 $"{nameof(PublicBaseUrl)} must use https:// unless {nameof(AllowInsecureHttpForLocalDevelopment)} " +
                 "is explicitly set (ENGINEERING_STANDARDS.md §4).",
                 [nameof(PublicBaseUrl)]);
+        }
+
+        if (PathBase.Length > 0 && (!PathBase.StartsWith('/') || PathBase.EndsWith('/')))
+        {
+            yield return new ValidationResult(
+                $"{nameof(PathBase)} must start with '/' and must not end with '/' (e.g. '/agentforge').",
+                [nameof(PathBase)]);
         }
     }
 }
