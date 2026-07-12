@@ -97,6 +97,61 @@ public sealed class AgentOrchestratorTests
     }
 
     [Fact]
+    public async Task StartAgendaSummaryAsync_LlmAnswersImmediately_ReturnsAnswerWithoutDispatchingAnyTools()
+    {
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmResponse("Stable, no changes since last visit.", [], LlmStopReason.EndTurn, new LlmUsage(10, 5, 0.01m))));
+
+        var result = await _sut.StartAgendaSummaryAsync("default", "1", CancellationToken.None);
+
+        result.Answer.Should().Be("Stable, no changes since last visit.");
+        A.CallTo(_toolDispatcher).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task StartAgendaSummaryAsync_Always_SendsADifferentUserPromptThanTheInRoomBrief()
+    {
+        // Guards against StartAgendaSummaryAsync ever silently reusing StartBriefAsync's prompt -
+        // the agenda summary must stay short/list-friendly (ARCHITECTURE.md §19), distinct from
+        // the fuller ~75-second in-room brief (USERS.md UC-1). A copy-paste that forgot to swap
+        // the prompt constant would otherwise pass every other test in this file unnoticed.
+        LlmRequest? capturedBrief = null;
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Invokes((LlmRequest req, CancellationToken _) => capturedBrief ??= req)
+            .Returns(Task.FromResult(new LlmResponse("answer", [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m))));
+        await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        LlmRequest? capturedAgenda = null;
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Invokes((LlmRequest req, CancellationToken _) => capturedAgenda ??= req)
+            .Returns(Task.FromResult(new LlmResponse("answer", [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m))));
+        await _sut.StartAgendaSummaryAsync("default", "1", CancellationToken.None);
+
+        var briefPromptText = ((LlmTextContent)capturedBrief!.Messages[0].Content[0]).Text;
+        var agendaPromptText = ((LlmTextContent)capturedAgenda!.Messages[0].Content[0]).Text;
+        agendaPromptText.Should().NotBe(briefPromptText);
+    }
+
+    [Fact]
+    public async Task StartAgendaSummaryAsync_LlmRequestsATool_DispatchesItAndFeedsResultBackBeforeFinalAnswer()
+    {
+        // Confirms the agenda summary reuses the full tool-calling/verification turn loop, not a
+        // stripped-down path.
+        var toolCall = new LlmToolCall("call_1", "get_patient_summary", "{}");
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .ReturnsNextFromSequence(
+                new LlmResponse(string.Empty, [toolCall], LlmStopReason.ToolUse, new LlmUsage(10, 5, 0.01m)),
+                new LlmResponse("Active problems: AFib.", [], LlmStopReason.EndTurn, new LlmUsage(20, 10, 0.02m)));
+        A.CallTo(() => _toolDispatcher.DispatchAsync("default", "1", toolCall, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmToolResultContent("call_1", """{"problems":["AFib"]}""")));
+
+        var result = await _sut.StartAgendaSummaryAsync("default", "1", CancellationToken.None);
+
+        result.Answer.Should().Be("Active problems: AFib.");
+        A.CallTo(() => _toolDispatcher.DispatchAsync("default", "1", toolCall, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
     public async Task AskFollowUpAsync_ValidPriorState_SendsFullAccumulatedHistoryToTheLlm()
     {
         // Guards the "3-turn exchange resolves references without restating" acceptance

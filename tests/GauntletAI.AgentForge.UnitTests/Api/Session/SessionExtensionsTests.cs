@@ -56,4 +56,65 @@ public sealed class SessionExtensionsTests
 
         _session.TryGetPatientSession().Should().BeNull();
     }
+
+    [Fact]
+    public void SaveAgendaSession_ThenTryGetAgendaSession_RoundTripsAllFields()
+    {
+        var context = new AgendaSessionContext("token-abc", "default", "dr-jones");
+
+        _session.SaveAgendaSession(context);
+        var result = _session.TryGetAgendaSession();
+
+        result.Should().Be(context);
+    }
+
+    [Fact]
+    public void TryGetAgendaSession_NothingSaved_ReturnsNull() =>
+        _session.TryGetAgendaSession().Should().BeNull();
+
+    [Fact]
+    public void TryGetAgendaSession_PartiallyPopulatedSession_ReturnsNullRatherThanABrokenObject()
+    {
+        _session.SetString("agenda-session.access-token", "token-abc");
+
+        _session.TryGetAgendaSession().Should().BeNull();
+    }
+
+    [Fact]
+    public void ClearAgendaSession_AfterSave_TryGetReturnsNullAfterward()
+    {
+        _session.SaveAgendaSession(new AgendaSessionContext("token-abc", "default", "dr-jones"));
+
+        _session.ClearAgendaSession();
+
+        _session.TryGetAgendaSession().Should().BeNull();
+    }
+
+    [Fact]
+    public void SaveAgendaSession_AndSavePatientSession_DoNotCollideInTheSameUnderlyingSession()
+    {
+        // Distinct key prefixes: a clinician mid-flow on both a single-patient launch and an
+        // agenda launch in the same browser session must not have one clobber the other.
+        _session.SaveAgendaSession(new AgendaSessionContext("agenda-token", "default", "dr-jones"));
+        _session.SavePatientSession(new PatientSessionContext("patient-token", "default", "123", "dr-jones"));
+
+        _session.TryGetAgendaSession().Should().Be(new AgendaSessionContext("agenda-token", "default", "dr-jones"));
+        _session.TryGetPatientSession().Should().Be(new PatientSessionContext("patient-token", "default", "123", "dr-jones"));
+    }
+
+    [Fact]
+    public void SaveAgendaRoster_ThenTryGetAgendaRoster_RoundTripsEveryPatientId()
+    {
+        _session.SaveAgendaRoster(["patient-1", "patient-2", "patient-3"]);
+
+        _session.TryGetAgendaRoster().Should().BeEquivalentTo(["patient-1", "patient-2", "patient-3"]);
+    }
+
+    [Fact]
+    public void TryGetAgendaRoster_NothingSaved_ReturnsEmptySetRatherThanNull()
+    {
+        // The drill-down gate (AgendaRosterGate.Authorize) takes a set unconditionally - an empty
+        // set correctly rejects every patientId rather than requiring a separate null check.
+        _session.TryGetAgendaRoster().Should().BeEmpty();
+    }
 }

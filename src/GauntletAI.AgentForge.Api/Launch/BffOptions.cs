@@ -25,6 +25,9 @@ public sealed class BffOptions : IValidatableObject
     /// <summary>Path of the hosted chat SPA the browser is redirected to once a session is established.</summary>
     public string ChatPath { get; init; } = "/index.html";
 
+    /// <summary>Path the browser is redirected to once an agenda session is established (ARCHITECTURE.md §19).</summary>
+    public string AgendaPath { get; init; } = "/agenda";
+
     /// <summary>
     /// Permits a non-HTTPS <see cref="PublicBaseUrl"/>. Must be true only on an isolated local
     /// development path - never in QA/prod (ENGINEERING_STANDARDS.md §4, §11).

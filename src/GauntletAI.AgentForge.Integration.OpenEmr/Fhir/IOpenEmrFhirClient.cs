@@ -45,4 +45,13 @@ public interface IOpenEmrFhirClient
     /// <summary>Fetches one patient's document references (e.g. device interrogations, outside records).</summary>
     Task<IReadOnlyList<ClinicalDocumentRecord>> GetDocumentReferencesAsync(
         string site, string patientId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Fetches appointments for <paramref name="dateFilter"/> across every provider - the
+    /// deliberate exception to this client's usual per-patient scoping (ARCHITECTURE.md §19). The
+    /// caller is responsible for filtering to one provider via
+    /// <see cref="AppointmentRecord.IsForProvider"/>.
+    /// </summary>
+    Task<IReadOnlyList<AppointmentRecord>> GetAppointmentsAsync(
+        string site, string dateFilter, CancellationToken cancellationToken);
 }
