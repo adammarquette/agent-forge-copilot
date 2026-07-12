@@ -16,18 +16,24 @@ defaults (`SameSite=Lax`/`Strict`) instead of `SameSite=None`.
 ## Configuration
 
 `OPENEMR_UPSTREAM` / `SIDECAR_UPSTREAM` (see `Dockerfile`) are Railway private-networking
-hostnames (`<service-name>.railway.internal`) - set as real service variables once
-OpenEMR and the sidecar exist as sibling services in whatever Railway environment this
-deploys to. The defaults baked into the `Dockerfile` are placeholders, not confirmed values.
+hostnames (`<service-name>.railway.internal`). This deploys as a new sibling service in the
+same "staging" Railway environment (project `lucid-clarity`) OpenEMR and the sidecar already
+run in - one deployment, not a duplicate/parallel copy of the stack. The sidecar's hostname
+is confirmed against Railway's real service list; OpenEMR's hostname and the actual port are
+still placeholders pending confirmation.
+
+`DNS_RESOLVER` is also still a placeholder (`127.0.0.11`, Docker's own embedded DNS) - Railway's
+real internal resolver address hasn't been confirmed yet.
 
 `PORT` is Railway-injected at runtime, same convention as the main sidecar's own `Dockerfile`.
 
 ## Status
 
-Not yet wired into production traffic. Per `agent-forge-copilot#62`: deploys to a
-**separate** Railway environment first; the current deployment is untouched until the
-full launch round-trip and a full OpenEMR regression pass (`agent-forge#28`, `#29`) are
-verified against it.
+Not yet wired into production traffic. Deploys into the existing staging environment as a new
+service (not a separate one), but the deploy job stays manual: OpenEMR's own config
+(`agent-forge#24`, `#25`, `#26` - redirect_uri, launch URI, `cookie_samesite` revert) hasn't
+been updated to route through this proxy yet, and the full launch round-trip and OpenEMR
+regression pass (`agent-forge#28`, `#29`) haven't been verified against it.
 
 ## Dependencies
 
