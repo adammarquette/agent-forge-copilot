@@ -75,14 +75,14 @@ deploy:
 # (agent-forge#28/#29) haven't run - this job existing doesn't mean traffic
 # is ready to cut over to it.
 #
-# One-time setup still needed before this job can run:
-#   1. Confirm the real Railway private-networking hostnames/port for
-#      OPENEMR_UPSTREAM/SIDECAR_UPSTREAM in reverse-proxy/Dockerfile (the
-#      sidecar's service name is confirmed; the port and OpenEMR's hostname
-#      are not). DNS_RESOLVER is already confirmed (Railway's real, fixed
-#      internal resolver - see reverse-proxy/Dockerfile).
-#   2. Point RAILWAY_SERVICE_RP / DEPLOYED_FRONT_DOOR_URL (below, and in
-#      verify.yml) at the real service name and public URL once known.
+# `RAILWAY_SERVICE_RP` already exists as a real Railway service (created
+# 2026-07-12). `railway up` deploys TO an existing service, it doesn't create
+# one - the first deploy attempt failed with "Service not found" before this
+# service existed. Passing a subdirectory to `railway up` (e.g. `railway up
+# reverse-proxy`) also fails here with "prefix not found" - a known Railway
+# CLI issue in monorepos with more than one Dockerfile - so the build context
+# stays the repo root and RAILWAY_DOCKERFILE_PATH points at the Dockerfile
+# instead (see reverse-proxy/Dockerfile's own note).
 # -----------------------------------------------------------------------------
 
 nginx-deploy:
@@ -104,4 +104,5 @@ nginx-deploy:
     - railway --version
   script:
     - export RAILWAY_TOKEN="$RAILWAY_TOKEN_RP"
-    - railway up reverse-proxy --service "$RAILWAY_SERVICE_RP" --ci
+    - railway variable set "RAILWAY_DOCKERFILE_PATH=/reverse-proxy/Dockerfile" --service "$RAILWAY_SERVICE_RP"
+    - railway up --service "$RAILWAY_SERVICE_RP" --ci
