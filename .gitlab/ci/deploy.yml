@@ -61,22 +61,28 @@ deploy:
 # DEPLOY (reverse-proxy) — Railway deployment of reverse-proxy/'s nginx front
 # door, via `railway up`.
 #
-# Manual and separate from the job above on purpose: this deploys to a SEPARATE
-# Railway environment first (not "staging", where the current OpenEMR + sidecar
-# deployment lives) - the existing deployment stays untouched until the full
-# launch round-trip and a full OpenEMR regression pass are verified against
-# this one. Once that's confirmed, traffic cuts over; this job is not meant to
-# run unattended on every merge to main until then.
+# Deploys as a new sibling service in the SAME "staging" Railway environment
+# (project lucid-clarity) the job above targets - not a separate, isolated
+# environment. One deployment, not a duplicate: OpenEMR and the sidecar are
+# already running there, so this just adds the front door alongside them
+# rather than standing up a second parallel copy of the whole stack.
+# RAILWAY_TOKEN_RP is a distinct GitLab CI variable but currently holds the
+# same value as RAILWAY_TOKEN_STAGING for exactly that reason.
 #
-# One-time setup needed before this job can run (none of this exists yet):
-#   1. Create the target Railway environment (e.g. "reverse-proxy") with
-#      sibling OpenEMR + sidecar services reachable over private networking.
-#   2. Set reverse-proxy/Dockerfile's OPENEMR_UPSTREAM/SIDECAR_UPSTREAM to
-#      those services' real <service-name>.railway.internal hostnames.
-#   3. Create a Railway project token scoped to that environment (Project
-#      Settings > Tokens) and add it as RAILWAY_TOKEN_RP (masked, protected)
-#      in GitLab CI/CD variables - same pattern as RAILWAY_TOKEN_STAGING.
-#   4. Point RAILWAY_SERVICE_RP / DEPLOYED_FRONT_DOOR_URL (below, and in
+# Manual on purpose regardless: OpenEMR's own config (redirect_uri, launch
+# URI, cookie_samesite - agent-forge#24/#25/#26) hasn't been updated to route
+# through this proxy yet, and the launch/regression verification passes
+# (agent-forge#28/#29) haven't run - this job existing doesn't mean traffic
+# is ready to cut over to it.
+#
+# One-time setup still needed before this job can run:
+#   1. Confirm the real Railway private-networking hostnames/port for
+#      OPENEMR_UPSTREAM/SIDECAR_UPSTREAM in reverse-proxy/Dockerfile (the
+#      sidecar's service name is confirmed; the port and OpenEMR's hostname
+#      are not).
+#   2. Confirm Railway's actual internal DNS resolver address - DNS_RESOLVER
+#      is still 127.0.0.11 (Docker's own embedded DNS, local-testing only).
+#   3. Point RAILWAY_SERVICE_RP / DEPLOYED_FRONT_DOOR_URL (below, and in
 #      verify.yml) at the real service name and public URL once known.
 # -----------------------------------------------------------------------------
 
