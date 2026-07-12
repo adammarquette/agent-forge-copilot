@@ -13,9 +13,9 @@ client_max_body_size 64m;
 # load. A literal hostname makes `nginx -t`/startup fail hard the moment that
 # name isn't resolvable yet (confirmed locally - Railway's sibling services
 # starting slower than nginx would hit exactly this) instead of just failing
-# the individual request. DNS_RESOLVER needs to be Railway's actual internal
-# resolver address once this deploys there - 127.0.0.11 below is Docker's own
-# embedded DNS, correct for local docker-compose testing only.
+# the individual request. DNS_RESOLVER defaults to Railway's real, fixed
+# internal resolver ([fd12::10] - see the Dockerfile) - override to Docker's
+# own embedded DNS (127.0.0.11, no brackets) for local docker-compose testing.
 resolver ${DNS_RESOLVER} valid=10s;
 
 server {
