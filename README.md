@@ -80,11 +80,17 @@ not in a comment that rots once the ticket it points to closes. The one exceptio
 prefixed `reference:` (e.g. `// reference: documentation/ARCHITECTURE.md §9`), allowed when it's the fastest
 way to point a future agent at fuller context — see `AGENTS.md`'s comment-conventions rule.
 
-The inspiration is Andrej Karpathy's idea of an LLM-oriented wiki — a knowledge base written to be consumed by
-models, not humans, favoring dense cross-links and explicit context over prose that assumes a reader who
-already remembers yesterday's session. Think of `documentation/` the same way, but the wiki isn't just that
-folder — it extends out into GitLab issues/epics and MR descriptions too, which is why those get cited as
-heavily as doc sections. Together they're the wiki this project's agents read to reconstruct state.
+The pattern is Andrej Karpathy's [LLM Wiki gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+**If you're going to work in this repo, read that gist first.** The framing to hold onto: a programming
+language is already just a notation an LLM reads and writes fluently, no different in kind from any other
+formal language - so a cross-referenced markdown wiki is not some exotic new layer bolted on top of "real"
+software engineering, it's simply *another* layer of abstraction above the code, the same way C# itself is a
+layer of abstraction above IL/machine instructions. `documentation/` is written at that higher layer on
+purpose - a knowledge base meant to be read and maintained by models, not just humans, favoring dense
+cross-links and explicit context over prose that assumes a reader who already remembers yesterday's session.
+The wiki isn't only that folder, either - it extends into GitLab issues/epics and MR descriptions too, which
+is why those get cited as heavily as doc sections. Together they're the wiki this project's agents read to
+reconstruct state.
 
 ---
 
