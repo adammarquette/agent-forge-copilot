@@ -22,8 +22,8 @@ run in - one deployment, not a duplicate/parallel copy of the stack. The sidecar
 is confirmed against Railway's real service list; OpenEMR's hostname and the actual port are
 still placeholders pending confirmation.
 
-`DNS_RESOLVER` is also still a placeholder (`127.0.0.11`, Docker's own embedded DNS) - Railway's
-real internal resolver address hasn't been confirmed yet.
+`DNS_RESOLVER` defaults to Railway's real internal resolver (`[fd12::10]` - fixed and documented,
+not per-deployment: see [Railway's private networking docs](https://docs.railway.com/networking/private-networking/how-it-works)).
 
 `PORT` is Railway-injected at runtime, same convention as the main sidecar's own `Dockerfile`.
 

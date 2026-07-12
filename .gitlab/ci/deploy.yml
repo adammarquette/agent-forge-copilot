@@ -79,10 +79,9 @@ deploy:
 #   1. Confirm the real Railway private-networking hostnames/port for
 #      OPENEMR_UPSTREAM/SIDECAR_UPSTREAM in reverse-proxy/Dockerfile (the
 #      sidecar's service name is confirmed; the port and OpenEMR's hostname
-#      are not).
-#   2. Confirm Railway's actual internal DNS resolver address - DNS_RESOLVER
-#      is still 127.0.0.11 (Docker's own embedded DNS, local-testing only).
-#   3. Point RAILWAY_SERVICE_RP / DEPLOYED_FRONT_DOOR_URL (below, and in
+#      are not). DNS_RESOLVER is already confirmed (Railway's real, fixed
+#      internal resolver - see reverse-proxy/Dockerfile).
+#   2. Point RAILWAY_SERVICE_RP / DEPLOYED_FRONT_DOOR_URL (below, and in
 #      verify.yml) at the real service name and public URL once known.
 # -----------------------------------------------------------------------------
 
