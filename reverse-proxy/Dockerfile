@@ -8,12 +8,14 @@ FROM nginx:1.27-alpine
 
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
-# Placeholders - replace with the real Railway private-networking hostnames
-# once OpenEMR and the sidecar exist as sibling services in the environment
-# this proxy deploys to. Railway private networking hostnames are normally
-# <service-name>.railway.internal.
+# Real service names in the "staging" Railway project this now deploys into
+# (RAILWAY_TOKEN_RP is a copy of RAILWAY_TOKEN_STAGING) - confirmed against
+# Railway's own service list, not guessed. Port 8080 matches the sidecar's
+# own Dockerfile default (ASPNETCORE_URLS binds ${PORT:-8080}) but hasn't
+# been confirmed as the actual private-networking port Railway assigned it -
+# verify once this can actually be tested end to end.
 ENV OPENEMR_UPSTREAM=openemr.railway.internal:80 \
-    SIDECAR_UPSTREAM=agent-forge-api.railway.internal:8080
+    SIDECAR_UPSTREAM=agent-forge-api-staging.railway.internal:8080
 
 # Also a placeholder - Railway's real internal DNS resolver address, once
 # confirmed. 127.0.0.11 (Docker's own embedded DNS) only works for local
