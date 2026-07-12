@@ -45,3 +45,56 @@ post-deploy-smoke-test:
       }
       check "/health"
       check "/ready"
+
+# -----------------------------------------------------------------------------
+# VERIFY (reverse-proxy) — post-deploy smoke test against the front door
+# itself, mirroring the job above for the main service: `railway up` only
+# proves the container started, not that it's actually proxying both
+# upstreams correctly.
+#
+# Gated on RAILWAY_TOKEN_RP existing, same pattern as test.yml's
+# OpenEmrQa__BaseUrl gate - until the reverse-proxy environment is actually
+# created (see deploy.yml's one-time setup steps), this job is simply not
+# added to the pipeline, keeping it green rather than perpetually red.
+#
+# DEPLOYED_FRONT_DOOR_URL is a placeholder - set it to the real public URL
+# once the reverse-proxy environment exists.
+# -----------------------------------------------------------------------------
+
+nginx-post-deploy-smoke-test:
+  stage: verify
+  image: curlimages/curl:latest
+  interruptible: false
+  needs:
+    - nginx-deploy
+  rules:
+    - if: '$RAILWAY_TOKEN_RP == null'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  variables:
+    GIT_STRATEGY: none
+    DEPLOYED_FRONT_DOOR_URL: https://agent-forge-reverse-proxy.up.railway.app
+  script:
+    - |
+      check() {
+        path="$1"
+        url="${DEPLOYED_FRONT_DOOR_URL}${path}"
+        echo "Checking ${url} ..."
+        for i in $(seq 1 12); do
+          status=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 10 "$url" || echo "000")
+          if [ "$status" -ge 200 ] && [ "$status" -lt 400 ]; then
+            echo "OK: ${path} returned HTTP ${status} after attempt ${i}"
+            return 0
+          fi
+          echo "  attempt ${i}: HTTP ${status}, retrying in 5s..."
+          sleep 5
+        done
+        echo "FAILED: ${path} never returned a healthy status within the retry budget"
+        cat /tmp/body 2>/dev/null; echo
+        return 1
+      }
+      # / should reach OpenEMR, /agentforge/health should reach the sidecar
+      # through the proxy - proves both upstream routes work, not just that
+      # nginx itself is up.
+      check "/"
+      check "/agentforge/health"
