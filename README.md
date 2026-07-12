@@ -32,9 +32,10 @@ For the full picture, read the docs below in order.
 
 ## Live demo
 
-A running OpenEMR instance (synthetic data only) is deployed on Railway — see [Deployment](#deployment):
+A running OpenEMR instance (synthetic data only) is deployed on Railway — see [Deployment](#deployment).
+Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issue #62) as of 2026-07-12:
 
-**[openemr-staging-25fc.up.railway.app](https://openemr-staging-25fc.up.railway.app)**
+**[agent-forge-reverse-proxy-staging.up.railway.app](https://agent-forge-reverse-proxy-staging.up.railway.app/)**
 
 | | |
 |---|---|
