@@ -74,4 +74,19 @@ public interface IOpenEmrFhirApi
     [Get("/apis/{site}/fhir/DocumentReference")]
     Task<string> SearchDocumentReferencesAsync(
         string site, [AliasAs("patient")] string patientId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches Appointment by <paramref name="dateFilter"/> only - the deliberate exception to
+    /// this interface's "every search is patient-scoped" rule (ARCHITECTURE.md §19). Confirmed
+    /// against the fork's <c>FhirAppointmentService::loadSearchParameters()</c>: no
+    /// <c>practitioner</c> search parameter exists, so results span every provider's appointments
+    /// for the date and must be filtered to one provider by the caller
+    /// (<see cref="AppointmentRecord.IsForProvider"/>), not by this query. Pass a single FHIR
+    /// equality-precision date value (e.g. <c>eq2026-07-11</c>) to match the whole day - confirmed
+    /// against the fork's <c>DateSearchField</c>, which supports fuzzy/implied-precision equality
+    /// matching on partial date values.
+    /// </summary>
+    [Get("/apis/{site}/fhir/Appointment")]
+    Task<string> SearchAppointmentsAsync(
+        string site, [AliasAs("date")] string dateFilter, CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,5 @@
 using GauntletAI.AgentForge.Agent;
+using GauntletAI.AgentForge.Api.Agenda;
 using GauntletAI.AgentForge.Api.Chat;
 using GauntletAI.AgentForge.Api.Health;
 using GauntletAI.AgentForge.Api.Launch;
@@ -31,6 +32,20 @@ builder.Services.AddOptions<BffOptions>()
     .Bind(builder.Configuration.GetSection(BffOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+// Daily Agenda (ARCHITECTURE.md §19) is an optional, additive feature - not every environment
+// configures it yet (confirmed live: ValidateOnStart here crashed the whole host at startup for
+// tests/deployments with no reason to set OpenEmrAgenda config, e.g. HealthEndpointReadinessTests).
+// No ValidateOnStart, matching ObservabilityOptions' precedent below: the app must still boot and
+// serve the existing single-patient flow without this configured. Validation still runs lazily
+// the first time these options are actually resolved (AgendaLaunchService/AgendaRosterService),
+// producing a clean error there rather than an unguarded NullReferenceException
+// (AgendaOpenEmrOptions.Validate).
+builder.Services.AddOptions<AgendaOpenEmrOptions>()
+    .Bind(builder.Configuration.GetSection(AgendaOpenEmrOptions.SectionName))
+    .ValidateDataAnnotations();
+builder.Services.AddOptions<AgendaOptions>()
+    .Bind(builder.Configuration.GetSection(AgendaOptions.SectionName))
+    .ValidateDataAnnotations();
 builder.Services.AddOptions<LlmProviderOptions>()
     .Bind(builder.Configuration.GetSection(LlmProviderOptions.SectionName))
     .ValidateDataAnnotations()
@@ -120,7 +135,14 @@ builder.Services.AddSingleton<IClinicalResponseVerifier, ClinicalResponseVerifie
 builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 
 builder.Services.AddScoped<SmartLaunchService>();
+builder.Services.AddScoped<AgendaLaunchService>();
 builder.Services.AddScoped<ChatSessionCoordinator>();
+
+// TimeProvider.System, not DateTimeOffset.UtcNow directly: gives AgendaRosterServiceTests a fake
+// clock seam instead of a bespoke IClock (ARCHITECTURE.md §19.1's single-captured-"now" design).
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<IAgendaPatientSummaryRunner, AgendaPatientSummaryRunner>();
+builder.Services.AddScoped<AgendaRosterService>();
 
 // Epic 9 (Observability): the app-side metrics/tracing that feed the self-hosted dashboard, and
 // the readiness checks NFR-HEALTH-1 requires against OpenEMR, the LLM provider, and that dashboard's
@@ -195,6 +217,8 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapLaunchEndpoints();
+app.MapAgendaLaunchEndpoints();
+app.MapAgendaEndpoints();
 app.MapHub<ChatHub>("/hubs/chat");
 
 // /health: liveness only (the process is up and serving) - no dependency checks, so it can't flap

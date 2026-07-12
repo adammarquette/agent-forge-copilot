@@ -39,12 +39,28 @@ public sealed class AgentOrchestrator(
     private const string BriefRequestPrompt =
         "Give me the pre-visit brief for this patient: what changed since the last visit and what matters today.";
 
+    private const string AgendaSummaryPrompt =
+        "Give me a short summary of this patient for today's agenda list - the one or two things " +
+        "that matter most, in 1-3 sentences. This is read in a scan alongside several other " +
+        "patients, not the full pre-visit brief.";
+
     /// <summary>Starts a new session for a patient and generates the initial pre-visit brief (UC-1).</summary>
     public Task<AgentTurnResult> StartBriefAsync(string site, string patientId, CancellationToken cancellationToken)
     {
         var state = ConversationState.Start(site, patientId) with
         {
             Messages = [LlmMessage.FromText(LlmRole.User, BriefRequestPrompt)],
+        };
+
+        return RunTurnAsync(state, cancellationToken);
+    }
+
+    /// <summary>Starts a new session for a patient and generates a short Daily Agenda summary (UC-6).</summary>
+    public Task<AgentTurnResult> StartAgendaSummaryAsync(string site, string patientId, CancellationToken cancellationToken)
+    {
+        var state = ConversationState.Start(site, patientId) with
+        {
+            Messages = [LlmMessage.FromText(LlmRole.User, AgendaSummaryPrompt)],
         };
 
         return RunTurnAsync(state, cancellationToken);
