@@ -4,9 +4,16 @@
 # envsubst's every *.template file under /etc/nginx/templates/ into
 # /etc/nginx/conf.d/ - that's how OPENEMR_UPSTREAM/SIDECAR_UPSTREAM/PORT below
 # reach the config without a custom image.
+#
+# Built via Railway's RAILWAY_DOCKERFILE_PATH service variable (set by
+# gitlab_rp's deploy job), not a `railway up <subdirectory>` path argument -
+# the latter hits a known Railway CLI "prefix not found" failure when a
+# monorepo has more than one Dockerfile (confirmed live). RAILWAY_DOCKERFILE_PATH
+# keeps the build context at the repo root, so COPY paths below are
+# root-relative, not relative to this file's own directory.
 FROM nginx:1.27-alpine
 
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY reverse-proxy/nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Real service names in the "staging" Railway project this now deploys into
 # (RAILWAY_TOKEN_RP is a copy of RAILWAY_TOKEN_STAGING) - confirmed against
