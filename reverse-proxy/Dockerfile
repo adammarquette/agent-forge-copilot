@@ -17,10 +17,13 @@ COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 ENV OPENEMR_UPSTREAM=openemr.railway.internal:80 \
     SIDECAR_UPSTREAM=agent-forge-api-staging.railway.internal:8080
 
-# Also a placeholder - Railway's real internal DNS resolver address, once
-# confirmed. 127.0.0.11 (Docker's own embedded DNS) only works for local
-# docker-compose testing, not on Railway.
-ENV DNS_RESOLVER=127.0.0.11
+# Railway's real internal DNS resolver address - fixed, documented, and stable
+# across every project/environment (not something to look up per-deployment):
+# https://docs.railway.com/networking/private-networking/how-it-works. IPv6
+# literal, so nginx's resolver directive needs it bracketed. For local
+# docker-compose testing only, override to 127.0.0.11 (Docker's own embedded
+# DNS) instead.
+ENV DNS_RESOLVER=[fd12::10]
 
 # Railway injects PORT at runtime; the template listens on it directly.
 ENV PORT=8080
