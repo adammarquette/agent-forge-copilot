@@ -50,10 +50,18 @@ license-scan:
 # are substituted with placeholder defaults first (envsubst, the same mechanism
 # nginx's docker-entrypoint uses at container start) - this job never needs the real
 # Railway upstream hostnames.
+#
+# before_script: [] overrides the root .gitlab-ci.yml's global before_script (which
+# runs `git fetch`/`git merge` against the MR's target branch) - that shell runs
+# inside this job's own image, and nginx:1.27-alpine has no git binary, so it fails
+# with "git: not found" (exit 127) before the actual lint script even starts. The
+# existing deploy/nginx-deploy jobs sidestep the same problem the same way; the
+# main verify job avoids it only because it's gated to non-MR pipelines.
 nginx-config-lint:
   stage: lint
   image: nginx:1.27-alpine
   interruptible: true
+  before_script: []
   variables:
     GIT_STRATEGY: fetch
     OPENEMR_UPSTREAM: "openemr.railway.internal:80"
