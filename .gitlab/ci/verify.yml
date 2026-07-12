@@ -57,8 +57,14 @@ post-deploy-smoke-test:
 # created (see deploy.yml's one-time setup steps), this job is simply not
 # added to the pipeline, keeping it green rather than perpetually red.
 #
-# DEPLOYED_FRONT_DOOR_URL is a placeholder - set it to the real public URL
-# once the reverse-proxy environment exists.
+# DEPLOYED_FRONT_DOOR_URL is the real Railway-generated domain, confirmed live
+# 2026-07-12 (the placeholder guess was wrong - Railway generates
+# <service>-<environment>.up.railway.app, not <service>.up.railway.app). The
+# /agentforge/health check below is expected to stay red until Bff__PathBase
+# is actually configured on agent-forge-api-staging (confirmed live: / already
+# correctly reaches OpenEMR - a 302 - but /agentforge/health 404s since the
+# sidecar has no route for that prefix yet) - that's a real, honest signal to
+# fix, not a flaky check to relax.
 # -----------------------------------------------------------------------------
 
 nginx-post-deploy-smoke-test:
@@ -73,7 +79,7 @@ nginx-post-deploy-smoke-test:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   variables:
     GIT_STRATEGY: none
-    DEPLOYED_FRONT_DOOR_URL: https://agent-forge-reverse-proxy.up.railway.app
+    DEPLOYED_FRONT_DOOR_URL: https://agent-forge-reverse-proxy-staging.up.railway.app
   script:
     - |
       check() {
