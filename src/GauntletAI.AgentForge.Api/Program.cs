@@ -14,6 +14,7 @@ using GauntletAI.AgentForge.Mcp;
 using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Logs;
@@ -191,19 +192,35 @@ builder.Logging.AddOpenTelemetry(options =>
     options.AddConsoleExporter();
 });
 
+// Read directly from configuration (not IOptions<BffOptions>) - this runs before
+// builder.Build(), so the DI container isn't available to resolve options from yet.
+var bffPathBase = builder.Configuration.GetSection(BffOptions.SectionName)[nameof(BffOptions.PathBase)]
+    ?? string.Empty;
+
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
     options.Cookie.HttpOnly = true;
-    // The chat SPA runs inside a cross-origin iframe embedded by the OpenEMR module shim
-    // (ARCHITECTURE.md §9's request flow), so from the browser's perspective every request this
-    // session cookie needs to ride along with is "cross-site" (the top-level document is
-    // OpenEMR's origin, not this sidecar's). SameSite=Lax/Strict would silently stop sending the
-    // cookie the moment that's true - None+Secure is required, not a hardening choice to relax.
-    // Known gap: browsers with strict third-party-cookie blocking (e.g. Safari ITP) may still
-    // block this outright; a Storage Access API request from the iframe shim would be the fix,
-    // and lives outside this repo (the shim is in the OpenEMR fork).
-    options.Cookie.SameSite = SameSiteMode.None;
+    if (bffPathBase.Length > 0)
+    {
+        // Behind the reverse proxy (agent-forge#22), the sidecar is same-origin with OpenEMR, so
+        // the cookie is first-party - Lax suffices, scoped to the path the proxy actually reaches
+        // this service under.
+        options.Cookie.Path = bffPathBase;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+    }
+    else
+    {
+        // Root-hosted (today's production state): the chat SPA runs inside a cross-origin iframe
+        // embedded by the OpenEMR module shim (ARCHITECTURE.md §9's request flow), so from the
+        // browser's perspective every request this session cookie needs to ride along with is
+        // "cross-site" (the top-level document is OpenEMR's origin, not this sidecar's).
+        // SameSite=Lax/Strict would silently stop sending the cookie the moment that's true -
+        // None+Secure is required here, not a hardening choice to relax. Known gap: browsers with
+        // strict third-party-cookie blocking (e.g. Safari ITP) may still block this outright -
+        // the reverse-proxy path above is the actual fix, not a Storage Access API workaround.
+        options.Cookie.SameSite = SameSiteMode.None;
+    }
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.IdleTimeout = TimeSpan.FromMinutes(30);
 });
@@ -211,6 +228,18 @@ builder.Services.AddSession(options =>
 builder.Services.AddSignalR();
 
 var app = builder.Build();
+
+if (bffPathBase.Length > 0)
+{
+    // Must run before UseSession/UseStaticFiles/routing - nginx (agent-forge#22) terminates TLS
+    // and proxies a subpath, so both need to happen before anything downstream reads the request
+    // path or scheme.
+    app.UseForwardedHeaders(new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
+    });
+    app.UsePathBase(bffPathBase);
+}
 
 app.UseSession();
 app.UseDefaultFiles();

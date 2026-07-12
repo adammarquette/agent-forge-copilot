@@ -51,6 +51,7 @@ A running OpenEMR instance (synthetic data only) is deployed on Railway — see 
 | `GauntletAI.AgentForge.slnx` | Solution file (repo root) |
 | `src/` | Production projects (`GauntletAI.AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
 | `tests/` | Two test projects: `…UnitTests` (mocked) and `…IntegrationTests` (real deps in QA) |
+| `reverse-proxy/` | Nginx front-door container/config for the same-origin reverse-proxy rearchitecture (issue #62, agent-forge#22) — CI lives inline in `.gitlab/ci/`; deploy/verify stay manual and gated until that Railway environment exists; see its own README |
 | `AGENTS.md` · `src/AGENTS.md` · `tests/AGENTS.md` | Instructions for AI coding agents (root + per-role) |
 | `CLAUDE.md` (each level) | One-line shims so Claude Code honors the same `AGENTS.md` rules |
 
@@ -65,6 +66,25 @@ A running OpenEMR instance (synthetic data only) is deployed on Railway — see 
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | Stack, dependencies, coding/testing/security/logging standards |
 | `Architecture_Defense.pptx` | 5-minute architecture-defense deck (summary of the above) |
+
+### Why so much cross-referencing
+
+You'll notice heavy cross-referencing throughout `documentation/` and this README — FR-/NFR- IDs, `USERS.md`
+use cases, GitLab issue numbers, doc-section pointers. That's deliberate, not noise: most of the code in this
+repo is written by LLM coding agents, and this web of references is the index they traverse to reconstruct
+context quickly instead of re-deriving it each session. If it reads as excessive to you, that's fair — it's
+optimized for a different reader. **C# is an example of a lower level of abstraction I'm comfortable working
+with directly**; the agents handle the rest, navigating by this index. Ordinary code/config comments stay
+terse and citation-free — the index belongs in docs/commits/MRs, where it can be traversed and stays current,
+not in a comment that rots once the ticket it points to closes. The one exception is a comment explicitly
+prefixed `reference:` (e.g. `// reference: documentation/ARCHITECTURE.md §9`), allowed when it's the fastest
+way to point a future agent at fuller context — see `AGENTS.md`'s comment-conventions rule.
+
+The inspiration is Andrej Karpathy's idea of an LLM-oriented wiki — a knowledge base written to be consumed by
+models, not humans, favoring dense cross-links and explicit context over prose that assumes a reader who
+already remembers yesterday's session. Think of `documentation/` the same way, but the wiki isn't just that
+folder — it extends out into GitLab issues/epics and MR descriptions too, which is why those get cited as
+heavily as doc sections. Together they're the wiki this project's agents read to reconstruct state.
 
 ---
 
