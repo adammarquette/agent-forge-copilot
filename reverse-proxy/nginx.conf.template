@@ -1,0 +1,76 @@
+# Rendered into /etc/nginx/conf.d/default.conf by the stock nginx image's
+# own docker-entrypoint.d/20-envsubst-on-templates.sh - included inside that
+# image's existing http{} block (its default nginx.conf's `include
+# /etc/nginx/conf.d/*.conf;`), so this file is a server-block fragment only,
+# not a standalone config - no events{}/http{} wrapper here, those already
+# exist upstream and nesting them would fail `nginx -t`.
+
+# Raised for OpenEMR document uploads (agent-forge-copilot#62).
+client_max_body_size 64m;
+
+# Upstreams are held in variables and resolved by this resolver at REQUEST
+# time, not baked in as literal proxy_pass hostnames resolved once at config
+# load. A literal hostname makes `nginx -t`/startup fail hard the moment that
+# name isn't resolvable yet (confirmed locally - Railway's sibling services
+# starting slower than nginx would hit exactly this) instead of just failing
+# the individual request. DNS_RESOLVER needs to be Railway's actual internal
+# resolver address once this deploys there - 127.0.0.11 below is Docker's own
+# embedded DNS, correct for local docker-compose testing only.
+resolver ${DNS_RESOLVER} valid=10s;
+
+server {
+    listen ${PORT};
+
+    # SignalR - matched before the generic /agentforge/ block so the
+    # Upgrade/Connection headers only apply to the websocket path, not every
+    # sidecar request. Without these, SignalR silently falls back to
+    # long-polling instead of failing loudly (agent-forge-copilot#62).
+    #
+    # proxy_pass has no trailing URI here deliberately - the full original
+    # path (/agentforge/hubs/chat, prefix included) passes through unchanged.
+    # #60 has the sidecar itself strip the prefix via UsePathBase("/agentforge"),
+    # not this proxy; a trailing "/" here would make nginx rewrite the prefix
+    # away before forwarding, leaving the sidecar's own PathBase never matched
+    # (confirmed locally - a trailing-slash version served the sidecar's root
+    # instead of its /agentforge-prefixed route).
+    location /agentforge/hubs/chat {
+        set $sidecar_upstream ${SIDECAR_UPSTREAM};
+        proxy_pass http://$sidecar_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Long-lived connection, not a single request/response.
+        proxy_read_timeout 3600s;
+    }
+
+    # Everything else the sidecar serves (chat SPA, launch/callback, API).
+    # Timeout is above AgentOptions.TurnDeadline's 60s default (Epic 10) so a
+    # slow-but-legitimate agent turn isn't cut off by the proxy before the
+    # sidecar's own deadline would apply. No trailing URI on proxy_pass here
+    # either - same prefix-preservation reasoning as the hubs/chat block above.
+    location /agentforge/ {
+        set $sidecar_upstream ${SIDECAR_UPSTREAM};
+        proxy_pass http://$sidecar_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
+    }
+
+    # Everything else goes to OpenEMR - the front door's default upstream.
+    location / {
+        set $openemr_upstream ${OPENEMR_UPSTREAM};
+        proxy_pass http://$openemr_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
