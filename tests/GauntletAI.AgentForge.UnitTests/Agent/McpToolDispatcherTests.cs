@@ -1,3 +1,4 @@
+using System.Net.Http;
 using FakeItEasy;
 using FluentAssertions;
 using GauntletAI.AgentForge.Agent;
@@ -141,6 +142,22 @@ public sealed class McpToolDispatcherTests
         var result = await _sut.DispatchAsync("default", "1", new LlmToolCall("call_8", "get_labs", "{}"), CancellationToken.None);
 
         result.IsError.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task DispatchAsync_ToolServerThrowsHttpRequestException_DegradesToUnavailableWithoutLeakingRawHttpStatus()
+    {
+        // An upstream FHIR/HTTP failure (e.g. a 403 for a resource the token can't read) must read
+        // as a clean "unavailable" in the brief, not leak raw "Response status code..." text; the
+        // agent still sees IsError:true and won't fabricate (UC-5). reference: gitlab#76
+        A.CallTo(() => _toolServer.GetLabsAsync(A<GetLabsRequest>._, A<CancellationToken>._))
+            .Throws(new HttpRequestException("Response status code does not indicate success: 403 (Forbidden)."));
+
+        var result = await _sut.DispatchAsync("default", "1", new LlmToolCall("call_403", "get_labs", "{}"), CancellationToken.None);
+
+        result.IsError.Should().BeTrue();
+        result.ResultJson.Should().NotContain("403").And.NotContain("Response status code");
+        result.ResultJson.Should().Contain("unavailable");
     }
 
     [Fact]
