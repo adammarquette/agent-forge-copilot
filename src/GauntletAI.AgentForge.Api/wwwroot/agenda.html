@@ -97,13 +97,15 @@
         catch (e) { return ''; }
       }
       function selectPatient(patientId) {
-        // POST navigates (the endpoint sets the session and 302s to the chat) - a form submit
-        // follows that redirect as a top-level navigation, which the session cookie rides along with.
-        var f = document.createElement('form');
-        f.method = 'post';
-        f.action = 'agenda/select-patient?patientId=' + encodeURIComponent(patientId);
-        document.body.appendChild(f);
-        f.submit();
+        // Drill into one patient via a PATIENT-scoped launch through OpenEMR, not by reusing the
+        // roster's user-scoped token: the per-patient brief reads Encounter/DiagnosticReport/
+        // DocumentReference, which OpenEMR forbids (403) under a user scope but allows under a
+        // patient-bound token (gitlab#76). Top-level navigation (not fetch/iframe) so the
+        // SameSite=Lax EHR-launch bridge cookie rides along. Root-relative /interface/... hits
+        // OpenEMR through the same-origin reverse-proxy front door.
+        window.location.assign(
+          '/interface/modules/custom_modules/oe-module-agentforge/public/agenda-drilldown-launch.php?patient='
+          + encodeURIComponent(patientId));
       }
       function render(data) {
         var rows = (data && data.rows) || [];
