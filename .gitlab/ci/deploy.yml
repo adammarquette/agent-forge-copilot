@@ -81,9 +81,13 @@ deploy:
         railway variable set "OpenEmr__Scopes__$i=$s" --service agent-forge-api-staging
         i=$((i+1))
       done
+    # Roster/agenda uses user/ (not patient/) scopes: it reads ACROSS patients
+    # (a /fhir/Condition?patient=<pid> search per roster row), which patient/
+    # scopes forbid. Must cover every clinical resource the per-patient summary
+    # reads, or that resource 401s ("scope user/<X>.s not in access token").
     - |
       i=0
-      for s in openid fhirUser launch api:fhir user/Appointment.read user/Patient.read; do
+      for s in openid fhirUser launch api:fhir user/Appointment.read user/Patient.read user/Encounter.read user/Observation.read user/DocumentReference.read user/Condition.read user/AllergyIntolerance.read user/MedicationRequest.read user/Procedure.read user/DiagnosticReport.read; do
         railway variable set "OpenEmrAgenda__Scopes__$i=$s" --service agent-forge-api-staging
         i=$((i+1))
       done
