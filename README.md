@@ -37,10 +37,10 @@ Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issu
 
 **[agent-forge-reverse-proxy-staging.up.railway.app](https://agent-forge-reverse-proxy-staging.up.railway.app/)**
 
-| | |
-|---|---|
-| Username | `admin` |
-| Password | `P@ssw0rd1` |
+| Role | Username | Password |
+|---|---|---|
+| Administrator | `admin` | `P@ssw0rd1` |
+| Cardiologist (demo provider — the patients' attending) | `cardio1` | `cardio1!` |
 
 ---
 
