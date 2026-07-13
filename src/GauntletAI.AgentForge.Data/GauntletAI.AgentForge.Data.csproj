@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- EF Core over PostgreSQL + pgvector (W2_ARCHITECTURE.md §5, W2-D14) -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Pgvector" />
+    <PackageReference Include="Pgvector.EntityFrameworkCore" />
+
+    <!-- Design-time only: EF migrations tooling (dotnet ef). Not shipped at runtime. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <!-- Security pin over the Design tooling's vulnerable transitive (see Directory.Packages.props). Design-time only. -->
+    <PackageReference Include="System.Security.Cryptography.Xml" PrivateAssets="all" />
+
+    <!-- Options-pattern config + DI wiring for AddAgentForgeData (ENGINEERING_STANDARDS.md §6) -->
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+</Project>
