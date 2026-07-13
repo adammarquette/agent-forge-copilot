@@ -83,6 +83,8 @@ public static class LaunchEndpoints
         httpContext.Session.SavePatientSession(session);
         await httpContext.Session.CommitAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
-        return Results.Redirect(bffOptions.Value.ChatPath);
+        // Prefix the reverse-proxy PathBase (/agentforge) - a bare "/index.html" redirect lands at
+        // the proxy root, which isn't routed to this service, so it 404s (reference: gitlab#67).
+        return Results.Redirect(httpContext.Request.PathBase.Add(bffOptions.Value.ChatPath).ToString());
     }
 }
