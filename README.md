@@ -9,6 +9,10 @@ not a dashboard.
 > projects are being built out under `src/` and `tests/`. This repo is the AI layer only — it integrates with a
 > separate **OpenEMR fork** over standard FHIR/OAuth/SMART (see [Related repositories](#related-repositories)).
 >
+> **Current sprint — Week 2 (Multimodal Evidence Agent):** adds multimodal document ingestion, a small
+> multi-agent graph, and eval-gated CI on top of the Week 1 baseline — see
+> [`W2_ARCHITECTURE.md`](documentation/W2_ARCHITECTURE.md).
+>
 > **Data policy:** **synthetic / demo data only — never real PHI**, anywhere (code, tests, logs, fixtures).
 
 ---
@@ -60,13 +64,15 @@ Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issu
 
 | Doc | Purpose |
 |---|---|
+| [`INDEX.md`](documentation/INDEX.md) | **Start here** — the wiki's front door: documents catalog + the requirement/use-case → **code project** map the `.slnx` doesn't carry |
 | [`PRD.md`](documentation/PRD.md) | Product requirements — the problem, functional & non-functional requirements (FR/NFR IDs) |
 | [`USERS.md`](documentation/USERS.md) | The target user, the 90-second workflow, and the use cases everything traces to |
 | [`AUDIT.md`](documentation/AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) |
 | [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md) | The design & decision log — topology, trust boundaries, verification, deployment |
+| [`W2_ARCHITECTURE.md`](documentation/W2_ARCHITECTURE.md) | **(Week 2)** Multimodal Evidence Agent — document ingestion, the supervisor/worker graph, hybrid RAG, cloud redundancy, the eval gate, and the Week 2 decision log (W2-D1..D14) |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | Stack, dependencies, coding/testing/security/logging standards |
-| `Architecture_Defense.pptx` | 5-minute architecture-defense deck (summary of the above) |
+| [`supporting/`](documentation/supporting/) | Source requirement PDFs (Week 1 & 2) and the 5-minute architecture-defense decks (`Architecture_Defense.pptx`, `W2_Architecture_Defense.pptx`) |
 
 ### Why so much cross-referencing
 
@@ -179,6 +185,9 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 - **vMVP** (the first release): the conversational, cardiology-only co-pilot — interval-change brief + grounded follow-up, with
   verification, authorization, observability, and an eval suite.
+- **Week 2 — Multimodal Evidence Agent (current):** document ingestion (lab PDF + intake form) with cited
+  extraction, a supervisor + two-worker graph, hybrid RAG + rerank, and an eval-gated CI gate that blocks
+  regressions. See [`W2_ARCHITECTURE.md`](documentation/W2_ARCHITECTURE.md).
 - **Phase 2 (post-vMVP):** "Morning Triage" pre-clinic batch (pre-computes the panel; reuses the vMVP pipeline) —
   `ARCHITECTURE.md` §18.
 
