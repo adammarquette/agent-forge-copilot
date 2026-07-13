@@ -191,6 +191,37 @@ public sealed class AgendaRosterServiceTests
         maxObserved.Should().BeLessThanOrEqualTo(concurrencyBound);
     }
 
+    [Fact]
+    public async Task BuildAgendaAsync_Always_ResolvesEachRowsPatientDisplayNameFromDemographics()
+    {
+        A.CallTo(() => _fhirClient.GetAppointmentsAsync("default", "eq2026-07-11", A<CancellationToken>._))
+            .Returns(Task.FromResult<IReadOnlyList<AppointmentRecord>>([Appointment("1", "patient-1", Now.AddMinutes(30))]));
+        A.CallTo(() => _fhirClient.GetPatientAsync("default", "patient-1", A<CancellationToken>._))
+            .Returns(Task.FromResult<PatientRecord?>(new PatientRecord(new ClinicalSourceRef("Patient", "patient-1"), "Jane Roe", null, null)));
+
+        var result = await BuildSut().BuildAgendaAsync(_session, CancellationToken.None);
+
+        result.Rows.Should().ContainSingle().Which.DisplayName.Should().Be("Jane Roe");
+    }
+
+    [Fact]
+    public async Task BuildAgendaAsync_PatientDemographicsReadThrows_DisplayNameDegradesToNullWithoutFailingTheRow()
+    {
+        // A name lookup failure must not blank the whole row - the summary still shows, and the UI
+        // falls back to "Patient <id>" for the missing name.
+        A.CallTo(() => _fhirClient.GetAppointmentsAsync("default", "eq2026-07-11", A<CancellationToken>._))
+            .Returns(Task.FromResult<IReadOnlyList<AppointmentRecord>>([Appointment("1", "patient-1", Now.AddMinutes(30))]));
+        A.CallTo(() => _fhirClient.GetPatientAsync("default", "patient-1", A<CancellationToken>._))
+            .ThrowsAsync(new InvalidOperationException("FHIR 500"));
+
+        var result = await BuildSut().BuildAgendaAsync(_session, CancellationToken.None);
+
+        var row = result.Rows.Should().ContainSingle().Subject;
+        row.DisplayName.Should().BeNull();
+        row.Failed.Should().BeFalse();
+        row.Summary.Should().Be("summary for patient-1");
+    }
+
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;

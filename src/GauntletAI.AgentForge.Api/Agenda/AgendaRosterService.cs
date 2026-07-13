@@ -54,20 +54,37 @@ public sealed class AgendaRosterService(
             {
                 var appointment = roster[index];
                 var patientId = appointment.PatientId!;
+                var displayName = await ResolveDisplayNameOrNullAsync(session.Site, patientId, ct).ConfigureAwait(false);
                 try
                 {
                     var result = await summaryRunner.RunAsync(session.Site, patientId, session.ClinicianIdentity, ct).ConfigureAwait(false);
-                    rows[index] = new AgendaRow(patientId, appointment.ScheduledStart!.Value, result.Answer, result.SafetyFlags, Failed: false, FailureReason: null);
+                    rows[index] = new AgendaRow(patientId, displayName, appointment.ScheduledStart!.Value, result.Answer, result.SafetyFlags, Failed: false, FailureReason: null);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     AgendaRosterServiceLog.PatientSummaryFailed(logger, patientId, ex.Message);
                     rows[index] = new AgendaRow(
-                        patientId, appointment.ScheduledStart!.Value, Summary: null, SafetyFlags: [],
+                        patientId, displayName, appointment.ScheduledStart!.Value, Summary: null, SafetyFlags: [],
                         Failed: true, FailureReason: "Summary unavailable for this patient right now.");
                 }
             }).ConfigureAwait(false);
 
         return new AgendaResult([.. rows!], now);
+    }
+
+    // Best-effort: a failed demographics read must not fail the row (UC-5) - the UI falls back to
+    // "Patient {id}". Isolated from the summary so a name lookup can't take a good summary down.
+    private async Task<string?> ResolveDisplayNameOrNullAsync(string site, string patientId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var patient = await fhirClient.GetPatientAsync(site, patientId, cancellationToken).ConfigureAwait(false);
+            return patient?.DisplayName;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            AgendaRosterServiceLog.PatientNameUnavailable(logger, patientId, ex.Message);
+            return null;
+        }
     }
 }
