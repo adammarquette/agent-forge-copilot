@@ -224,14 +224,13 @@ builder.Services.AddSession(options =>
     options.Cookie.HttpOnly = true;
     if (bffPathBase.Length > 0)
     {
-        // Behind the reverse proxy (agent-forge#22) the sidecar shares OpenEMR's host, but the SMART
-        // launch returns to /callback via OpenEMR's authorize auto-submit POST + redirect chain.
-        // SameSite=Lax is withheld on a navigation resulting from a cross-site POST, so the session
-        // cookie (pending launch state) doesn't reach /callback and the launch fails with "No pending
-        // SMART launch" (reference: gitlab#67). None+Secure is sent through the redirect; the pending
-        // launch is still CSRF-protected by the OAuth state + PKCE verifier it carries.
+        // Behind the reverse proxy (agent-forge#22), the sidecar is first-party with OpenEMR *as long
+        // as the whole SMART launch stays on the proxy host*. Lax then suffices and keeps its CSRF
+        // protection. This requires the OpenEMR module's launch URL (agentforge_launch_uri) to point
+        // at the proxy front door, not the sidecar's own Railway host - otherwise /launch and
+        // /callback land on different domains and the session cookie is lost (reference: gitlab#67).
         options.Cookie.Path = bffPathBase;
-        options.Cookie.SameSite = SameSiteMode.None;
+        options.Cookie.SameSite = SameSiteMode.Lax;
     }
     else
     {
