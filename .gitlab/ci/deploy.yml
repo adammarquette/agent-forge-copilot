@@ -55,6 +55,20 @@ deploy:
   script:
     - export RAILWAY_TOKEN="$RAILWAY_TOKEN_STAGING"
     - railway variable set "Llm__ApiKey=$Llm__ApiKey" --service agent-forge-api-staging
+    # reference: gitlab#67 - re-assert the reverse-proxy-aware host/path config on every deploy so a
+    # rebuild or fresh service reproduces the working SMART launch, the same self-healing rationale
+    # as Llm__ApiKey above. Every host here MUST be the reverse-proxy front door, never a service's
+    # own Railway host: OpenEmr__BaseUrl != OpenEMR's site_addr_oath fails with an aud mismatch, and a
+    # launch whose /launch and /callback land on different hosts loses the session cookie ("No pending
+    # SMART launch"). These four are non-secret and env-fixed (single-environment: staging), so they're
+    # literals here. NOT re-asserted (would blank a value if the CI var is unset): the OAuth client
+    # ids/secrets and per-flow scopes, the /keys DataProtection volume, and the OpenEMR-side module
+    # Launch URI/Issuer + EHR-launch-skip settings - all documented in documentation/RAILWAY.md.
+    - PROXY="https://agent-forge-reverse-proxy-staging.up.railway.app"
+    - railway variable set "OpenEmr__BaseUrl=$PROXY" --service agent-forge-api-staging
+    - railway variable set "Bff__PublicBaseUrl=$PROXY/agentforge" --service agent-forge-api-staging
+    - railway variable set "Bff__PathBase=/agentforge" --service agent-forge-api-staging
+    - railway variable set "DataProtection__KeyRingPath=/keys" --service agent-forge-api-staging
     - railway up --service agent-forge-api-staging --ci
 
 # -----------------------------------------------------------------------------

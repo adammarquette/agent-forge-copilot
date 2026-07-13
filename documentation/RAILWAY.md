@@ -95,17 +95,68 @@ URL: `https://openemr-staging-25fc.up.railway.app`.
 port 8080. Deployed by CI via `railway up`, not by image.
 Variables (Options-pattern, `__` = section separator):
 
+> **Reverse-proxy front door (2026-07-13):** the SMART launch now routes through the
+> `agent-forge-reverse-proxy` nginx service, and **every** host/audience below must be that
+> front door, not a service's own Railway host. See the dedicated section
+> [Reverse-proxy front-door config](#reverse-proxy-front-door-config--smart-launch-reproducibility)
+> below — the four host/path variables here are re-asserted by the `deploy` CI job on every deploy.
+
 | Variable | Value |
 |---|---|
-| `OpenEmr__BaseUrl` | `https://openemr-staging-25fc.up.railway.app` |
+| `OpenEmr__BaseUrl` | `https://agent-forge-reverse-proxy-staging.up.railway.app` (the reverse-proxy front door — must equal OpenEMR's `site_addr_oath`, else `aud` mismatch) |
 | `OpenEmr__Site` | `default` |
+| `Bff__PathBase` | `/agentforge` (the path the proxy reaches this service under; drives `UsePathBase`, the session-cookie path, and the post-launch redirect prefix) |
+| `DataProtection__KeyRingPath` | `/keys` (a mounted Railway **volume** — the session cookie carrying the pending SMART launch is DataProtection-encrypted; the default in-memory key ring can't decrypt it after a redeploy, breaking the callback with "No pending SMART launch") |
 | `OpenEmr__ClientId` | a registered **confidential** SMART client, admin-enabled (client id held in the Railway service variable, not here) |
 | `OpenEmr__ClientSecret` | the client's real secret (Railway service variable, not here — see the note below on why this is confidential, not public) |
 | `OpenEmr__Scopes__0..14` | PascalCase FHIR resource scopes, e.g. `patient/Patient.read` (see `ServerScopeListEntity::fhirResourceScopesV1()` in the OpenEMR fork for the exact catalog — casing matters, `patient/encounter.read` is rejected) |
-| `Bff__PublicBaseUrl` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
+| `Bff__PublicBaseUrl` | `https://agent-forge-reverse-proxy-staging.up.railway.app/agentforge` (front door + path base — NOT `${{RAILWAY_PUBLIC_DOMAIN}}`, which is this service's own host and breaks the OAuth `redirect_uri`) |
+| `OpenEmrAgenda__ClientId` / `OpenEmrAgenda__ClientSecret` | the roster/agenda OAuth client (see agenda section below). Note the live var name is `OPenEmrAgenda__ClientId` (typo, works via case-insensitive .NET binding — fix when convenient). |
+| `OpenEmrAgenda__Scopes__0..5` | `openid`, `fhirUser`, `launch`, `api:fhir`, `user/Appointment.read`, `user/Patient.read` |
 | `Llm__ApiKey` | real Anthropic key — **set via the `Llm__ApiKey` GitLab CI variable, not the Railway dashboard** (see CI/deployment flow below) |
 | `Llm__Model` | `claude-sonnet-5` |
 | `Llm__InputPricePerMillionTokensUsd` / `Output…` | `0` (set real prices when cost tracking matters — `agentforge_llm_cost_usd_total` reads 0 until then) |
+
+## Reverse-proxy front-door config & SMART-launch reproducibility
+
+Everything below was found and fixed live while getting the Daily Agenda SMART launch working
+end-to-end (gitlab#67, 2026-07-13). It is captured here because most of it was **live edits** that
+are not otherwise in source — a from-scratch redeploy or a new environment will not reproduce the
+working launch until these are re-applied.
+
+**Topology.** A fourth service, `agent-forge-reverse-proxy` (nginx, `reverse-proxy/Dockerfile`,
+deployed by the `nginx-deploy` CI job), is the public front door. It routes `/agentforge/*` to the
+sidecar and everything else to OpenEMR, so browser and server both see **one origin**. The
+invariant that bit us in three places: **every host/audience must be that front door**
+(`https://agent-forge-reverse-proxy-staging.up.railway.app`), never a service's own
+`*-staging.up.railway.app` host.
+
+**Auto-asserted by CI** (the `deploy` job, on every deploy — self-healing like `Llm__ApiKey`):
+`OpenEmr__BaseUrl`, `Bff__PublicBaseUrl`, `Bff__PathBase`, `DataProtection__KeyRingPath`.
+
+**One-time / manual (NOT yet in source — do these on any fresh environment):**
+
+1. **DataProtection volume.** `railway volume add -m /keys` on `agent-forge-api-staging`, and keep
+   the service at **1 replica** (the session store is in-process `AddDistributedMemoryCache` and the
+   volume is single-writer). Without the persisted key ring, the session cookie can't be decrypted
+   after a redeploy → "No pending SMART launch for this session".
+2. **OAuth clients** (DB-only today — they vanish if the OpenEMR DB is reseeded). Register via
+   `POST /oauth2/default/registration` against the **front door**, then in Admin → System → API
+   Clients **Enable** each and turn on **"Skip EHR Launch Authorization Flow"** (a `user/`-scope
+   agenda client registers *disabled*). Wire the results into `OpenEmr__ClientId/Secret` (patient,
+   redirect `/agentforge/callback`) and `OpenEmrAgenda__ClientId/Secret` (roster, redirect
+   `/agentforge/agenda/callback`). Store the secrets as masked GitLab CI variables and add
+   `railway variable set` lines to the `deploy` job so they self-heal too.
+3. **OpenEMR globals** (Admin → Configuration → Connectors): `site_addr_oath` = the front door;
+   **"OAuth2 EHR-Launch Authorization Flow Skip"** enabled (gates the per-client skip above).
+4. **OpenEMR AgentForge module settings** (the module's own `moduleConfig.php` page — *not* the
+   standard Globals screen): **Launch URI** = `https://agent-forge-reverse-proxy-staging.up.railway.app/agentforge/agenda/launch`
+   (the roster endpoint — a launch on the sidecar's direct host loses the session cookie
+   cross-domain), **Issuer** = `…/apis/default/fhir` (front door), **Launch Mode** = `tab`. Note: one
+   Launch URI can't serve both the per-patient (`/agentforge/launch`) and roster
+   (`/agentforge/agenda/launch`) endpoints — module coexistence is a tracked follow-up.
+
+Full root-cause chain and follow-ups: agent-forge-copilot#67. UI workstream: #68.
 
 ## CI / deployment flow
 
