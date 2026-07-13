@@ -15,6 +15,7 @@
     <Project Path="tests/GauntletAI.AgentForge.UnitTests/GauntletAI.AgentForge.UnitTests.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/GauntletAI.AgentForge.Evals/GauntletAI.AgentForge.Evals.csproj" />
     <Project Path="tools/LoadTestChat/LoadTestChat.csproj" />
     <Project Path="tools/MintQaIdentityToken/MintQaIdentityToken.csproj" />
     <Project Path="tools/SeedDemoPatients/SeedDemoPatients.csproj" />

@@ -1,0 +1,9 @@
+{
+  "id": "lab-empty-tests",
+  "category": "extraction",
+  "doc_type": "lab_pdf",
+  "media_type": "application/pdf",
+  "stub_model_response": "{\"tests\":[]}",
+  "expect_success": true,
+  "rubrics": ["schema_valid", "no_phi_in_logs"]
+}

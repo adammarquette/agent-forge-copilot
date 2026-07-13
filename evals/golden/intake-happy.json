@@ -1,0 +1,11 @@
+{
+  "id": "intake-happy",
+  "category": "extraction",
+  "doc_type": "intake_form",
+  "media_type": "application/pdf",
+  "stub_model_response": "{\"demographics\":{\"full_name\":\"Jane Synthetic\",\"date_of_birth\":\"1960-04-12\",\"sex\":\"F\"},\"chief_concern\":\"palpitations\",\"current_medications\":[{\"name\":\"metoprolol\",\"dose\":\"50mg BID\",\"citation\":{\"page\":1,\"quote\":\"metoprolol 50mg BID\",\"bounding_box\":null}}],\"allergies\":[\"penicillin\"],\"family_history\":[\"father: MI at 60\"],\"citation\":{\"page\":1,\"quote\":\"Patient intake\",\"bounding_box\":null}}",
+  "expect_success": true,
+  "expected_values": ["metoprolol"],
+  "phi_tokens": ["Jane Synthetic"],
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent", "no_phi_in_logs"]
+}
