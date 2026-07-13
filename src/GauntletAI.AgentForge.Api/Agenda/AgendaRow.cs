@@ -4,6 +4,7 @@ namespace GauntletAI.AgentForge.Api.Agenda;
 
 /// <summary>One patient's row in the Daily Agenda (ARCHITECTURE.md §19).</summary>
 /// <param name="PatientId">The scheduled patient's id.</param>
+/// <param name="DisplayName">The patient's display name, or <see langword="null"/> when demographics were unavailable (the UI falls back to "Patient {id}").</param>
 /// <param name="ScheduledStart">When the appointment is scheduled to start.</param>
 /// <param name="Summary">The short, cited summary, or <see langword="null"/> when <see cref="Failed"/>.</param>
 /// <param name="SafetyFlags">Cardiology domain-constraint flags raised for this patient (FR-VERIF-2).</param>
@@ -14,6 +15,7 @@ namespace GauntletAI.AgentForge.Api.Agenda;
 /// <param name="FailureReason">A safe, generic explanation when <see cref="Failed"/> - never the raw exception text.</param>
 public sealed record AgendaRow(
     string PatientId,
+    string? DisplayName,
     DateTimeOffset ScheduledStart,
     string? Summary,
     IReadOnlyList<DomainConstraintFlag> SafetyFlags,
