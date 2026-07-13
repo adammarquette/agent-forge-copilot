@@ -3,6 +3,7 @@ using GauntletAI.AgentForge.Api.Agenda;
 using GauntletAI.AgentForge.Api.Chat;
 using GauntletAI.AgentForge.Api.Health;
 using GauntletAI.AgentForge.Api.Launch;
+using GauntletAI.AgentForge.Api.Patient;
 using GauntletAI.AgentForge.Api.Security;
 using GauntletAI.AgentForge.Api.Session;
 using GauntletAI.AgentForge.Integration.OpenEmr;
@@ -150,6 +151,7 @@ builder.Services.AddScoped<ChatSessionCoordinator>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IAgendaPatientSummaryRunner, AgendaPatientSummaryRunner>();
 builder.Services.AddScoped<AgendaRosterService>();
+builder.Services.AddScoped<PatientContextService>();
 
 // Epic 9 (Observability): the app-side metrics/tracing that feed the self-hosted dashboard, and
 // the readiness checks NFR-HEALTH-1 requires against OpenEMR, the LLM provider, and that dashboard's
@@ -271,6 +273,7 @@ app.UseStaticFiles();
 app.MapLaunchEndpoints();
 app.MapAgendaLaunchEndpoints();
 app.MapAgendaEndpoints();
+app.MapPatientEndpoints();
 app.MapHub<ChatHub>("/hubs/chat");
 
 // /health: liveness only (the process is up and serving) - no dependency checks, so it can't flap
