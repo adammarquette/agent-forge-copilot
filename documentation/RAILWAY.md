@@ -18,7 +18,7 @@ never became available to diagnose it further — and was decommissioned
 | Service | Image / source | Notes |
 |---|---|---|
 | `agent-forge-api-staging` | this repo's root `Dockerfile` (.NET 10) | The BFF/API. Deployed by CI via `railway up`. Public domain → port 8080. |
-| `openemr` | `openemr/openemr:7.0.2` | OpenEMR EHR. Public domain → port 80. Test target. |
+| `openemr` | **built from the fork `adammarquette/agent-forge`** (`docker/railway/Dockerfile` via its own `railway.json`) — *not* the stock `openemr/openemr` image | OpenEMR EHR **with the `oe-module-agentforge` custom module baked in** (`COPY . /openemr`). Public domain → port 80. Deployed by the **fork's** CI on merge to the fork's `main`, not this repo's. |
 | `MySQL-gDNR` | `mysql:9.4` | OpenEMR's database. Private TCP only (port 3306). |
 
 Railway service names are unique per-project, not per-environment, which is
@@ -41,7 +41,7 @@ flowchart TB
     subgraph RW["Railway project: lucid-clarity &mdash; staging environment"]
         direction TB
         api["agent-forge-api-staging<br/>.NET 10 · Dockerfile<br/>public :8080"]
-        oe["openemr<br/>openemr/openemr:7.0.2<br/>public :80 · volume"]
+        oe["openemr<br/>fork docker/railway/Dockerfile<br/>+ oe-module-agentforge<br/>public :80 · volume"]
         db["MySQL-gDNR<br/>mysql:9.4<br/>private :3306 · volume"]
         api -->|FHIR / OAuth| oe
         oe -->|SQL| db
@@ -59,12 +59,20 @@ flowchart TB
 
 ### Service configuration
 
-**openemr** — image `openemr/openemr:7.0.2`, volume at
-`/var/www/localhost/htdocs/openemr/sites`, public domain on port 80.
-Variables: `MYSQL_HOST/PORT/ROOT_PASS` (references to the MySQL-gDNR service),
-`MYSQL_USER=openemr`, `MYSQL_PASS`, `MYSQL_DATABASE`,
-`OE_USER=admin`, `OE_PASS`, and **`SWARM_MODE=yes`**.
-URL: `https://openemr-staging-25fc.up.railway.app`.
+**openemr** — **built from the OpenEMR fork `adammarquette/agent-forge`**, not a stock image.
+The fork's `railway.json` (`builder: DOCKERFILE`, `dockerfilePath: docker/railway/Dockerfile`)
+builds OpenEMR from the fork's own source via `COPY . /openemr`, so the **`oe-module-agentforge`
+custom module ships inside the image**. Volume at `/var/www/localhost/htdocs/openemr/sites`, public
+domain on port 80. Variables: `MYSQL_HOST/PORT/ROOT_PASS` (references to the MySQL-gDNR service),
+`MYSQL_USER=openemr`, `MYSQL_PASS`, `MYSQL_DATABASE`, `OE_USER=admin`, `OE_PASS`, and
+**`SWARM_MODE=yes`**. URL: `https://openemr-staging-25fc.up.railway.app`.
+
+> **Deployed by the fork's own CI, not this repo's.** The `openemr` service is built and deployed by
+> the fork's `deploy:staging` job (`railway up`, on merge to the fork's `main`) — see the fork's
+> `RAILWAY.md` / `docs/DEPLOYMENT.md` for that pipeline. **Consequence: a change to the AgentForge
+> OpenEMR module (e.g. `moduleConfig.php`, the launch pages) ships by merging the fork and letting
+> its CI rebuild+redeploy `openemr` — not by anything in this repo.** This repo's CI only touches
+> `agent-forge-api-staging` (and, manually, the reverse proxy).
 
 > **Site Address Override:** Railway terminates TLS at the edge, so a fresh
 > OpenEMR install self-declares its FHIR base URL (`implementation.url` in
@@ -385,6 +393,6 @@ step).
 - OpenEMR first boot takes several minutes (key generation + DB seed). The
   Railway deploy shows SUCCESS before setup finishes — check deploy logs for
   "Setup Complete!" / "Starting apache!" before hitting the UI.
-- OpenEMR 7.0.2 officially targets MySQL 8.x; it runs clean against the 9.4
+- OpenEMR officially targets MySQL 8.x; it runs clean against the 9.4
   image here. If auth-plugin issues ever appear, pin MySQL to 8.4 and re-run
   setup with a fresh database + volume.
