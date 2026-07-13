@@ -29,11 +29,13 @@ not per-deployment: see [Railway's private networking docs](https://docs.railway
 
 ## Status
 
-Not yet wired into production traffic. Deploys into the existing staging environment as a new
-service (not a separate one), but the deploy job stays manual: OpenEMR's own config
-(`agent-forge#24`, `#25`, `#26` - redirect_uri, launch URI, `cookie_samesite` revert) hasn't
-been updated to route through this proxy yet, and the full launch round-trip and OpenEMR
-regression pass (`agent-forge#28`, `#29`) haven't been verified against it.
+Deployed and live as of 2026-07-12 at `https://agent-forge-reverse-proxy-staging.up.railway.app`,
+confirmed working: `/` correctly reaches OpenEMR (a 302, its normal unauthenticated response).
+Not yet wired into production traffic, though: `/agentforge/*` 404s because `Bff__PathBase`
+isn't set on the real `agent-forge-api-staging` service yet, and OpenEMR's own config
+(`agent-forge#24`, `#25`, `#26` - redirect_uri, launch URI, `cookie_samesite` revert) hasn't been
+updated to route through this proxy. The full launch round-trip and OpenEMR regression pass
+(`agent-forge#28`, `#29`) still haven't been verified against it.
 
 ## Dependencies
 

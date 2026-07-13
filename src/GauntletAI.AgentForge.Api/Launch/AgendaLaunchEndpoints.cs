@@ -67,6 +67,8 @@ public static class AgendaLaunchEndpoints
         httpContext.Session.SaveAgendaSession(session);
         await httpContext.Session.CommitAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
-        return Results.Redirect(bffOptions.Value.AgendaPath);
+        // Prefix the reverse-proxy PathBase (/agentforge) - a bare "/agenda" redirect lands at the
+        // proxy root, which isn't routed to this service, so it 404s (reference: gitlab#67).
+        return Results.Redirect(httpContext.Request.PathBase.Add(bffOptions.Value.AgendaPath).ToString());
     }
 }

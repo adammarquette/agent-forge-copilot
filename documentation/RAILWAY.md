@@ -18,7 +18,7 @@ never became available to diagnose it further — and was decommissioned
 | Service | Image / source | Notes |
 |---|---|---|
 | `agent-forge-api-staging` | this repo's root `Dockerfile` (.NET 10) | The BFF/API. Deployed by CI via `railway up`. Public domain → port 8080. |
-| `openemr` | `openemr/openemr:7.0.2` | OpenEMR EHR. Public domain → port 80. Test target. |
+| `openemr` | **built from the fork `adammarquette/agent-forge`** (`docker/railway/Dockerfile` via its own `railway.json`) — *not* the stock `openemr/openemr` image | OpenEMR EHR **with the `oe-module-agentforge` custom module baked in** (`COPY . /openemr`). Public domain → port 80. Deployed by the **fork's** CI on merge to the fork's `main`, not this repo's. |
 | `MySQL-gDNR` | `mysql:9.4` | OpenEMR's database. Private TCP only (port 3306). |
 
 Railway service names are unique per-project, not per-environment, which is
@@ -41,7 +41,7 @@ flowchart TB
     subgraph RW["Railway project: lucid-clarity &mdash; staging environment"]
         direction TB
         api["agent-forge-api-staging<br/>.NET 10 · Dockerfile<br/>public :8080"]
-        oe["openemr<br/>openemr/openemr:7.0.2<br/>public :80 · volume"]
+        oe["openemr<br/>fork docker/railway/Dockerfile<br/>+ oe-module-agentforge<br/>public :80 · volume"]
         db["MySQL-gDNR<br/>mysql:9.4<br/>private :3306 · volume"]
         api -->|FHIR / OAuth| oe
         oe -->|SQL| db
@@ -59,12 +59,20 @@ flowchart TB
 
 ### Service configuration
 
-**openemr** — image `openemr/openemr:7.0.2`, volume at
-`/var/www/localhost/htdocs/openemr/sites`, public domain on port 80.
-Variables: `MYSQL_HOST/PORT/ROOT_PASS` (references to the MySQL-gDNR service),
-`MYSQL_USER=openemr`, `MYSQL_PASS`, `MYSQL_DATABASE`,
-`OE_USER=admin`, `OE_PASS`, and **`SWARM_MODE=yes`**.
-URL: `https://openemr-staging-25fc.up.railway.app`.
+**openemr** — **built from the OpenEMR fork `adammarquette/agent-forge`**, not a stock image.
+The fork's `railway.json` (`builder: DOCKERFILE`, `dockerfilePath: docker/railway/Dockerfile`)
+builds OpenEMR from the fork's own source via `COPY . /openemr`, so the **`oe-module-agentforge`
+custom module ships inside the image**. Volume at `/var/www/localhost/htdocs/openemr/sites`, public
+domain on port 80. Variables: `MYSQL_HOST/PORT/ROOT_PASS` (references to the MySQL-gDNR service),
+`MYSQL_USER=openemr`, `MYSQL_PASS`, `MYSQL_DATABASE`, `OE_USER=admin`, `OE_PASS`, and
+**`SWARM_MODE=yes`**. URL: `https://openemr-staging-25fc.up.railway.app`.
+
+> **Deployed by the fork's own CI, not this repo's.** The `openemr` service is built and deployed by
+> the fork's `deploy:staging` job (`railway up`, on merge to the fork's `main`) — see the fork's
+> `RAILWAY.md` / `docs/DEPLOYMENT.md` for that pipeline. **Consequence: a change to the AgentForge
+> OpenEMR module (e.g. `moduleConfig.php`, the launch pages) ships by merging the fork and letting
+> its CI rebuild+redeploy `openemr` — not by anything in this repo.** This repo's CI only touches
+> `agent-forge-api-staging` (and, manually, the reverse proxy).
 
 > **Site Address Override:** Railway terminates TLS at the edge, so a fresh
 > OpenEMR install self-declares its FHIR base URL (`implementation.url` in
@@ -95,17 +103,76 @@ URL: `https://openemr-staging-25fc.up.railway.app`.
 port 8080. Deployed by CI via `railway up`, not by image.
 Variables (Options-pattern, `__` = section separator):
 
+> **Reverse-proxy front door (2026-07-13):** the SMART launch now routes through the
+> `agent-forge-reverse-proxy` nginx service, and **every** host/audience below must be that
+> front door, not a service's own Railway host. See the dedicated section
+> [Reverse-proxy front-door config](#reverse-proxy-front-door-config--smart-launch-reproducibility)
+> below — the four host/path variables here are re-asserted by the `deploy` CI job on every deploy.
+
 | Variable | Value |
 |---|---|
-| `OpenEmr__BaseUrl` | `https://openemr-staging-25fc.up.railway.app` |
+| `OpenEmr__BaseUrl` | `https://agent-forge-reverse-proxy-staging.up.railway.app` (the reverse-proxy front door — must equal OpenEMR's `site_addr_oath`, else `aud` mismatch) |
 | `OpenEmr__Site` | `default` |
+| `Bff__PathBase` | `/agentforge` (the path the proxy reaches this service under; drives `UsePathBase`, the session-cookie path, and the post-launch redirect prefix) |
+| `DataProtection__KeyRingPath` | `/keys` (a mounted Railway **volume** — the session cookie carrying the pending SMART launch is DataProtection-encrypted; the default in-memory key ring can't decrypt it after a redeploy, breaking the callback with "No pending SMART launch") |
 | `OpenEmr__ClientId` | a registered **confidential** SMART client, admin-enabled (client id held in the Railway service variable, not here) |
 | `OpenEmr__ClientSecret` | the client's real secret (Railway service variable, not here — see the note below on why this is confidential, not public) |
 | `OpenEmr__Scopes__0..14` | PascalCase FHIR resource scopes, e.g. `patient/Patient.read` (see `ServerScopeListEntity::fhirResourceScopesV1()` in the OpenEMR fork for the exact catalog — casing matters, `patient/encounter.read` is rejected) |
-| `Bff__PublicBaseUrl` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
+| `Bff__PublicBaseUrl` | `https://agent-forge-reverse-proxy-staging.up.railway.app/agentforge` (front door + path base — NOT `${{RAILWAY_PUBLIC_DOMAIN}}`, which is this service's own host and breaks the OAuth `redirect_uri`) |
+| `OpenEmrAgenda__ClientId` / `OpenEmrAgenda__ClientSecret` | the roster/agenda OAuth client (see agenda section below). Note the live var name is `OPenEmrAgenda__ClientId` (typo, works via case-insensitive .NET binding — fix when convenient). |
+| `OpenEmrAgenda__Scopes__0..5` | `openid`, `fhirUser`, `launch`, `api:fhir`, `user/Appointment.read`, `user/Patient.read` |
 | `Llm__ApiKey` | real Anthropic key — **set via the `Llm__ApiKey` GitLab CI variable, not the Railway dashboard** (see CI/deployment flow below) |
 | `Llm__Model` | `claude-sonnet-5` |
 | `Llm__InputPricePerMillionTokensUsd` / `Output…` | `0` (set real prices when cost tracking matters — `agentforge_llm_cost_usd_total` reads 0 until then) |
+
+## Reverse-proxy front-door config & SMART-launch reproducibility
+
+Everything below was found and fixed live while getting the Daily Agenda SMART launch working
+end-to-end (gitlab#67, 2026-07-13). It is captured here because most of it was **live edits** that
+are not otherwise in source — a from-scratch redeploy or a new environment will not reproduce the
+working launch until these are re-applied.
+
+**Topology.** A fourth service, `agent-forge-reverse-proxy` (nginx, `reverse-proxy/Dockerfile`,
+deployed by the `nginx-deploy` CI job), is the public front door. It routes `/agentforge/*` to the
+sidecar and everything else to OpenEMR, so browser and server both see **one origin**. The
+invariant that bit us in three places: **every host/audience must be that front door**
+(`https://agent-forge-reverse-proxy-staging.up.railway.app`), never a service's own
+`*-staging.up.railway.app` host.
+
+**Auto-asserted by CI** (the `deploy` job, on every deploy — self-healing like `Llm__ApiKey`):
+the host/path vars (`OpenEmr__BaseUrl`, `Bff__PublicBaseUrl`, `Bff__PathBase`,
+`DataProtection__KeyRingPath`), the OAuth client ids/secrets (`OpenEmr__ClientId/Secret`,
+`OPenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret`), and the per-flow scope lists
+(`OpenEmr__Scopes__*`, `OpenEmrAgenda__Scopes__*`). Secrets live as **masked GitLab CI variables**
+(Settings → CI/CD → Variables); ids/hosts/scopes are non-secret. **Rotate a client secret by
+updating the GitLab CI variable and re-running `deploy`, not by editing the Railway dashboard** (it
+would be overwritten on the next deploy).
+
+**One-time / manual (NOT yet in source — do these on any fresh environment):**
+
+1. **DataProtection volume.** `railway volume add -m /keys` on `agent-forge-api-staging`, and keep
+   the service at **1 replica** (the session store is in-process `AddDistributedMemoryCache` and the
+   volume is single-writer). Without the persisted key ring, the session cookie can't be decrypted
+   after a redeploy → "No pending SMART launch for this session".
+2. **OAuth clients** (DB-only today — they vanish if the OpenEMR DB is reseeded). Register via
+   `POST /oauth2/default/registration` against the **front door**, then in Admin → System → API
+   Clients **Enable** each and turn on **"Skip EHR Launch Authorization Flow"** (a `user/`-scope
+   agenda client registers *disabled*). The ids/secrets live in the GitLab CI variables
+   `OpenEmr__ClientId`/`OpenEmr__ClientSecret` (patient, redirect `/agentforge/callback`) and
+   `OPenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret` (roster, redirect
+   `/agentforge/agenda/callback`) — the `deploy` job already pushes all four to Railway every deploy,
+   so on a fresh environment you only update those CI variables with the newly-registered client's
+   values, no dashboard edits.
+3. **OpenEMR globals** (Admin → Configuration → Connectors): `site_addr_oath` = the front door;
+   **"OAuth2 EHR-Launch Authorization Flow Skip"** enabled (gates the per-client skip above).
+4. **OpenEMR AgentForge module settings** (the module's own `moduleConfig.php` page — *not* the
+   standard Globals screen): **Launch URI** = `https://agent-forge-reverse-proxy-staging.up.railway.app/agentforge/agenda/launch`
+   (the roster endpoint — a launch on the sidecar's direct host loses the session cookie
+   cross-domain), **Issuer** = `…/apis/default/fhir` (front door), **Launch Mode** = `tab`. Note: one
+   Launch URI can't serve both the per-patient (`/agentforge/launch`) and roster
+   (`/agentforge/agenda/launch`) endpoints — module coexistence is a tracked follow-up.
+
+Full root-cause chain and follow-ups: agent-forge-copilot#67. UI workstream: #68.
 
 ## CI / deployment flow
 
@@ -326,6 +393,6 @@ step).
 - OpenEMR first boot takes several minutes (key generation + DB seed). The
   Railway deploy shows SUCCESS before setup finishes — check deploy logs for
   "Setup Complete!" / "Starting apache!" before hitting the UI.
-- OpenEMR 7.0.2 officially targets MySQL 8.x; it runs clean against the 9.4
+- OpenEMR officially targets MySQL 8.x; it runs clean against the 9.4
   image here. If auth-plugin issues ever appear, pin MySQL to 8.4 and re-run
   setup with a fresh database + volume.

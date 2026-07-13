@@ -3,6 +3,8 @@ using GauntletAI.AgentForge.Api.Agenda;
 using GauntletAI.AgentForge.Api.Chat;
 using GauntletAI.AgentForge.Api.Health;
 using GauntletAI.AgentForge.Api.Launch;
+using GauntletAI.AgentForge.Api.Patient;
+using GauntletAI.AgentForge.Api.Security;
 using GauntletAI.AgentForge.Api.Session;
 using GauntletAI.AgentForge.Integration.OpenEmr;
 using GauntletAI.AgentForge.Integration.OpenEmr.Auth;
@@ -13,6 +15,7 @@ using GauntletAI.AgentForge.Llm.Anthropic;
 using GauntletAI.AgentForge.Mcp;
 using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -49,6 +52,10 @@ builder.Services.AddOptions<AgendaOptions>()
     .ValidateDataAnnotations();
 builder.Services.AddOptions<LlmProviderOptions>()
     .Bind(builder.Configuration.GetSection(LlmProviderOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddOptions<DataProtectionKeyRingOptions>()
+    .Bind(builder.Configuration.GetSection(DataProtectionKeyRingOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
 // AgentOptions.TurnDeadline has a built-in default (Epic 10), so binding is optional - the app
@@ -144,6 +151,7 @@ builder.Services.AddScoped<ChatSessionCoordinator>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IAgendaPatientSummaryRunner, AgendaPatientSummaryRunner>();
 builder.Services.AddScoped<AgendaRosterService>();
+builder.Services.AddScoped<PatientContextService>();
 
 // Epic 9 (Observability): the app-side metrics/tracing that feed the self-hosted dashboard, and
 // the readiness checks NFR-HEALTH-1 requires against OpenEMR, the LLM provider, and that dashboard's
@@ -197,15 +205,32 @@ builder.Logging.AddOpenTelemetry(options =>
 var bffPathBase = builder.Configuration.GetSection(BffOptions.SectionName)[nameof(BffOptions.PathBase)]
     ?? string.Empty;
 
+// Persist the DataProtection key ring to durable, shared storage. The session cookie below carries
+// the pending SMART-launch state (state + PKCE verifier); the framework's default in-memory key ring
+// is regenerated per process, so a redeploy or a second replica cannot decrypt a cookie an earlier
+// process wrote - the launch callback then fails with "No pending SMART launch for this session".
+// reference: gitlab (sidecar DataProtection persistence). Empty KeyRingPath keeps the in-memory
+// default for local dev / unit tests; every deployed environment must set it to a mounted volume.
+var dataProtectionOptions = builder.Configuration.GetSection(DataProtectionKeyRingOptions.SectionName)
+    .Get<DataProtectionKeyRingOptions>() ?? new DataProtectionKeyRingOptions();
+var dataProtection = builder.Services.AddDataProtection()
+    .SetApplicationName(dataProtectionOptions.ApplicationName);
+if (dataProtectionOptions.KeyRingPath.Length > 0)
+{
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionOptions.KeyRingPath));
+}
+
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
     options.Cookie.HttpOnly = true;
     if (bffPathBase.Length > 0)
     {
-        // Behind the reverse proxy (agent-forge#22), the sidecar is same-origin with OpenEMR, so
-        // the cookie is first-party - Lax suffices, scoped to the path the proxy actually reaches
-        // this service under.
+        // Behind the reverse proxy (agent-forge#22), the sidecar is first-party with OpenEMR *as long
+        // as the whole SMART launch stays on the proxy host*. Lax then suffices and keeps its CSRF
+        // protection. This requires the OpenEMR module's launch URL (agentforge_launch_uri) to point
+        // at the proxy front door, not the sidecar's own Railway host - otherwise /launch and
+        // /callback land on different domains and the session cookie is lost (reference: gitlab#67).
         options.Cookie.Path = bffPathBase;
         options.Cookie.SameSite = SameSiteMode.Lax;
     }
@@ -248,6 +273,7 @@ app.UseStaticFiles();
 app.MapLaunchEndpoints();
 app.MapAgendaLaunchEndpoints();
 app.MapAgendaEndpoints();
+app.MapPatientEndpoints();
 app.MapHub<ChatHub>("/hubs/chat");
 
 // /health: liveness only (the process is up and serving) - no dependency checks, so it can't flap
