@@ -245,6 +245,8 @@ src/
   GauntletAI.AgentForge.Integration.OpenEmr/ // Refit clients, OAuth/SMART, FHIR mappers (see ICD)
   GauntletAI.AgentForge.Llm/                 // ILlmProvider abstraction + one implementation
   GauntletAI.AgentForge.Observability/       // OTel activity source + metrics (FR-OBS-2/3)
+  GauntletAI.AgentForge.Data/                // (Week 2) EF Core + pgvector: entities, DbContext, migrations
+                                             //   for the hybrid-RAG corpus + DerivedFactStore (W2_ARCHITECTURE.md §5, W2-D14)
 tests/
   GauntletAI.AgentForge.UnitTests/           // §8.1 — fully mocked (FakeItEasy); expectations only; no I/O
   GauntletAI.AgentForge.IntegrationTests/    // §8.2 — real OpenEMR/MySQL in the QA environment; synthetic data only
