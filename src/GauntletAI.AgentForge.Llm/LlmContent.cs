@@ -30,3 +30,18 @@ public sealed record LlmToolUseContent(string Id, string ToolName, string Argume
 /// <param name="ResultJson">The tool's result, as raw JSON.</param>
 /// <param name="IsError">Whether the tool call failed - lets the model see and react to the failure.</param>
 public sealed record LlmToolResultContent(string ToolUseId, string ResultJson, bool IsError = false) : LlmContent;
+
+/// <summary>
+/// A binary image handed to the model for vision (Week 2 multimodal extraction), base64-encoded.
+/// </summary>
+/// <param name="MediaType">IANA media type, e.g. <c>image/png</c> or <c>image/jpeg</c>.</param>
+/// <param name="Base64Data">The image bytes, base64-encoded.</param>
+public sealed record LlmImageContent(string MediaType, string Base64Data) : LlmContent;
+
+/// <summary>
+/// A binary document (e.g. a PDF) handed to the model. Anthropic reads PDFs natively, including
+/// scanned pages via vision (Week 2 lab-PDF ingestion), base64-encoded.
+/// </summary>
+/// <param name="MediaType">IANA media type, e.g. <c>application/pdf</c>.</param>
+/// <param name="Base64Data">The document bytes, base64-encoded.</param>
+public sealed record LlmDocumentContent(string MediaType, string Base64Data) : LlmContent;
