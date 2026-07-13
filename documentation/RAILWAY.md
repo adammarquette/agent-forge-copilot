@@ -33,7 +33,7 @@ flowchart TB
 
     subgraph GL["GitLab CI &mdash; labs.gauntletai.com"]
         direction LR
-        lint["lint"] --> build["build"] --> test["test"] --> deploy["deploy (auto on main)"]
+        lint["lint"] --> build["build"] --> test["test"] --> deploy["deploy (auto on main)"] --> verify["verify (post-deploy smoke test)"]
         itest["integration-tests<br/>BFF runs in-process on runner"]
         test --- itest
     end
@@ -54,7 +54,7 @@ flowchart TB
     classDef svc fill:#e8f0fe,stroke:#4285f4,color:#111;
     classDef ci fill:#f3e8fd,stroke:#a142f4,color:#111;
     class api,oe,db svc;
-    class lint,build,test,deploy,itest ci;
+    class lint,build,test,deploy,verify,itest ci;
 ```
 
 ### Service configuration
@@ -109,7 +109,7 @@ Variables (Options-pattern, `__` = section separator):
 
 ## CI / deployment flow
 
-Pipeline: lint → build → test (unit + integration) → deploy.
+Pipeline: lint → build → test (unit + integration) → deploy → verify (post-deploy smoke test).
 
 - **Integration tests** run the BFF **in-process** on the GitLab runner and
   talk to the staging OpenEMR over FHIR/OAuth. They need these GitLab CI
