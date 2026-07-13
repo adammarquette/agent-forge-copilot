@@ -132,7 +132,13 @@ invariant that bit us in three places: **every host/audience must be that front 
 `*-staging.up.railway.app` host.
 
 **Auto-asserted by CI** (the `deploy` job, on every deploy — self-healing like `Llm__ApiKey`):
-`OpenEmr__BaseUrl`, `Bff__PublicBaseUrl`, `Bff__PathBase`, `DataProtection__KeyRingPath`.
+the host/path vars (`OpenEmr__BaseUrl`, `Bff__PublicBaseUrl`, `Bff__PathBase`,
+`DataProtection__KeyRingPath`), the OAuth client ids/secrets (`OpenEmr__ClientId/Secret`,
+`OPenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret`), and the per-flow scope lists
+(`OpenEmr__Scopes__*`, `OpenEmrAgenda__Scopes__*`). Secrets live as **masked GitLab CI variables**
+(Settings → CI/CD → Variables); ids/hosts/scopes are non-secret. **Rotate a client secret by
+updating the GitLab CI variable and re-running `deploy`, not by editing the Railway dashboard** (it
+would be overwritten on the next deploy).
 
 **One-time / manual (NOT yet in source — do these on any fresh environment):**
 
@@ -143,10 +149,12 @@ invariant that bit us in three places: **every host/audience must be that front 
 2. **OAuth clients** (DB-only today — they vanish if the OpenEMR DB is reseeded). Register via
    `POST /oauth2/default/registration` against the **front door**, then in Admin → System → API
    Clients **Enable** each and turn on **"Skip EHR Launch Authorization Flow"** (a `user/`-scope
-   agenda client registers *disabled*). Wire the results into `OpenEmr__ClientId/Secret` (patient,
-   redirect `/agentforge/callback`) and `OpenEmrAgenda__ClientId/Secret` (roster, redirect
-   `/agentforge/agenda/callback`). Store the secrets as masked GitLab CI variables and add
-   `railway variable set` lines to the `deploy` job so they self-heal too.
+   agenda client registers *disabled*). The ids/secrets live in the GitLab CI variables
+   `OpenEmr__ClientId`/`OpenEmr__ClientSecret` (patient, redirect `/agentforge/callback`) and
+   `OPenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret` (roster, redirect
+   `/agentforge/agenda/callback`) — the `deploy` job already pushes all four to Railway every deploy,
+   so on a fresh environment you only update those CI variables with the newly-registered client's
+   values, no dashboard edits.
 3. **OpenEMR globals** (Admin → Configuration → Connectors): `site_addr_oath` = the front door;
    **"OAuth2 EHR-Launch Authorization Flow Skip"** enabled (gates the per-client skip above).
 4. **OpenEMR AgentForge module settings** (the module's own `moduleConfig.php` page — *not* the
