@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/GauntletAI.AgentForge.Agent/GauntletAI.AgentForge.Agent.csproj" />
+    <Project Path="src/GauntletAI.AgentForge.Agents/GauntletAI.AgentForge.Agents.csproj" />
     <Project Path="src/GauntletAI.AgentForge.Api/GauntletAI.AgentForge.Api.csproj" />
     <Project Path="src/GauntletAI.AgentForge.Data/GauntletAI.AgentForge.Data.csproj" />
     <Project Path="src/GauntletAI.AgentForge.Documents/GauntletAI.AgentForge.Documents.csproj" />
