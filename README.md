@@ -44,7 +44,7 @@ Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issu
 | Role | Username | Password |
 |---|---|---|
 | Administrator | `admin` | `P@ssw0rd1` |
-| Cardiologist (demo provider — the patients' attending) | `cardio1` | `cardio1!` |
+| Cardiologist (demo provider — the patients' attending) | `cardio1` | `P@ssw0rd1` |
 
 ---
 
