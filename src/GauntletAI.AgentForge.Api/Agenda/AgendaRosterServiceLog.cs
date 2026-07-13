@@ -12,4 +12,9 @@ internal static partial class AgendaRosterServiceLog
         Level = LogLevel.Warning,
         Message = "Agenda summary failed for patient {PatientId}: {Reason}")]
     public static partial void PatientSummaryFailed(ILogger logger, string patientId, string reason);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Agenda patient name unavailable for {PatientId}, falling back to id: {Reason}")]
+    public static partial void PatientNameUnavailable(ILogger logger, string patientId, string reason);
 }

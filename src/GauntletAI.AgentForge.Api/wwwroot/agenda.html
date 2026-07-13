@@ -116,7 +116,9 @@
           btn.className = 'row';
           btn.type = 'button';
           var time = document.createElement('div'); time.className = 'time'; time.textContent = fmtTime(r.scheduledStart);
-          var name = document.createElement('div'); name.className = 'name'; name.textContent = 'Patient ' + r.patientId;
+          var name = document.createElement('div'); name.className = 'name';
+          name.textContent = r.displayName || ('Patient ' + r.patientId);
+          name.title = 'Patient ' + r.patientId; // uuid on hover; drill-down still selects by id
           btn.appendChild(time); btn.appendChild(name);
           if (r.failed) {
             var fail = document.createElement('div'); fail.className = 'failed';

@@ -74,6 +74,7 @@ public static class AgendaEndpoints
     private static AgendaResponsePayload ToPayload(AgendaResult result) => new(
         [.. result.Rows.Select(r => new AgendaRowPayload(
             r.PatientId,
+            r.DisplayName,
             r.ScheduledStart,
             r.Summary,
             [.. r.SafetyFlags.Select(f => new SafetyFlagPayload(f.RuleId, f.Description, [.. f.Sources.Select(s => s.Citation)]))],
