@@ -25,8 +25,13 @@ public sealed class BffOptions : IValidatableObject
     /// <summary>Path of the hosted chat SPA the browser is redirected to once a session is established.</summary>
     public string ChatPath { get; init; } = "/index.html";
 
-    /// <summary>Path the browser is redirected to once an agenda session is established (ARCHITECTURE.md §19).</summary>
-    public string AgendaPath { get; init; } = "/agenda";
+    /// <summary>
+    /// Path the browser is redirected to once an agenda session is established (ARCHITECTURE.md §19).
+    /// The rendered agenda page (wwwroot/agenda.html) - it fetches the <c>/agenda</c> JSON data
+    /// endpoint and renders the roster, including a friendly empty state. Distinct from that data
+    /// endpoint so a launch lands on a page, not raw JSON.
+    /// </summary>
+    public string AgendaPath { get; init; } = "/agenda.html";
 
     /// <summary>
     /// Path prefix this sidecar is reached under behind a reverse proxy (e.g. <c>/agentforge</c>),
