@@ -3,6 +3,7 @@ using GauntletAI.AgentForge.Api.Agenda;
 using GauntletAI.AgentForge.Api.Chat;
 using GauntletAI.AgentForge.Api.Health;
 using GauntletAI.AgentForge.Api.Launch;
+using GauntletAI.AgentForge.Api.Security;
 using GauntletAI.AgentForge.Api.Session;
 using GauntletAI.AgentForge.Integration.OpenEmr;
 using GauntletAI.AgentForge.Integration.OpenEmr.Auth;
@@ -13,6 +14,7 @@ using GauntletAI.AgentForge.Llm.Anthropic;
 using GauntletAI.AgentForge.Mcp;
 using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -49,6 +51,10 @@ builder.Services.AddOptions<AgendaOptions>()
     .ValidateDataAnnotations();
 builder.Services.AddOptions<LlmProviderOptions>()
     .Bind(builder.Configuration.GetSection(LlmProviderOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddOptions<DataProtectionKeyRingOptions>()
+    .Bind(builder.Configuration.GetSection(DataProtectionKeyRingOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
 // AgentOptions.TurnDeadline has a built-in default (Epic 10), so binding is optional - the app
@@ -196,6 +202,21 @@ builder.Logging.AddOpenTelemetry(options =>
 // builder.Build(), so the DI container isn't available to resolve options from yet.
 var bffPathBase = builder.Configuration.GetSection(BffOptions.SectionName)[nameof(BffOptions.PathBase)]
     ?? string.Empty;
+
+// Persist the DataProtection key ring to durable, shared storage. The session cookie below carries
+// the pending SMART-launch state (state + PKCE verifier); the framework's default in-memory key ring
+// is regenerated per process, so a redeploy or a second replica cannot decrypt a cookie an earlier
+// process wrote - the launch callback then fails with "No pending SMART launch for this session".
+// reference: gitlab (sidecar DataProtection persistence). Empty KeyRingPath keeps the in-memory
+// default for local dev / unit tests; every deployed environment must set it to a mounted volume.
+var dataProtectionOptions = builder.Configuration.GetSection(DataProtectionKeyRingOptions.SectionName)
+    .Get<DataProtectionKeyRingOptions>() ?? new DataProtectionKeyRingOptions();
+var dataProtection = builder.Services.AddDataProtection()
+    .SetApplicationName(dataProtectionOptions.ApplicationName);
+if (dataProtectionOptions.KeyRingPath.Length > 0)
+{
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionOptions.KeyRingPath));
+}
 
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
