@@ -8,166 +8,316 @@
     :root {
       --bg: #f6f8fa; --surface: #ffffff; --border: #e3e8ee; --text: #1b2733;
       --muted: #5a6b7b; --accent: #1a6fb5; --accent-weak: #eaf3fb;
-      --ok: #1a7f4b; --ok-weak: #e7f4ec; --warn-text: #8a5300; --fail-text: #9b2c22;
+      --user-bg: #1a6fb5; --user-text: #ffffff;
+      --ok: #1a7f4b; --warn-bg: #fff4e5; --warn-text: #8a5300;
+      --fail-bg: #fdecea; --fail-text: #9b2c22; --cite-bg: #eef2f6;
     }
     @media (prefers-color-scheme: dark) {
       :root {
         --bg: #0f151b; --surface: #182430; --border: #2a3a48; --text: #e6edf3;
         --muted: #93a4b3; --accent: #4aa3e0; --accent-weak: #14263a;
-        --ok: #5fce93; --ok-weak: #163024; --warn-text: #f0c079; --fail-text: #f0a79c;
+        --user-bg: #2b6fa5; --user-text: #ffffff;
+        --ok: #5fce93; --warn-bg: #3a2c14; --warn-text: #f0c079;
+        --fail-bg: #3a1f1c; --fail-text: #f0a79c; --cite-bg: #1d2b38;
       }
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body { margin: 0; background: var(--bg); color: var(--text);
-      font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    .wrap { max-width: 640px; margin: 0 auto; padding: 32px 16px 48px; }
-    h1 { font-size: 15px; font-weight: 600; letter-spacing: .01em; color: var(--muted);
-      margin: 0 0 18px; text-transform: uppercase; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-      padding: 22px 22px 20px; }
-    .confirm { display: flex; align-items: center; gap: 10px; color: var(--ok);
-      font-weight: 600; font-size: 14px; margin-bottom: 16px; }
-    .confirm .badge { display: inline-flex; align-items: center; justify-content: center;
-      width: 26px; height: 26px; border-radius: 50%; background: var(--ok-weak); flex: none; }
-    .name { font-size: 24px; font-weight: 650; margin: 0 0 4px; }
-    .demo { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
-    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
-    .stat { background: var(--accent-weak); border: 1px solid var(--border); border-radius: 10px;
-      padding: 12px 14px; text-align: center; }
-    .stat .n { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
-    .stat .n.dim { color: var(--muted); }
-    .stat .lbl { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
-    .stat .na { font-size: 12px; color: var(--warn-text); margin-top: 2px; }
-    .note { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 0;
-      padding-top: 16px; border-top: 1px solid var(--border); }
-    .state { text-align: center; padding: 56px 20px; color: var(--muted); }
-    .state .glyph { width: 56px; height: 56px; margin: 0 auto 14px; color: var(--accent); opacity: .85; }
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .app { display: flex; flex-direction: column; height: 100%; max-width: 820px; margin: 0 auto; }
+    header.bar { display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+      border-bottom: 1px solid var(--border); background: var(--surface); }
+    header.bar .who { min-width: 0; }
+    header.bar .name { font-weight: 650; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    header.bar .demo { color: var(--muted); font-size: 12.5px; }
+    header.bar .status { margin-left: auto; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+    .dot.on { background: var(--ok); } .dot.off { background: var(--fail-text); } .dot.wait { background: var(--warn-text); }
+    .scroll { flex: 1; overflow-y: auto; padding: 18px 16px; }
+    .msg { display: flex; margin-bottom: 16px; }
+    .msg.user { justify-content: flex-end; }
+    .bubble { max-width: 88%; border-radius: 14px; padding: 11px 14px; }
+    .msg.user .bubble { background: var(--user-bg); color: var(--user-text); border-bottom-right-radius: 4px; }
+    .msg.bot .bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+    .answer { white-space: pre-wrap; word-wrap: break-word; }
+    .banner { border-radius: 8px; padding: 8px 11px; font-size: 13px; margin-bottom: 8px; }
+    .banner.fallback { background: var(--warn-bg); color: var(--warn-text); }
+    .flags { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+    .flag { background: var(--fail-bg); color: var(--fail-text); border-radius: 8px; padding: 7px 10px; font-size: 13px; }
+    .flag .cites { display: block; margin-top: 3px; opacity: .85; font-size: 12px; }
+    .cite { display: inline-block; background: var(--cite-bg); color: var(--muted); border-radius: 5px;
+      padding: 0 6px; margin: 2px 4px 0 0; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+    .suppressed { margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+    .suppressed summary { cursor: pointer; color: var(--warn-text); }
+    .suppressed li { margin-top: 4px; }
+    .think { display: inline-flex; gap: 5px; align-items: center; color: var(--muted); }
+    .think .d { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite both; }
+    .think .d:nth-child(2){ animation-delay:.2s } .think .d:nth-child(3){ animation-delay:.4s }
+    @keyframes blink { 0%,80%,100%{opacity:.25} 40%{opacity:1} }
+    form.composer { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); background: var(--surface); }
+    textarea { flex: 1; resize: none; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+      font: inherit; background: var(--bg); color: var(--text); max-height: 140px; }
+    textarea:focus { outline: none; border-color: var(--accent); }
+    button.send { border: 0; border-radius: 10px; background: var(--accent); color: #fff; font: inherit; font-weight: 600;
+      padding: 0 16px; cursor: pointer; }
+    button.send:disabled { opacity: .5; cursor: default; }
+    .hint { text-align: center; color: var(--muted); font-size: 12px; padding: 0 16px 10px; }
+    .state { text-align: center; padding: 56px 20px; color: var(--muted); margin: auto; }
+    .state .glyph { width: 52px; height: 52px; margin: 0 auto 14px; color: var(--accent); opacity: .85; }
     .state h2 { color: var(--text); font-size: 18px; margin: 0 0 6px; }
-    .state p { margin: 0 auto; max-width: 44ch; }
-    .state button { margin-top: 18px; background: var(--accent); color: #fff; border: 0; border-radius: 8px;
-      padding: 9px 18px; font: inherit; font-weight: 600; cursor: pointer; }
-    .spinner { width: 34px; height: 34px; border: 3px solid var(--border); border-top-color: var(--accent);
+    .state button { margin-top: 16px; background: var(--accent); color:#fff; border:0; border-radius:8px; padding:9px 18px; font:inherit; font-weight:600; cursor:pointer; }
+    .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent);
       border-radius: 50%; margin: 0 auto; animation: spin .8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>AgentForge Clinical Co-Pilot</h1>
-
+  <div class="app">
     <div id="loading" class="state">
       <div class="spinner" aria-hidden="true"></div>
-      <p style="margin-top:14px">Loading patient context…</p>
-    </div>
-
-    <div id="ready" class="card" hidden>
-      <div class="confirm">
-        <span class="badge" aria-hidden="true">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-        </span>
-        <span>Patient in context</span>
-      </div>
-      <p class="name" id="p-name"></p>
-      <p class="demo" id="p-demo"></p>
-
-      <div class="stats">
-        <div class="stat"><div class="n" id="s-prob">–</div><div class="lbl">Problems</div><div class="na" id="na-prob" hidden>unavailable</div></div>
-        <div class="stat"><div class="n" id="s-med">–</div><div class="lbl">Medications</div><div class="na" id="na-med" hidden>unavailable</div></div>
-        <div class="stat"><div class="n" id="s-alg">–</div><div class="lbl">Allergies</div><div class="na" id="na-alg" hidden>unavailable</div></div>
-      </div>
-
-      <p class="note">
-        Launch confirmed — the SMART session is bound to this patient and their record is reachable.
-        The prioritized, source-cited pre-visit brief and the conversational chat arrive with the
-        AgentForge chat interface (Epic 3). The counts above confirm data availability only; they are
-        not a clinical summary.
-      </p>
+      <p style="margin-top:14px">Loading patient…</p>
     </div>
 
     <div id="expired" class="state" hidden>
-      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
       </svg>
       <h2>Session expired</h2>
       <p>Please re-launch AgentForge from the patient's chart in OpenEMR to sign back in.</p>
     </div>
 
-    <div id="error" class="state" hidden>
-      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <div id="fatal" class="state" hidden>
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5h.01" />
       </svg>
-      <h2 id="error-title">Couldn’t load patient context</h2>
-      <p id="error-msg"></p>
-      <button type="button" id="error-refresh">Try again</button>
+      <h2 id="fatal-title">Couldn’t start the co-pilot</h2>
+      <p id="fatal-msg"></p>
+      <button type="button" id="fatal-retry">Try again</button>
     </div>
+
+    <header class="bar" id="bar" hidden>
+      <div class="who">
+        <div class="name" id="p-name">Patient</div>
+        <div class="demo" id="p-demo"></div>
+      </div>
+      <div class="status"><span class="dot" id="dot"></span><span id="status-text">connecting…</span></div>
+    </header>
+
+    <div class="scroll" id="scroll" hidden></div>
+
+    <form class="composer" id="composer" hidden>
+      <textarea id="input" rows="1" placeholder="Ask about this patient…" autocomplete="off"></textarea>
+      <button type="submit" class="send" id="send" disabled>Send</button>
+    </form>
+    <div class="hint" id="hint" hidden>Answers are drawn only from this patient's record and cite their source.</div>
   </div>
 
+  <script src="lib/signalr.min.js"></script>
   <script>
     (function () {
       var el = function (id) { return document.getElementById(id); };
-      function show(which) {
-        ['loading', 'ready', 'expired', 'error'].forEach(function (k) { el(k).hidden = (k !== which); });
+      function show(which) { ['loading','expired','fatal'].forEach(function(k){ el(k).hidden = (k!==which); }); }
+      function showChat() {
+        ['loading','expired','fatal'].forEach(function(k){ el(k).hidden = true; });
+        el('bar').hidden = false; el('scroll').hidden = false; el('composer').hidden = false; el('hint').hidden = false;
       }
+      function fatal(title, msg) { el('fatal-title').textContent = title; el('fatal-msg').textContent = msg; show('fatal'); }
+      // Payloads arrive PascalCase (server serializes with default STJ); tolerate camelCase too.
+      function pick(o, name) {
+        if (o == null) return undefined;
+        if (name in o) return o[name];
+        var c = name.charAt(0).toLowerCase() + name.slice(1);
+        return o[c];
+      }
+
+      var conn = null, lastSeq = 0, briefRequested = false, busy = false, seen = {};
+
+      // ---- patient header ----
       function ageFrom(iso) {
-        if (!iso) { return null; }
-        var b = new Date(iso + 'T00:00:00');
-        if (isNaN(b.getTime())) { return null; }
-        var now = new Date();
-        var a = now.getFullYear() - b.getFullYear();
-        var m = now.getMonth() - b.getMonth();
-        if (m < 0 || (m === 0 && now.getDate() < b.getDate())) { a--; }
-        return a >= 0 && a < 150 ? a : null;
+        if (!iso) return null;
+        var b = new Date(iso + 'T00:00:00'); if (isNaN(b.getTime())) return null;
+        var n = new Date(), a = n.getFullYear() - b.getFullYear();
+        if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--;
+        return (a >= 0 && a < 150) ? a : null;
       }
-      function stat(nEl, naEl, summary) {
-        // summary = { reachable, count }; unreachable degrades to an em dash + "unavailable" (UC-5).
-        if (summary && summary.reachable) {
-          nEl.textContent = summary.count;
-          nEl.classList.toggle('dim', summary.count === 0);
-          naEl.hidden = true;
-        } else {
-          nEl.textContent = '—';
-          nEl.classList.add('dim');
-          naEl.hidden = false;
-        }
-      }
-      function render(d) {
-        el('p-name').textContent = d.displayName || ('Patient ' + d.patientId);
-        var demo = [];
-        if (d.birthDate) {
-          var age = ageFrom(d.birthDate);
-          demo.push('DOB ' + d.birthDate + (age !== null ? ' (age ' + age + ')' : ''));
-        }
-        if (d.gender) { demo.push(d.gender.charAt(0).toUpperCase() + d.gender.slice(1)); }
-        if (!d.displayName && (!d.demographics || !d.demographics.reachable)) {
-          demo.push('demographics unavailable');
-        }
-        el('p-demo').textContent = demo.join('  ·  ');
-        el('p-demo').hidden = demo.length === 0;
-        stat(el('s-prob'), el('na-prob'), d.problems);
-        stat(el('s-med'), el('na-med'), d.medications);
-        stat(el('s-alg'), el('na-alg'), d.allergies);
-        show('ready');
-      }
-      function fail(title, msg) { el('error-title').textContent = title; el('error-msg').textContent = msg; show('error'); }
-      function load() {
-        show('loading');
-        // Relative path: the app is served under a PathBase (e.g. /agentforge), so "patient"
-        // resolves to that same prefix rather than the server root.
-        fetch('patient', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+      function loadPatient() {
+        return fetch('patient', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
           .then(function (res) {
             if (res.status === 401) { show('expired'); return null; }
-            if (!res.ok) { fail('Couldn’t load patient context', 'The server returned an unexpected response (' + res.status + '). Please try again.'); return null; }
+            if (!res.ok) throw new Error('patient ' + res.status);
             return res.json();
           })
-          .then(function (d) { if (d) render(d); })
-          .catch(function () { fail('Connection problem', 'Couldn’t reach the AgentForge service. Check your connection and try again.'); });
+          .then(function (d) {
+            if (!d) return null;
+            el('p-name').textContent = d.displayName || ('Patient ' + d.patientId);
+            var parts = [];
+            if (d.birthDate) { var age = ageFrom(d.birthDate); parts.push('DOB ' + d.birthDate + (age !== null ? ' · ' + age + 'y' : '')); }
+            if (d.gender) parts.push(d.gender.charAt(0).toUpperCase() + d.gender.slice(1));
+            el('p-demo').textContent = parts.join('  ·  ');
+            return d;
+          });
       }
-      el('error-refresh').addEventListener('click', load);
-      load();
+
+      // ---- rendering ----
+      function setStatus(cls, text) { el('dot').className = 'dot ' + cls; el('status-text').textContent = text; }
+      function scrollDown() { var s = el('scroll'); s.scrollTop = s.scrollHeight; }
+
+      function addUser(text) {
+        var m = document.createElement('div'); m.className = 'msg user';
+        var b = document.createElement('div'); b.className = 'bubble';
+        var a = document.createElement('div'); a.className = 'answer'; a.textContent = text;
+        b.appendChild(a); m.appendChild(b); el('scroll').appendChild(m); scrollDown();
+      }
+      function addThinking() {
+        var m = document.createElement('div'); m.className = 'msg bot'; m.id = 'thinking';
+        var b = document.createElement('div'); b.className = 'bubble';
+        var t = document.createElement('div'); t.className = 'think';
+        t.innerHTML = '<span class="d"></span><span class="d"></span><span class="d"></span>';
+        b.appendChild(t); m.appendChild(b); el('scroll').appendChild(m); scrollDown();
+      }
+      function clearThinking() { var t = el('thinking'); if (t) t.remove(); }
+
+      function renderAnswer(payload) {
+        var m = document.createElement('div'); m.className = 'msg bot';
+        var b = document.createElement('div'); b.className = 'bubble';
+
+        if (pick(payload, 'IsDeterministicFallback')) {
+          var banner = document.createElement('div'); banner.className = 'banner fallback';
+          banner.textContent = 'Summary unavailable right now — showing source data, not a generated answer.';
+          b.appendChild(banner);
+        }
+
+        var ans = document.createElement('div'); ans.className = 'answer';
+        ans.textContent = pick(payload, 'Answer') || '';
+        b.appendChild(ans);
+
+        var flags = pick(payload, 'SafetyFlags') || [];
+        if (flags.length) {
+          var fw = document.createElement('div'); fw.className = 'flags';
+          flags.forEach(function (f) {
+            var fl = document.createElement('div'); fl.className = 'flag';
+            var desc = document.createElement('span'); desc.textContent = pick(f, 'Description') || pick(f, 'RuleId') || 'Safety flag';
+            fl.appendChild(desc);
+            var cites = pick(f, 'Citations') || [];
+            if (cites.length) {
+              var cw = document.createElement('span'); cw.className = 'cites';
+              cites.forEach(function (c) { var s = document.createElement('span'); s.className = 'cite'; s.textContent = c; cw.appendChild(s); });
+              fl.appendChild(cw);
+            }
+            fw.appendChild(fl);
+          });
+          b.appendChild(fw);
+        }
+
+        var suppressed = pick(payload, 'SuppressedClaims') || [];
+        if (suppressed.length) {
+          var det = document.createElement('details'); det.className = 'suppressed';
+          var sum = document.createElement('summary');
+          sum.textContent = suppressed.length + ' unsourced claim' + (suppressed.length > 1 ? 's' : '') + ' removed';
+          det.appendChild(sum);
+          var ul = document.createElement('ul');
+          suppressed.forEach(function (s) {
+            var li = document.createElement('li');
+            li.textContent = '“' + (pick(s, 'Line') || '') + '” — ' + (pick(s, 'Reason') || 'no source');
+            ul.appendChild(li);
+          });
+          det.appendChild(ul); b.appendChild(det);
+        }
+
+        m.appendChild(b); el('scroll').appendChild(m); scrollDown();
+      }
+
+      function handleMessage(msg) {
+        var seq = pick(msg, 'Sequence');
+        if (seq != null) { if (seen[seq]) return; seen[seq] = true; if (seq > lastSeq) lastSeq = seq; }
+        var payloadJson = pick(msg, 'PayloadJson');
+        var payload; try { payload = JSON.parse(payloadJson); } catch (e) { payload = { Answer: String(payloadJson || '') }; }
+        clearThinking();
+        renderAnswer(payload);
+        setBusy(false);
+      }
+
+      // ---- turn control ----
+      function setBusy(v) {
+        busy = v;
+        el('send').disabled = v || !conn || conn.state !== signalR.HubConnectionState.Connected;
+        el('input').disabled = v;
+        if (!v) el('input').focus();
+      }
+      function turnFailed(err) {
+        clearThinking();
+        var m = (err && err.message) || '';
+        if (/No authenticated session/i.test(m)) { show('expired'); return; }
+        var note = document.createElement('div'); note.className = 'msg bot';
+        note.innerHTML = '<div class="bubble"><div class="banner fallback">That didn’t go through. Please try again.</div></div>';
+        el('scroll').appendChild(note); scrollDown();
+        setBusy(false);
+      }
+      function requestBrief() {
+        if (briefRequested) return; briefRequested = true;
+        setBusy(true); addThinking();
+        conn.invoke('RequestBrief').catch(turnFailed);
+      }
+      function ask(text) {
+        addUser(text); setBusy(true); addThinking();
+        conn.invoke('AskFollowUp', text).catch(turnFailed);
+      }
+
+      // ---- connection ----
+      function connect() {
+        conn = new signalR.HubConnectionBuilder()
+          .withUrl('hubs/chat', { withCredentials: true })
+          .withAutomaticReconnect()
+          .configureLogging(signalR.LogLevel.Warning)
+          .build();
+
+        conn.on('ChatMessage', handleMessage);
+        conn.onreconnecting(function () { setStatus('wait', 'reconnecting…'); el('send').disabled = true; });
+        conn.onreconnected(function () {
+          setStatus('on', 'connected');
+          // Replay anything delivered while we were gone rather than re-briefing.
+          conn.invoke('Resume', lastSeq).then(function (msgs) { (msgs || []).forEach(handleMessage); }).catch(function () {});
+          setBusy(busy);
+        });
+        conn.onclose(function () { setStatus('off', 'disconnected'); el('send').disabled = true; });
+
+        setStatus('wait', 'connecting…');
+        return conn.start().then(function () {
+          setStatus('on', 'connected');
+          setBusy(false);
+          requestBrief();
+        });
+      }
+
+      // ---- input wiring ----
+      var input = el('input');
+      input.addEventListener('input', function () { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; });
+      el('composer').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var text = input.value.trim();
+        if (!text || busy) return;
+        input.value = ''; input.style.height = 'auto';
+        ask(text);
+      });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el('composer').requestSubmit(); }
+      });
+      el('fatal-retry').addEventListener('click', boot);
+
+      function boot() {
+        show('loading');
+        briefRequested = false; lastSeq = 0; seen = {};
+        loadPatient().then(function (d) {
+          if (!d) return; // expired
+          showChat();
+          return connect();
+        }).catch(function (err) {
+          fatal('Couldn’t start the co-pilot', 'Couldn’t reach the AgentForge service (' + ((err && err.message) || 'connection error') + '). Please try again.');
+        });
+      }
+      boot();
     })();
   </script>
 </body>
