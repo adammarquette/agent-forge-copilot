@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using GauntletAI.AgentForge.Llm;
@@ -53,7 +54,13 @@ public sealed class McpToolDispatcher(
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             metrics.RecordToolCall(toolCall.ToolName, succeeded: false, stopwatch.Elapsed);
-            return new LlmToolResultContent(toolCall.Id, SerializeError(ex.Message), IsError: true);
+            // An upstream FHIR/HTTP failure (e.g. a 403 for a resource the token can't read) reads as
+            // a clean "unavailable", not raw "Response status code..." text in the brief - the agent
+            // still sees IsError:true and won't fabricate (UC-5). reference: gitlab#76
+            var message = ex is HttpRequestException
+                ? "This clinical data source is temporarily unavailable and could not be retrieved."
+                : ex.Message;
+            return new LlmToolResultContent(toolCall.Id, SerializeError(message), IsError: true);
         }
     }
 
