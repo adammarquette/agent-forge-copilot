@@ -60,7 +60,9 @@ public static class AgendaEndpoints
         httpContext.Session.SavePatientSession(patientSession);
         await httpContext.Session.CommitAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
-        return Results.Redirect(bffOptions.Value.ChatPath);
+        // Prefix the reverse-proxy PathBase (/agentforge), same as the launch endpoints - a bare
+        // "/index.html" redirect lands at the proxy root and 404s (the drill-down's 404-in-tab bug).
+        return Results.Redirect(httpContext.Request.PathBase.Add(bffOptions.Value.ChatPath).ToString());
     }
 
     private static async Task<AgendaSessionContext?> GetAuthenticatedAgendaSessionOrNullAsync(HttpContext httpContext)
