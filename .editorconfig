@@ -20,3 +20,9 @@ dotnet_diagnostic.CA1852.severity = warning
 [*.{json,yml,yaml}]
 indent_style = space
 indent_size = 2
+
+# EF Core-generated migrations are generated code: suppress style/quality analyzers on them
+# (block namespaces, constant array args, etc.). Hand-written entities/DbContext still meet the
+# full standards. reference: documentation/W2_ARCHITECTURE.md W2-D14
+[**/Migrations/*.cs]
+generated_code = true
