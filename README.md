@@ -64,6 +64,7 @@ Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issu
 
 | Doc | Purpose |
 |---|---|
+| [`INDEX.md`](documentation/INDEX.md) | **Start here** — the wiki's front door: documents catalog + the requirement/use-case → **code project** map the `.slnx` doesn't carry |
 | [`PRD.md`](documentation/PRD.md) | Product requirements — the problem, functional & non-functional requirements (FR/NFR IDs) |
 | [`USERS.md`](documentation/USERS.md) | The target user, the 90-second workflow, and the use cases everything traces to |
 | [`AUDIT.md`](documentation/AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) |
