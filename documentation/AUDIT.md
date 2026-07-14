@@ -3,7 +3,7 @@
 **Auditor:** Adam Marquette
 **Date:** 2026-07-07
 **Target:** OpenEMR fork (`agent-forge`), commit `ef3d490` — pruned base of OpenEMR master
-**Environment audited:** Local `docker/development-easy` stack (app `https://localhost:9300`, MySQL/MariaDB `:8320`, phpMyAdmin `:8310`)
+**Environment audited:** Local `docker/development-easy` stack (app on `https://localhost:9300` (HTTPS, container `:443`) and `http://localhost:8300` (plain HTTP, container `:80`), MySQL/MariaDB `:8320`, phpMyAdmin `:8310`)
 **Method:** Static analysis of the codebase and SQL schema, plus live probing of the running instance and demo database.
 
 > **Scope note.** This audit covers the *base OpenEMR system as it exists today*, before any AI layer is added. Its purpose is to establish the ground truth an AI agent will build on: where the trust boundaries are, where the data lives, how fast it can be read, how reliable it is, and what compliance machinery already exists. Every finding is written to be traceable to a decision the Clinical Co-Pilot will have to make.
