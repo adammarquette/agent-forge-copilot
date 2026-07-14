@@ -116,11 +116,34 @@ builder.Services.AddRefitClient<IOpenEmrFhirApi>()
     .AddHttpMessageHandler<CorrelationIdHandler>()
     .AddStandardResilienceHandler();
 
+// LLM synthesis routinely runs longer than the framework's 10s/30s HTTP defaults, so the heaviest
+// agenda-summary prompt was tripping the attempt timeout and degrading to the deterministic fallback
+// (reference: gitlab#77). Give this client its own resilience budget, read from the same config the
+// validated LlmProviderOptions binds to (invalid values still fail fast via that options validation).
+var llmSection = builder.Configuration.GetSection(LlmProviderOptions.SectionName);
+var llmAttemptTimeout = TimeSpan.FromSeconds(
+    llmSection.GetValue<int?>(nameof(LlmProviderOptions.AttemptTimeoutSeconds))
+        ?? LlmProviderOptions.DefaultAttemptTimeoutSeconds);
+var llmTotalTimeout = TimeSpan.FromSeconds(
+    llmSection.GetValue<int?>(nameof(LlmProviderOptions.TotalRequestTimeoutSeconds))
+        ?? LlmProviderOptions.DefaultTotalRequestTimeoutSeconds);
+
 builder.Services.AddRefitClient<IAnthropicMessagesApi>()
     .ConfigureHttpClient((sp, client) =>
-        client.BaseAddress = new Uri(sp.GetRequiredService<IOptions<LlmProviderOptions>>().Value.BaseUrl))
+    {
+        client.BaseAddress = new Uri(sp.GetRequiredService<IOptions<LlmProviderOptions>>().Value.BaseUrl);
+        // HttpClient's outer timeout must exceed the pipeline's total, or it cancels first.
+        client.Timeout = llmTotalTimeout + TimeSpan.FromSeconds(30);
+    })
     .AddHttpMessageHandler<AnthropicAuthHandler>()
-    .AddStandardResilienceHandler();
+    .AddStandardResilienceHandler(options =>
+    {
+        options.AttemptTimeout.Timeout = llmAttemptTimeout;
+        options.TotalRequestTimeout.Timeout = llmTotalTimeout;
+        // Handler invariant: SamplingDuration must be >= 2x AttemptTimeout.
+        options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(llmAttemptTimeout.TotalSeconds * 2);
+        options.Retry.MaxRetryAttempts = 2;
+    });
 
 builder.Services.AddScoped<IOpenEmrAuthClient, OpenEmrAuthClient>();
 builder.Services.AddScoped<IOpenEmrFhirClient, OpenEmrFhirClient>();
