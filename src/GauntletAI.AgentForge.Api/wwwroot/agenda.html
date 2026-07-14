@@ -111,17 +111,25 @@
         var url = '/interface/modules/custom_modules/oe-module-agentforge/public/agenda-drilldown-launch.php?patient='
           + encodeURIComponent(patientId);
         el('drill-warning').hidden = true;
-        // Open the patient in OpenEMR's own modal (dlgopen), same as the per-patient chart button -
-        // the agenda stays behind the modal and is there when it's dismissed (gitlab#37). This page
-        // runs in OpenEMR's tab iframe, same-origin via the reverse-proxy front door, so it reaches
-        // the top frame's dlgopen (library/dialog.js, loaded by interface/main/tabs/main.php).
-        // Same-origin also lets the SMART re-launch complete inside the modal iframe without the
-        // SameSite bridge-cookie dance (documentation/agent-forge/IFRAME_REVERT.md).
-        var title = displayName ? ('AgentForge — ' + displayName) : 'AgentForge';
+        // Open the patient in a real OpenEMR application tab (like Calendar/Message Center) -
+        // not a modal, not a browser tab - via the tab framework's navigateTab/activateTabByName
+        // (interface/main/tabs/js/tabs_view_model.js). This page runs in OpenEMR's agenda tab
+        // iframe, same-origin via the reverse-proxy front door, so it reaches those on window.top
+        // (the same access the old dlgopen modal used). navigateTab creates the tab on first use
+        // and re-navigates + refocuses it on later clicks. One shared "AgentForge" patient tab
+        // (name 'agfpat', distinct from the agenda's 'agf') that re-navigates to whichever patient
+        // is clicked - mirrors OpenEMR's single-patient-chart model and keeps the Daily Agenda tab
+        // open alongside it. The SMART patient-scoped re-launch completes in the tab's iframe
+        // same-origin, no SameSite bridge-cookie dance. reference: gitlab#79
+        var loadingLabel = displayName || ('Patient ' + patientId);
         try {
           var top = window.top;
-          if (top && typeof top.dlgopen === 'function') {
-            top.dlgopen(url, 'agentforge-launch', 'modal-full', top.innerHeight, '', title, { allowExternal: true });
+          if (top && typeof top.navigateTab === 'function') {
+            top.navigateTab(url, 'agfpat', function () {
+              if (typeof top.activateTabByName === 'function') {
+                top.activateTabByName('agfpat', true);
+              }
+            }, loadingLabel);
             return;
           }
         } catch (e) { /* cross-origin/unavailable top frame - fall through to the notice below */ }
