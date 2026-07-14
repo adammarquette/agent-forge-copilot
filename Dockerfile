@@ -6,7 +6,11 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy central build/package management + solution first for better layer caching.
-COPY Directory.Build.props Directory.Packages.props GauntletAI.AgentForge.slnx ./
+# .editorconfig is required at build time: it marks EF-generated migrations as generated code, which
+# suppresses the analyzers (CA1861 etc.) that would otherwise fail `dotnet publish` under
+# warnings-as-errors. Omitting it here (while local/CI builds have the full repo) silently broke the
+# Railway build once the first generated migration landed.
+COPY Directory.Build.props Directory.Packages.props GauntletAI.AgentForge.slnx .editorconfig ./
 COPY src/ src/
 
 RUN dotnet restore src/GauntletAI.AgentForge.Api/GauntletAI.AgentForge.Api.csproj
