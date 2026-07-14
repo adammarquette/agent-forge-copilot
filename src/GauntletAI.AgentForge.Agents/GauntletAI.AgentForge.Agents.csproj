@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GauntletAI.AgentForge.Documents\GauntletAI.AgentForge.Documents.csproj" />
+    <ProjectReference Include="..\GauntletAI.AgentForge.Integration.OpenEmr\GauntletAI.AgentForge.Integration.OpenEmr.csproj" />
     <ProjectReference Include="..\GauntletAI.AgentForge.Verification\GauntletAI.AgentForge.Verification.csproj" />
     <ProjectReference Include="..\GauntletAI.AgentForge.Llm\GauntletAI.AgentForge.Llm.csproj" />
   </ItemGroup>
@@ -9,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
   </ItemGroup>
 
 </Project>
