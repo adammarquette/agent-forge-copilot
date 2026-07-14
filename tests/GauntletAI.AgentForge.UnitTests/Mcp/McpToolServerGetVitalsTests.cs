@@ -36,6 +36,27 @@ public sealed class McpToolServerGetVitalsTests
     }
 
     [Fact]
+    public async Task GetVitalsAsync_ObservationsWithNullValue_ExcludedFromResult()
+    {
+        var heartRate = new ObservationRecord(
+            new ClinicalSourceRef("Observation", "hr"), "vital-signs", "Heart rate", 72, "beats/minute", null, null, null, "final");
+        // Placeholders the FHIR vitals panel emits with no numeric value (BP panel parent, BMI, etc.) -
+        // the mapper leaves Value null (it reads valueQuantity only), so they carry nothing usable.
+        var bmiPlaceholder = new ObservationRecord(
+            new ClinicalSourceRef("Observation", "bmi"), "vital-signs", "BMI", null, null, null, null, null, "final");
+        var bpPanelPlaceholder = new ObservationRecord(
+            new ClinicalSourceRef("Observation", "bp"), "vital-signs", "Blood pressure panel", null, null, null, null, null, "final");
+        var vitals = new List<ObservationRecord> { heartRate, bmiPlaceholder, bpPanelPlaceholder };
+        A.CallTo(() => _fhirClient.GetObservationsAsync("default", "1", "vital-signs", null, A<CancellationToken>._))
+            .Returns(Task.FromResult<IReadOnlyList<ObservationRecord>>(vitals));
+
+        var result = await _sut.GetVitalsAsync(
+            new GetVitalsRequest { Site = "default", PatientId = "1" }, CancellationToken.None);
+
+        result.Vitals.Should().ContainSingle().Which.Should().Be(heartRate);
+    }
+
+    [Fact]
     public async Task GetVitalsAsync_SinceDateProvided_PassesItThroughToFhirClient()
     {
         A.CallTo(() => _fhirClient.GetObservationsAsync("default", "1", "vital-signs", "ge2026-01-01", A<CancellationToken>._))

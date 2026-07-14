@@ -46,6 +46,7 @@ OpenEMR is a mature, security-aware EHR — not a toy. It ships parameterized qu
 
 ### 2.4 Session Security
 - `SessionConfigurationBuilder` sets `cookie_httponly=true` and `cookie_samesite=Strict` (good) but **`cookie_secure=false` by default**; it is only raised to `true` in HTTPS/OAuth contexts. On the plain-HTTP `:8300` port, session cookies can traverse unencrypted.
+  - *Update (post-audit, agent-forge#21):* the SMART EHR launch required relaxing OpenEMR's `cookie_samesite` from `Strict` → `Lax`. `Strict` drops the cookie on the cross-site **top-level** authorize hop (the launch navigates from OpenEMR's origin out to the sidecar and back), so login silently re-prompts; `Lax` sends it on that top-level navigation while still withholding it from cross-site subrequests, which is sufficient because the launch is a top-level tab, not an embedded iframe. Reverting to stock `Strict` once a same-origin reverse proxy makes SameSite moot is tracked in agent-forge#26 (see agent-forge#22 for the reverse-proxy end state).
 - **Idle timeout defaults to 7200s (2 hours)** — long for a shared clinical workstation. Portal is 1800s. Consider shortening for the co-pilot's threat model (unattended terminal between rooms).
 
 ### 2.5 Data Exposure Vectors

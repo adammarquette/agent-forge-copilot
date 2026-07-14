@@ -12,6 +12,14 @@
     <!-- Streaming the fast-core-then-defer answer to the iFrame SPA -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.9" />
 
+    <!-- OpenAPI document generation for the Api HTTP surface (INTERFACE_CONTROL.md §D / gitlab#54).
+         Served only in non-prod (ENGINEERING_STANDARDS.md §6). MIT-licensed. -->
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+    <!-- Security pin: Microsoft.AspNetCore.OpenApi 10.0.9 pulls Microsoft.OpenApi 2.0.0, which has a
+         high-severity reader-DoS CVE (NU1903, GHSA-v5pm-xwqc-g5wc; 2.x patched in 2.7.5). Pin up to the
+         patched release to keep the audit gate green - same rationale as the Cryptography.Xml pin below. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
+
     <!-- In-process real host for the BFF's own integration tests (Epic 3 QA) -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.9" />
 
