@@ -94,15 +94,22 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
             DocumentIngestionServiceLog.CitationPending(_logger);
         }
 
-        // 6. Persist the sidecar-authoritative facts with lineage to the source document.
+        // 6. Persist the sidecar-authoritative facts with lineage to the source document. CreatedAt/IngestedAt
+        // are app-set (no DB default); stamp one timestamp across the document and its facts.
+        var now = _timeProvider.GetUtcNow();
         var facts = _mapper.Map(extraction, citation?.Id);
+        foreach (var fact in facts)
+        {
+            fact.CreatedAt = now;
+        }
+
         var document = new IngestedDocument
         {
             PatientId = request.PatientId,
             DocumentType = request.DocumentType,
             ContentHash = contentHash,
             OpenEmrDocumentReferenceId = citation?.Id,
-            IngestedAt = _timeProvider.GetUtcNow(),
+            IngestedAt = now,
             DerivedFacts = [.. facts],
         };
         await _store.AddAsync(document, cancellationToken).ConfigureAwait(false);
