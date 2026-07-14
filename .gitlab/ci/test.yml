@@ -75,6 +75,22 @@ unit-tests:
       done
     - *verify_results
 
+# The DETERMINISTIC eval rubrics (schema_valid / citation_present / no_phi_in_logs) run as xUnit theory
+# tests - one result per golden case - in the standard dotnet-test flow, so an extraction/schema regression
+# shows up as an ordinary red test. This is the hermetic half of the eval split: it never calls an LLM
+# judge. The baseline/regression policy and the judge-bound rubrics stay in the console `evals` job
+# (evals.yml). Single known project, so its path is referenced directly rather than globbed.
+eval-tests:
+  <<: *test_template
+  script:
+    - dotnet restore "tests/GauntletAI.AgentForge.EvalTests/GauntletAI.AgentForge.EvalTests.csproj"
+    - |
+      dotnet test "tests/GauntletAI.AgentForge.EvalTests/GauntletAI.AgentForge.EvalTests.csproj" --no-build -c $BUILD_CONFIG \
+        --results-directory "$CI_PROJECT_DIR/TestResults" \
+        --logger "junit;LogFileName={assembly}.junit.xml" \
+        --logger "trx;LogFileName={assembly}.trx"
+    - *verify_results
+
 # Integration tests exercise the real deployed OpenEMR (FHIR/OAuth/SMART) in the
 # single Railway "staging" environment - per ENGINEERING_STANDARDS.md §8.2 /
 # tests/AGENTS.md, nothing here is mocked and there is no throwaway service container:

@@ -22,6 +22,12 @@ build:
     # bootstrap) and picks up the same ~90-100MB - safe to drop, since no CI job ever executes
     # anything under tools/ (unit-tests/integration-tests filter by project filename). Excluding
     # just that copy is what actually fixed the original 413 (job 41413).
+    #
+    # The integration-tests project's own ~100MB .playwright copy is ALSO redundant here: the
+    # integration-tests job re-copies the driver from the NuGet cache into its bin before running
+    # (test.yml), so shipping it in the artifact too just doubles the ~100MB and re-triggered the
+    # 413 once another test project (EvalTests) pushed the total over the limit. Exclude every
+    # bin/.playwright - the only job that needs the driver provisions it itself.
     exclude:
-      - "tools/**/bin/**/.playwright/**"
+      - "**/bin/**/.playwright/**"
     expire_in: 2 hours
