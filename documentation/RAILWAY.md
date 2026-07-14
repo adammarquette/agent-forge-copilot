@@ -194,6 +194,16 @@ Pipeline: lint → build → test (unit + integration) → deploy → verify (po
     type), `OpenEmrQa__System__KeyId`, `OpenEmrQa__System__Scope` — see below
   - `LlmQa__ApiKey`, `LlmQa__Model` = real Anthropic key + model for test runs
 
+> **Masked variables can't represent "unset" as an empty string.** GitLab
+> **masked** variables must be at least 8 characters and satisfy its masking
+> rules, and the UI won't accept an empty value for one — so you can't blank a
+> masked variable to mean "not configured". To represent unset, **delete the
+> variable**, don't set it to `""`. The fixture/config code treats absent and
+> whitespace-only identically (`IsNullOrWhiteSpace`), which is why the
+> deliberately-optional ones (`OpenEmrQa__TestAccessToken`,
+> `OpenEmrQa__System__ClientId`/`PrivateKeyPath`) are *deleted* when unused,
+> triggering the intended fallback path, rather than left blank.
+
 > **Access-token expiry — solved (GitLab issue #22):** OpenEMR access tokens
 > live ~1 hour, so a *static* `OpenEmrQa__TestAccessToken` went stale between
 > CI runs. `password` grant was ruled out (OpenEMR only ever grants it

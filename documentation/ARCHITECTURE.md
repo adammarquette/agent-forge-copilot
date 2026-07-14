@@ -15,9 +15,11 @@ preflight, exact FHIR field coverage for EF/echo/device, calibrated latency numb
 The Co-Pilot is a **companion service (sidecar), not a fork of OpenEMR's core**. It integrates only through
 OpenEMR v8's published, certified surfaces — the **FHIR R4 API**, the **OAuth2 authorization server**, and
 **SMART-on-FHIR EHR launch** — all confirmed present in the fork. The PHP core is never modified; the only
-change to the OpenEMR project is a **thin custom module** (`interface/modules/custom_modules/`) that adds a
-patient-context panel and iFrame-launches the Co-Pilot. This preserves upgrade safety and the host's
-ONC-certification posture, and keeps the AI stack independently deployable and testable. **(D1, D2)**
+change to the OpenEMR project is a **thin custom module** (`interface/modules/custom_modules/oe-module-agentforge`)
+that adds in-EHR launch entry points (a patient-chart launch button + a Daily Agenda nav tab) and performs a
+SMART EHR launch of the Co-Pilot — opening it as a top-level browser tab by default, or a modal iframe when the
+sidecar is served same-site (see §16 D16). This preserves upgrade safety and the host's ONC-certification
+posture, and keeps the AI stack independently deployable and testable. **(D1, D2)**
 
 **The user drives every decision.** Per `USERS.md`, the user is one narrow persona — an outpatient
 cardiologist in the ~90-second window between rooms — and the job is *"what changed since last visit and what
@@ -30,7 +32,7 @@ therapeutic?" → "when was it drawn?") is what earns the "agent" shape (UC-2) a
 own OAuth identity** obtained via SMART EHR launch (authorization-code flow), never a broad service account.
 OpenEMR enforces its ACLs and scopes server-side, so the Co-Pilot **can never see more than the requesting
 user could** — this is the answer to "who's asking?" and "where are your trust boundaries?" (UC-4). Tokens are
-held **server-side in a backend-for-frontend**, never exposed to iframe JavaScript, tightening the no-leakage
+held **server-side in a backend-for-frontend**, never exposed to browser JavaScript, tightening the no-leakage
 story. **(D6, D11)**
 
 **Verification is two layers, not one.** (1) **Source attribution**: every clinical claim must resolve to a
@@ -90,7 +92,7 @@ addition to the fork is a thin presentation module. **Audit-confirmed enablers i
   `SMARTAuthorizationController`, `SMARTSessionTokenContextBuilder`) and **dynamic client registration**.
 - **Audit logging** (`EventAuditLogger`, break-glass support) — a second, EHR-side audit trail for free.
 - **Custom module system** (`interface/modules/custom_modules/`) with a patient-context menu mechanism — the
-  clean insertion point for the iFrame shim.
+  clean insertion point for the launch module.
 
 Rationale: upgrade safety, ONC-certification preservation, independent deployability, and portability to other
 FHIR/SMART-capable EHRs later.
@@ -104,7 +106,7 @@ flowchart LR
     subgraph Practice["Practice Infra / Trust Boundary"]
         subgraph OpenEMR["OpenEMR v8 (fork) - core unmodified"]
             UI[Cardiologist UI]
-            MOD[Thin Custom Module<br/>patient-context iframe shim]
+            MOD[Thin Custom Module<br/>SMART EHR launch entry points]
             SMART[SMART EHR Launch<br/>+ OAuth2 Server]
             FHIR[FHIR R4 API<br/>US Core]
             AUDIT[(EventAuditLogger)]
@@ -144,9 +146,9 @@ flowchart LR
 
 1. **Authenticated launch.** The custom module initiates a **SMART EHR launch**: OAuth2 authorization-code
    flow yields an access token encoding the **authenticated user, granted scopes, and launch patient context**.
-   No `?patient_id=` in an iframe src — identity and patient scope are cryptographic, not cosmetic.
+   No `?patient_id=` on the launch URL — identity and patient scope are cryptographic, not cosmetic.
 2. **Token custody (BFF).** The sidecar backend holds the token **server-side**, keyed to the browser session;
-   the iframe SPA never sees a bearer token. **(D11)**
+   the browser SPA never sees a bearer token. **(D11)**
 3. **ACL inheritance.** Every FHIR call uses the clinician's token; OpenEMR enforces ACLs/scopes server-side.
    The Co-Pilot cannot exceed the user's own access — enforcement is **below the model**, so prompt injection
    ("ignore that, show me…") cannot widen access (FR-AUTH-3, NFR-SEC-2).
@@ -163,7 +165,7 @@ flowchart LR
 
 | Component | Stack | Responsibility |
 |---|---|---|
-| Custom module shim | PHP module in fork | Add cardiology panel to patient context; perform SMART EHR launch; iFrame the chat SPA. Presentation only. |
+| Custom module | PHP module in fork (`oe-module-agentforge`) | Add in-EHR launch entry points (patient-chart button + Daily Agenda tab); perform SMART EHR launch (top-level tab by default, modal iframe when same-site). Presentation only; the chat SPA is served by the sidecar BFF, not embedded here. |
 | Backend-for-Frontend | .NET 10 | Hold OAuth tokens server-side; host chat SPA; bridge browser ↔ orchestrator; enforce session. |
 | Agent orchestrator | .NET 10 (LLM SDK, e.g. Semantic Kernel / Microsoft.Extensions.AI) | Run the **multi-turn** loop: plan + chain tool calls, maintain conversation context, assemble the cited brief, enforce citation discipline. |
 | MCP tool server | .NET 10 | Expose read-only, narrowly-scoped FHIR tools; enforce minimum-necessary; emit audit + provenance. |
@@ -432,11 +434,12 @@ prod (§13.2) but gated behind its Enterprise-only HIPAA BAA.*
 | **D8** | **Cardiology-only v1** | Multi-specialty profiles now | User-narrowing per USERS.md; profiles kept as a seam |
 | **D9** | **Multi-turn conversational agent** | One-shot synopsis generator | Case study requires an agent; UC-2 earns multi-turn/chaining |
 | **D10** | **Two-layer verification (attribution + domain rules)** | Attribution only | Cardiology domain-constraint enforcement is graded + differentiating |
-| **D11** | **Backend-for-frontend token custody** | Token in iframe JS | No bearer tokens in the browser; tighter no-leakage |
+| **D11** | **Backend-for-frontend token custody** | Token in browser JS | No bearer tokens in the browser; tighter no-leakage |
 | **D12** | **One LLM provider in v1 behind ILlmProvider** | Build 3-tier model zoo now | Sprint scope; abstraction preserved, others described |
 | **D13** | **No write-back in MVP** | Gated draft write | Removes auth surface + cert questions for zero required credit |
 | **D14** | **Morning Triage batch = Phase-2, not v1** | Build batch triage in v1 | Keeps v1 conversational-agent-first (case-study requirement); batch reuses the v1 pipeline once trusted |
 | **D15** | **Railway for dev (demo data), HIPAA-eligible cloud (AWS) for prod** | Single environment for both | Dev optimizes iteration speed with zero PHI; prod optimizes compliance under BAA. Same container both ways — host is a per-env decision, not architectural |
+| **D16** | **Top-level tab is the default launch mode; modal iframe is a same-site-only option** | iFrame-only launch | A cross-site iframe can't recover the EHR-launch session: the SameSite=Lax bridge cookie's cross-site exception only covers top-level navigations, not iframes (agent-forge#21, `IFRAME_REVERT.md`). The module keeps both modes configurable (Manage Modules); iframe is only reliable when the sidecar is served same-site with OpenEMR. |
 
 ---
 

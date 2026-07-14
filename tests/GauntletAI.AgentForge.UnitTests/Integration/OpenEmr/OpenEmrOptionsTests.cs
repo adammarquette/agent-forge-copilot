@@ -133,6 +133,61 @@ public sealed class OpenEmrOptionsTests
         results.Should().ContainSingle(r => r.MemberNames.Contains(nameof(OpenEmrOptions.Site)));
     }
 
+    [Fact]
+    public void FhirTimeouts_Defaults_AreTunedForSlowOpenEmr()
+    {
+        // Regression (issue #80): staging OpenEMR routinely takes 4-8s per FHIR call and the
+        // framework's 10s attempt default trips under the Daily Agenda's parallel fan-out. These
+        // defaults give the OpenEMR client room to complete slow-but-successful calls.
+        var options = new OpenEmrOptions
+        {
+            BaseUrl = "https://emr.example.org",
+            Site = "default",
+            ClientId = "sidecar-client",
+            Scopes = ["launch"],
+        };
+
+        options.FhirAttemptTimeoutSeconds.Should().Be(30);
+        options.FhirTotalRequestTimeoutSeconds.Should().Be(90);
+    }
+
+    [Fact]
+    public void Validate_NonPositiveFhirAttemptTimeout_ProducesError()
+    {
+        var options = new OpenEmrOptions
+        {
+            BaseUrl = "https://emr.example.org",
+            Site = "default",
+            ClientId = "sidecar-client",
+            Scopes = ["launch"],
+            FhirAttemptTimeoutSeconds = 0,
+        };
+
+        var results = Validate(options);
+
+        results.Should().ContainSingle(r => r.MemberNames.Contains(nameof(OpenEmrOptions.FhirAttemptTimeoutSeconds)));
+    }
+
+    [Fact]
+    public void Validate_FhirTotalTimeoutNotGreaterThanAttempt_ProducesError()
+    {
+        // The standard resilience handler requires the total budget to strictly exceed a single
+        // attempt, or it throws at startup - validate here so a misconfiguration fails fast.
+        var options = new OpenEmrOptions
+        {
+            BaseUrl = "https://emr.example.org",
+            Site = "default",
+            ClientId = "sidecar-client",
+            Scopes = ["launch"],
+            FhirAttemptTimeoutSeconds = 30,
+            FhirTotalRequestTimeoutSeconds = 30,
+        };
+
+        var results = Validate(options);
+
+        results.Should().ContainSingle(r => r.MemberNames.Contains(nameof(OpenEmrOptions.FhirTotalRequestTimeoutSeconds)));
+    }
+
     private static List<ValidationResult> Validate(OpenEmrOptions options)
     {
         var context = new ValidationContext(options);

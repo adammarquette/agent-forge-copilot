@@ -11,11 +11,12 @@ under `.gitlab/`:
     ├── lint.yml          <- lint stage: dotnet format + third-party license scan
     ├── build.yml         <- build stage
     ├── test.yml          <- unit + integration test stage
+    ├── evals.yml         <- eval gate (runs in the test stage)
     ├── deploy.yml        <- deploy stage (auto on main)
-    └── verify.yml        <- verify stage: post-deploy smoke test (auto on main)
+    └── verify.yml        <- verify stage: post-deploy /health + /ready smoke test
 ```
 
-The root file `include:`s the five fragments. Everything about *where* and
+The root file `include:`s the six fragments. Everything about *where* and
 *how* the pipeline runs is defined in code — the only remaining items below are
 GitLab **policy** settings (who can merge when), which have no in-file
 equivalent.
@@ -75,9 +76,11 @@ Two layers cover this:
 
 ## 4. Main must pass tests before deploy
 
-Enforced by pipeline stage ordering: `deploy` runs after the `lint`, `build`, and `test` stages (with `verify`, the post-deploy smoke test, running last), and a failed
-`lint`, `build`, `unit-tests`, or `integration-tests` job stops the pipeline
-before `deploy` ever runs. `deploy` itself runs **automatically** on `main`
+Enforced by pipeline stage ordering: `lint → build → test → deploy → verify`. A
+failed `lint`, `build`, `unit-tests`, or `integration-tests` job stops the
+pipeline before `deploy` ever runs; `verify` is a post-deploy smoke test
+(`.gitlab/ci/verify.yml`) that curls `/health` and `/ready` *after* `deploy`.
+`deploy` itself runs **automatically** on `main`
 (`.gitlab/ci/deploy.yml`, `rules: if $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH` —
 no manual gate) and ships via `railway up --service agent-forge-api-staging --ci`; see
 `RAILWAY.md` for the deployed target and rollback procedure.
@@ -106,5 +109,6 @@ you ever want them:
 3. Someone else merges to main → this MR's next run tests against the new main
    (auto-triggered on Premium; manual "Run pipeline"/rebase on Free).
 4. MR merges → `main` pipeline runs the full suite again on the merged result.
-5. Main is green → `deploy` becomes a click-to-run manual job. Main is red →
-   deploy is unreachable.
+5. MR merges to main and the pipeline is green → `deploy` runs **automatically**
+   (no manual gate), then `verify` smoke-tests `/health` + `/ready` against the
+   deployed instance. Main is red → the pipeline stops before `deploy` ever runs.

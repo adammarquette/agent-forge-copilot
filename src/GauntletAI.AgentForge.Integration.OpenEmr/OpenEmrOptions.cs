@@ -12,6 +12,12 @@ public sealed class OpenEmrOptions : IValidatableObject
     /// <summary>Configuration section name this type binds to.</summary>
     public const string SectionName = "OpenEmr";
 
+    /// <summary>Default per-attempt FHIR timeout (seconds); see <see cref="FhirAttemptTimeoutSeconds"/>.</summary>
+    public const int DefaultFhirAttemptTimeoutSeconds = 30;
+
+    /// <summary>Default total FHIR request timeout (seconds); see <see cref="FhirTotalRequestTimeoutSeconds"/>.</summary>
+    public const int DefaultFhirTotalRequestTimeoutSeconds = 90;
+
     /// <summary>Base URL of the deployed OpenEMR instance. Must be HTTPS (ENGINEERING_STANDARDS.md §4).</summary>
     [Required(AllowEmptyStrings = false)]
     public required string BaseUrl { get; init; }
@@ -36,9 +42,38 @@ public sealed class OpenEmrOptions : IValidatableObject
     /// </summary>
     public bool AllowInsecureHttpForLocalDevelopment { get; init; }
 
+    /// <summary>
+    /// Per-attempt timeout (seconds) for a single OpenEMR FHIR call. Default 30s: staging OpenEMR
+    /// routinely takes 4-8s per call and the framework's 10s HTTP default trips under the Daily
+    /// Agenda's parallel fan-out, forcing retries/cancellations (reference: gitlab#80). Governs the
+    /// FHIR client's resilience-handler AttemptTimeout.
+    /// </summary>
+    public int FhirAttemptTimeoutSeconds { get; init; } = DefaultFhirAttemptTimeoutSeconds;
+
+    /// <summary>
+    /// Total timeout (seconds) across all retries for one OpenEMR FHIR call. Default 90s. Must be
+    /// strictly greater than a single attempt or the standard resilience handler throws at startup;
+    /// governs TotalRequestTimeout.
+    /// </summary>
+    public int FhirTotalRequestTimeoutSeconds { get; init; } = DefaultFhirTotalRequestTimeoutSeconds;
+
     /// <inheritdoc />
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
+        if (FhirAttemptTimeoutSeconds <= 0)
+        {
+            yield return new ValidationResult(
+                $"{nameof(FhirAttemptTimeoutSeconds)} must be greater than zero.",
+                [nameof(FhirAttemptTimeoutSeconds)]);
+        }
+
+        if (FhirTotalRequestTimeoutSeconds <= FhirAttemptTimeoutSeconds)
+        {
+            yield return new ValidationResult(
+                $"{nameof(FhirTotalRequestTimeoutSeconds)} must be greater than {nameof(FhirAttemptTimeoutSeconds)}.",
+                [nameof(FhirTotalRequestTimeoutSeconds)]);
+        }
+
         if (Scopes is null || Scopes.Count == 0)
         {
             // Scopes is `required`, but that's a compile-time-only guarantee - IConfiguration
