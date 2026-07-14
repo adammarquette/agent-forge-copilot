@@ -77,4 +77,77 @@ public sealed class EvidenceAgentSupervisorTests
         result.ExtractedFactsJson.Should().BeNull();
         result.Answer.Should().Be("verified answer");
     }
+
+    [Fact]
+    public async Task RunAsync_WithLabFacts_HandsLabValuesToCriticAsResolvableCitations()
+    {
+        // Regression (document-upload polish): extracted patient labs must be projected to the
+        // scanner's citation shape (ResourceType "Lab" + Id), so a [Lab/INR] citation in the answer
+        // resolves instead of being suppressed as an uncited clinical value.
+        A.CallTo(() => _extractor.ExtractAsync(
+                A<ClinicalDocumentType>._, A<ReadOnlyMemory<byte>>._, A<string>._, A<CancellationToken>._))
+            .Returns(DocumentExtractionResult.Ok(
+                ClinicalDocumentType.LabPdf,
+                """{"tests":[{"test_name":"INR","value":"3.8","unit":"ratio","reference_range":"2.0 - 3.0","abnormal_flag":true}]}""",
+                new LlmUsage(0, 0, 0m)));
+        var sut = CreateSut();
+        IReadOnlyCollection<string>? toolResults = null;
+        A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._))
+            .Invokes((string _, IReadOnlyCollection<string> tr) => toolResults = tr)
+            .Returns(new VerificationResult(true, "verified answer", [], []));
+        var request = new EvidenceAgentRequest { PatientId = "p1", Question = "Is her INR therapeutic?", Document = LabPdf() };
+
+        await sut.RunAsync(request, CancellationToken.None);
+
+        toolResults.Should().NotBeNull();
+        toolResults!.Any(t => t.Contains("\"ResourceType\":\"Lab\"") && t.Contains("\"Id\":\"INR\"")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RunAsync_MultiWordLabName_ProducesWhitespaceFreeCitationId()
+    {
+        // The attribution regex only accepts [A-Za-z0-9-.] in the citation id, so a multi-word test
+        // name ("LDL Cholesterol") must slugify to a space-free id or its [Lab/...] citation cannot parse.
+        A.CallTo(() => _extractor.ExtractAsync(
+                A<ClinicalDocumentType>._, A<ReadOnlyMemory<byte>>._, A<string>._, A<CancellationToken>._))
+            .Returns(DocumentExtractionResult.Ok(
+                ClinicalDocumentType.LabPdf,
+                """{"tests":[{"test_name":"LDL Cholesterol","value":"145"}]}""",
+                new LlmUsage(0, 0, 0m)));
+        var sut = CreateSut();
+        IReadOnlyCollection<string>? toolResults = null;
+        A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._))
+            .Invokes((string _, IReadOnlyCollection<string> tr) => toolResults = tr)
+            .Returns(new VerificationResult(true, "verified answer", [], []));
+        var request = new EvidenceAgentRequest { PatientId = "p1", Question = "Is the LDL at goal?", Document = LabPdf() };
+
+        await sut.RunAsync(request, CancellationToken.None);
+
+        toolResults!.Any(t => t.Contains("\"Id\":\"LDLCholesterol\"")).Should().BeTrue();
+        // The citation id itself must never carry the space (TestName legitimately keeps the original).
+        toolResults!.Any(t => t.Contains("\"Id\":\"LDL Cholesterol\"")).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RunAsync_WithLabFacts_PresentsLabCitationTokenToComposer()
+    {
+        A.CallTo(() => _extractor.ExtractAsync(
+                A<ClinicalDocumentType>._, A<ReadOnlyMemory<byte>>._, A<string>._, A<CancellationToken>._))
+            .Returns(DocumentExtractionResult.Ok(
+                ClinicalDocumentType.LabPdf,
+                """{"tests":[{"test_name":"INR","value":"3.8","unit":"ratio"}]}""",
+                new LlmUsage(0, 0, 0m)));
+        var sut = CreateSut();
+        LlmRequest? captured = null;
+        A.CallTo(() => _llm.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Invokes((LlmRequest r, CancellationToken _) => captured = r)
+            .Returns(new LlmResponse("draft answer", [], LlmStopReason.EndTurn, new LlmUsage(0, 0, 0m)));
+        var request = new EvidenceAgentRequest { PatientId = "p1", Question = "Is her INR therapeutic?", Document = LabPdf() };
+
+        await sut.RunAsync(request, CancellationToken.None);
+
+        var composerText = string.Concat(captured!.Messages
+            .SelectMany(m => m.Content).OfType<LlmTextContent>().Select(c => c.Text));
+        composerText.Should().Contain("[Lab/INR]");
+    }
 }
