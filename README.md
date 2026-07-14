@@ -196,11 +196,15 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 ## Related repositories
 
 - **OpenEMR fork — [`agent-forge`](https://labs.gauntletai.com/adammarquette/agent-forge)** — the audited EHR
-  base + the thin custom module that iFrame-launches this sidecar. The two repos are **highly coupled and
-  sometimes need coordinated deploys**: this sidecar is a first-class dependency of `agent-forge`, not merely a
-  system it happens to integrate with over a published interface — the fork's own module/shim (embedding the
-  chat SPA, `ARCHITECTURE.md` §9's request flow) depends on this sidecar being deployed and working, so a
-  sidecar-side change or outage can break `agent-forge` itself. Everything still crosses the boundary only
+  base + the thin custom module (`oe-module-agentforge`) that originates the SMART EHR launch of this sidecar.
+  The module adds two in-EHR entry points — an **AgentForge launch button** on the patient demographics page
+  and a top-nav **Daily Agenda** tab — and on click performs a SMART EHR launch of the sidecar, opening it as
+  a **top-level browser tab** by default (or, when the sidecar is served same-site, a modal iframe —
+  configurable in Manage Modules — see `ARCHITECTURE.md` §16 D16). It does **not** embed the chat SPA; the SPA
+  is hosted by this sidecar's BFF.
+  The coupling is **one-directional**: the copilot depends on OpenEMR (FHIR/OAuth/SMART), but OpenEMR does not
+  depend on the sidecar — if the sidecar is down or misconfigured, only the launch fails; OpenEMR keeps running
+  normally, and disabling the module removes the entry points entirely. Everything crosses the boundary only
   through published FHIR/OAuth/SMART interfaces (no direct DB access, no shared code) — but when diagnosing a
   fork-specific quirk (auth flow, FHIR shape, scope handling), it's often faster to read the fork's actual PHP
   source (`src/RestControllers/AuthorizationController.php`, `SMARTAuthorizationController.php`,
