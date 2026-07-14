@@ -58,8 +58,11 @@ Use discovery to resolve the concrete authorize/token/introspection/registration
 ### A.3 Flow (v1 — interactive)
 1. **Register** the sidecar as an OAuth client via `POST /oauth2/{site}/registration` (dynamic client
    registration) — capture `client_id` (+ secret/JWKS as applicable).
-2. **SMART EHR launch:** the OpenEMR custom module launches the sidecar with a `launch` token + `iss`; the
-   sidecar runs the **authorization-code flow (with PKCE)** against `/authorize` → `/token`.
+2. **SMART EHR launch:** the OpenEMR custom module (`oe-module-agentforge`) launches the sidecar with a
+   `launch` token + `iss` from one of two in-EHR entry points — the patient-chart **Launch AgentForge** button
+   or the **Daily Agenda** nav tab. The sidecar opens as a top-level browser tab (default) or a modal iframe
+   (same-site option; see `ARCHITECTURE.md` §16 D16) and runs the **authorization-code flow (with PKCE)**
+   against `/authorize` → `/token`.
 3. **Token response:** a **Bearer** `access_token` (+ optional `refresh_token`) whose claims encode the
    authenticated user, granted scopes, and **launch patient context**.
 4. **Validate** tokens via `POST /introspect`; hold them **server-side in the BFF** (never in the browser).
@@ -76,7 +79,7 @@ sequenceDiagram
     Auth-->>BFF: client_id (+ secret / JWKS)
 
     Note over MD,Auth: Per-launch — SMART EHR launch
-    MD->>Mod: Open patient panel
+    MD->>Mod: Click Launch AgentForge (chart button / Daily Agenda tab)
     Mod->>BFF: launch token + iss
     BFF->>Auth: GET /authorize (auth-code + PKCE)
     Auth-->>BFF: authorization code

@@ -4,7 +4,7 @@
 inspectable multi-agent graph* to the Week 1 read-only conversational agent.
 **Repos:** `agent-forge` (OpenEMR v8 fork) · `agent-forge-copilot` (.NET 10 sidecar — this repo).
 **Traces to:** Week 2 Project Requirements (Multimodal Evidence Agent) · GitLab saga **#71**.
-**Builds on:** `ARCHITECTURE.md` (Week 1 decisions D1–D15) · `ENGINEERING_STANDARDS.md` (stack) ·
+**Builds on:** `ARCHITECTURE.md` (Week 1 decisions D1–D16) · `ENGINEERING_STANDARDS.md` (stack) ·
 `INTERFACE_CONTROL.md` (external interfaces) · `PRD.md` / `USERS.md` (the user + FR/NFR IDs).
 **Status:** v0.1 draft — Architecture Defense deliverable. Items marked **[CONFIRM]** await fork recon
 (document-write scope + controller contract) or an implementation choice not yet pinned.
