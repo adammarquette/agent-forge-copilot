@@ -75,9 +75,13 @@ deploy:
     - railway variable set "OpenEmrAgenda__ClientSecret=$OpenEmrAgenda__ClientSecret" --service agent-forge-api-staging
     # Scopes as contiguous 0-based lists (a gap would truncate the bound array at the first missing
     # index). Patient launch (single-patient) then roster/agenda.
+    # api:oemr grants the standard REST API for the E2 document write-back (POST /api/patient/:pid/document).
+    # Requesting it here is necessary but NOT sufficient: the OAuth client must ALSO be registered with
+    # api:oemr (finalizeScopes silently drops unregistered scopes) and the acting front-office user needs the
+    # patients:docs write ACL - both OpenEMR-side. reference: gitlab#81, documentation/RAILWAY.md
     - |
       i=0
-      for s in openid fhirUser launch launch/patient api:fhir patient/Patient.read patient/Encounter.read patient/Observation.read patient/DocumentReference.read patient/Condition.read patient/AllergyIntolerance.read patient/MedicationRequest.read patient/Procedure.read patient/DiagnosticReport.read; do
+      for s in openid fhirUser launch launch/patient api:fhir api:oemr patient/Patient.read patient/Encounter.read patient/Observation.read patient/DocumentReference.read patient/Condition.read patient/AllergyIntolerance.read patient/MedicationRequest.read patient/Procedure.read patient/DiagnosticReport.read; do
         railway variable set "OpenEmr__Scopes__$i=$s" --service agent-forge-api-staging
         i=$((i+1))
       done
