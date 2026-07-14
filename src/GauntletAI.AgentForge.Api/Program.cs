@@ -315,6 +315,10 @@ builder.Services.AddSession(options =>
 
 builder.Services.AddSignalR();
 
+// OpenAPI document for the HTTP surface (INTERFACE_CONTROL.md §D, gitlab#54). Registration is
+// harmless in every environment; the document is only *served* in non-prod (see MapOpenApi below).
+builder.Services.AddOpenApi();
+
 var app = builder.Build();
 
 if (weekTwoEnabled)
@@ -336,6 +340,13 @@ if (bffPathBase.Length > 0)
         ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
     });
     app.UsePathBase(bffPathBase);
+}
+
+// Serve the OpenAPI document at /openapi/v1.json in non-prod only: the spec carries real endpoint
+// and config detail, and ENGINEERING_STANDARDS.md §6 forbids unauthenticated doc exposure in prod.
+if (!app.Environment.IsProduction())
+{
+    app.MapOpenApi();
 }
 
 app.UseSession();
