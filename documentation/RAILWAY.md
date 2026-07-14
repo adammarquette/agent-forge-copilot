@@ -176,7 +176,12 @@ Full root-cause chain and follow-ups: agent-forge-copilot#67. UI workstream: #68
 
 ## CI / deployment flow
 
-Pipeline: lint → build → test (unit + integration) → deploy → verify (post-deploy smoke test).
+Pipeline: lint → build → test (unit) → deploy → verify (post-deploy `/health`+`/ready`
+smoke test **and** the integration suite). Integration tests run **post-deploy**, not as a
+deploy gate (#70): they drive a live browser login against the external QA OpenEMR, so a
+transient OpenEMR outage must not veto a sidecar deploy. The job waits for OpenEMR to be
+healthy (a FHIR-metadata preflight) and skips with a distinct "dependency unavailable"
+signal if it never comes up, rather than failing the whole suite on login timeouts.
 
 - **Integration tests** run the BFF **in-process** on the GitLab runner and
   talk to the staging OpenEMR over FHIR/OAuth. They need these GitLab CI
