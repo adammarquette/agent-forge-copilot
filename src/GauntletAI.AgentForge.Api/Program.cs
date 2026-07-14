@@ -301,14 +301,12 @@ builder.Services.AddSession(options =>
     }
     else
     {
-        // Root-hosted (today's production state): the chat SPA runs inside a cross-origin iframe
-        // embedded by the OpenEMR module shim (ARCHITECTURE.md §9's request flow), so from the
-        // browser's perspective every request this session cookie needs to ride along with is
-        // "cross-site" (the top-level document is OpenEMR's origin, not this sidecar's).
-        // SameSite=Lax/Strict would silently stop sending the cookie the moment that's true -
-        // None+Secure is required here, not a hardening choice to relax. Known gap: browsers with
-        // strict third-party-cookie blocking (e.g. Safari ITP) may still block this outright -
-        // the reverse-proxy path above is the actual fix, not a Storage Access API workaround.
+        // Root-hosted fallback (no reverse-proxy PathBase). Since the top-level-launch decision, the
+        // OpenEMR module opens the sidecar as a top-level tab (window.open), not a cross-origin iframe,
+        // so this session cookie is first-party to the sidecar's own origin and SameSite=Lax would
+        // suffice - None here is now temporary permissiveness, not a requirement. Kept at None until the
+        // None->Lax tightening lands; the same-origin reverse-proxy path above (Lax) is the end state.
+        // reference: gitlab#63 (None->Lax tightening), agent-forge#21 (top-level launch), agent-forge#22 (reverse proxy)
         options.Cookie.SameSite = SameSiteMode.None;
     }
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
