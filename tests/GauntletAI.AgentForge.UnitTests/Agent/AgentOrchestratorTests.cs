@@ -485,4 +485,103 @@ public sealed class AgentOrchestratorTests
 
         A.CallTo(() => _metrics.RecordVerificationResult(false)).MustHaveHappenedOnceExactly();
     }
+
+    // --- PRD.md §13.1 "unexpected / unparseable model output": reject -> one repair -> else fallback (#23) ---
+
+    [Fact]
+    public async Task StartBriefAsync_LlmReturnsEmptyFinalAnswer_RepairsOnceAndReturnsTheRepairedAnswer()
+    {
+        // The model finished (EndTurn, not a tool call) but produced no text at all - it doesn't
+        // meet the final-answer contract, so it's rejected and one repair re-prompt is issued.
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .ReturnsNextFromSequence(
+                new LlmResponse(string.Empty, [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m)),
+                new LlmResponse("Recovered brief. [Observation/1]", [], LlmStopReason.EndTurn, new LlmUsage(2, 2, 0m)));
+
+        var result = await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        result.Answer.Should().Be("Recovered brief. [Observation/1]");
+        result.IsDeterministicFallback.Should().BeFalse();
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._)).MustHaveHappenedTwiceExactly();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_LlmReturnsTruncatedOutput_RejectsItAndRepairs()
+    {
+        // A MaxTokens stop means the answer was cut off mid-thought - unusable/untrustworthy for a
+        // clinical brief (it may end mid-fact or mid-citation), so it's rejected and repaired
+        // rather than shipped truncated.
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .ReturnsNextFromSequence(
+                new LlmResponse("Her INR is 2.3 and her potassium is", [], LlmStopReason.MaxTokens, new LlmUsage(1, 1, 0m)),
+                new LlmResponse("Complete brief. [Observation/1]", [], LlmStopReason.EndTurn, new LlmUsage(2, 2, 0m)));
+
+        var result = await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        result.Answer.Should().Be("Complete brief. [Observation/1]");
+        result.IsDeterministicFallback.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_MalformedOutputPersistsAfterOneRepair_DegradesToDeterministicFallback()
+    {
+        // reject -> one repair -> still malformed -> deterministic fallback. The repair is bounded
+        // to exactly one attempt (two LLM calls total, not an unbounded retry loop).
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmResponse(string.Empty, [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m))));
+
+        var result = await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        result.IsDeterministicFallback.Should().BeTrue();
+        result.Answer.Should().NotBeNullOrEmpty("silence is never an acceptable failure mode - PRD.md §13.1");
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._)).MustHaveHappenedTwiceExactly();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_MalformedOutput_NeverRunsTheMalformedDraftThroughTheVerifier()
+    {
+        // The malformed-output gate sits upstream of FR-VERIF-0: an empty/truncated draft is
+        // rejected before the verifier (a citation gate for real prose, not a structural validator)
+        // ever sees it, so only the repaired answer reaches verification.
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .ReturnsNextFromSequence(
+                new LlmResponse(string.Empty, [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m)),
+                new LlmResponse("Recovered. [Observation/1]", [], LlmStopReason.EndTurn, new LlmUsage(2, 2, 0m)));
+
+        await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        A.CallTo(() => _verifier.Verify(string.Empty, A<IReadOnlyCollection<string>>._)).MustNotHaveHappened();
+        A.CallTo(() => _verifier.Verify("Recovered. [Observation/1]", A<IReadOnlyCollection<string>>._)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_MalformedOutput_RepairPromptRePromptsTheModelToRetry()
+    {
+        // The repair must actually re-prompt (append a corrective user instruction), not silently
+        // re-call with identical context.
+        var requests = new List<LlmRequest>();
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Invokes((LlmRequest req, CancellationToken _) => requests.Add(req))
+            .ReturnsNextFromSequence(
+                new LlmResponse(string.Empty, [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m)),
+                new LlmResponse("Recovered. [Observation/1]", [], LlmStopReason.EndTurn, new LlmUsage(2, 2, 0m)));
+
+        await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        var lastMessage = requests[1].Messages[^1];
+        lastMessage.Role.Should().Be(LlmRole.User);
+        ((LlmTextContent)lastMessage.Content[0]).Text.Should().Contain("complete");
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_WellFormedFinalAnswer_MakesNoRepairAttempt()
+    {
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmResponse("Clean brief. [Observation/1]", [], LlmStopReason.EndTurn, new LlmUsage(1, 1, 0m))));
+
+        var result = await _sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        result.Answer.Should().Be("Clean brief. [Observation/1]");
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+    }
 }
