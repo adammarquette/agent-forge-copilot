@@ -10,4 +10,10 @@
     <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Documents\GauntletAI.AgentForge.Documents.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The EvalTests project reuses these internal eval building blocks (GoldenCase, RubricEvaluator,
+         Stub/CapturingLogger) so the fast xUnit tests share this gate's exact pipeline. -->
+    <InternalsVisibleTo Include="GauntletAI.AgentForge.EvalTests" />
+  </ItemGroup>
+
 </Project>

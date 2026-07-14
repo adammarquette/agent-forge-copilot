@@ -13,6 +13,7 @@
     <Project Path="src/GauntletAI.AgentForge.Verification/GauntletAI.AgentForge.Verification.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/GauntletAI.AgentForge.EvalTests/GauntletAI.AgentForge.EvalTests.csproj" />
     <Project Path="tests/GauntletAI.AgentForge.Evals/GauntletAI.AgentForge.Evals.csproj" />
     <Project Path="tests/GauntletAI.AgentForge.IntegrationTests/GauntletAI.AgentForge.IntegrationTests.csproj" />
     <Project Path="tests/GauntletAI.AgentForge.UnitTests/GauntletAI.AgentForge.UnitTests.csproj" />

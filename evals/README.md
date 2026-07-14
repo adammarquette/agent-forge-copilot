@@ -16,12 +16,22 @@ Extraction rubrics are checked **deterministically** (schema deserialization, su
 no LLM judge, so the gate cannot drift. `factually_consistent` / `safe_refusal` gain an LLM judge for the
 answer-composition cases once P2 (RAG + graph) lands; the judge config will live here.
 
+## Two tiers (both run in CI)
+1. **Console gate** — `tests/GauntletAI.AgentForge.Evals` (this project). Runs *all* rubrics and enforces the
+   `baseline.json` regression policy; it is also where the future LLM-judge rubrics attach. CI job: `evals`.
+2. **Deterministic xUnit tests** — `tests/GauntletAI.AgentForge.EvalTests`. Runs the mechanically-checked
+   rubrics (`schema_valid`, `citation_present`, `no_phi_in_logs`) as a data-driven `[Theory]`, one result per
+   golden case, in the standard `dotnet test` flow. Never calls a judge, so it stays hermetic. CI job:
+   `eval-tests`. Both projects share one extraction pipeline (the xUnit tests reuse this project's internals),
+   so they cannot drift apart.
+
 ## Running
 ```
-dotnet run --project tests/GauntletAI.AgentForge.Evals -- evals
+dotnet run --project tests/GauntletAI.AgentForge.Evals -- evals   # console gate (all rubrics + baseline)
+dotnet test tests/GauntletAI.AgentForge.EvalTests                 # deterministic rubrics, per-case
 ```
-Exit code 0 = gate passed; 1 = a category is below `pass_threshold` or regressed more than `max_regression`
-from its baseline (the build fails). Wired into CI as the `evals` job.
+Console-gate exit code 0 = gate passed; 1 = a category is below `pass_threshold` or regressed more than
+`max_regression` from its baseline (the build fails). Wired into CI as the `evals` job.
 
 ## Coverage
 Seeded with the extraction slice (P1): valid lab/intake, schema-gate rejections, non-JSON refusal, and
