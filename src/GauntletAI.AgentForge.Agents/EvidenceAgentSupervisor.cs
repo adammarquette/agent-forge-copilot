@@ -100,7 +100,7 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
         var facts = factsJson ?? "(no document facts on file)";
         var evidenceText = evidence.Count == 0
             ? "(no guideline evidence found)"
-            : string.Join("\n", evidence.Select((e, i) => $"[E{i + 1}] {e.DocumentId} - {e.Section} ({e.ChunkId}): {e.Text}"));
+            : string.Join("\n", evidence.Select(e => $"[Guideline/{e.ChunkId}] {e.DocumentId} - {e.Section}: {e.Text}"));
 
         var userContent = $"Question: {question}\n\nPatient facts (JSON):\n{facts}\n\nGuideline evidence:\n{evidenceText}";
 
@@ -123,7 +123,12 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
 
         if (evidence.Count > 0)
         {
-            results.Add(JsonSerializer.Serialize(evidence.ToArray(), AgentsJsonContext.Default.EvidenceSnippetArray));
+            // Project to the citation shape the Week 1 attribution scanner recognizes (ResourceType + Id),
+            // so [Guideline/<chunkId>] citations in the answer resolve instead of being suppressed.
+            var records = evidence
+                .Select(e => new EvidenceToolResult("Guideline", e.ChunkId, e.Section, e.Text))
+                .ToArray();
+            results.Add(JsonSerializer.Serialize(records, AgentsJsonContext.Default.EvidenceToolResultArray));
         }
 
         return results;
