@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace GauntletAI.AgentForge.Data;
 
 /// <summary>
@@ -8,5 +10,5 @@ namespace GauntletAI.AgentForge.Data;
 public static class ContentHash
 {
     /// <summary>SHA-256 of the content as lowercase hex. Same bytes → same key; any change → a different key.</summary>
-    public static string Compute(ReadOnlySpan<byte> content) => throw new NotImplementedException();
+    public static string Compute(ReadOnlySpan<byte> content) => Convert.ToHexStringLower(SHA256.HashData(content));
 }
