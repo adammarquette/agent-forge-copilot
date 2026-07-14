@@ -15,6 +15,11 @@ using GauntletAI.AgentForge.Llm.Anthropic;
 using GauntletAI.AgentForge.Mcp;
 using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
+using GauntletAI.AgentForge.Agents;
+using GauntletAI.AgentForge.Api.Evidence;
+using GauntletAI.AgentForge.Data;
+using GauntletAI.AgentForge.Documents;
+using GauntletAI.AgentForge.Retrieval;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -142,6 +147,20 @@ builder.Services.AddSingleton<IClinicalResponseVerifier, ClinicalResponseVerifie
 
 builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 
+// Week 2 (Multimodal Evidence Agent, W2_ARCHITECTURE.md) - additive and OPTIONAL: only wired when a
+// database connection string is configured, so the host still boots for the Week 1 flows / tests without
+// a database (matching the AgendaOptions "optional feature" precedent above, and the smoke-test rule that
+// the app must boot with whatever config an environment actually sets).
+var weekTwoEnabled = !string.IsNullOrWhiteSpace(
+    builder.Configuration.GetSection("AgentForgeData")["ConnectionString"]);
+if (weekTwoEnabled)
+{
+    builder.Services.AddAgentForgeData(builder.Configuration);
+    builder.Services.AddAgentForgeDocuments();
+    builder.Services.AddAgentForgeRetrieval();
+    builder.Services.AddAgentForgeEvidenceAgent();
+}
+
 builder.Services.AddScoped<SmartLaunchService>();
 builder.Services.AddScoped<AgendaLaunchService>();
 builder.Services.AddScoped<ChatSessionCoordinator>();
@@ -254,6 +273,15 @@ builder.Services.AddSignalR();
 
 var app = builder.Build();
 
+if (weekTwoEnabled)
+{
+    // Deploy-time schema management (W2-D14): apply migrations and seed the guideline corpus once at
+    // startup, before serving traffic. Guarded above so environments without a database still boot.
+    await app.Services.MigrateAgentForgeDataAsync();
+    await using var seedScope = app.Services.CreateAsyncScope();
+    await seedScope.ServiceProvider.GetRequiredService<GuidelineCorpusSeeder>().SeedAsync(CancellationToken.None);
+}
+
 if (bffPathBase.Length > 0)
 {
     // Must run before UseSession/UseStaticFiles/routing - nginx (agent-forge#22) terminates TLS
@@ -274,6 +302,11 @@ app.MapLaunchEndpoints();
 app.MapAgendaLaunchEndpoints();
 app.MapAgendaEndpoints();
 app.MapPatientEndpoints();
+if (weekTwoEnabled)
+{
+    app.MapEvidenceEndpoints();
+}
+
 app.MapHub<ChatHub>("/hubs/chat");
 
 // /health: liveness only (the process is up and serving) - no dependency checks, so it can't flap

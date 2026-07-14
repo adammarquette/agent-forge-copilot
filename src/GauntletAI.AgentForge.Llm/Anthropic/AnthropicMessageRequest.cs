@@ -34,7 +34,14 @@ public sealed record AnthropicRequestContentBlock(
     [property: JsonPropertyName("input"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] JsonNode? Input = null,
     [property: JsonPropertyName("tool_use_id"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ToolUseId = null,
     [property: JsonPropertyName("content"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ToolResultContent = null,
-    [property: JsonPropertyName("is_error"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? IsError = null);
+    [property: JsonPropertyName("is_error"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? IsError = null,
+    [property: JsonPropertyName("source"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AnthropicContentSource? Source = null);
+
+/// <summary>Base64 binary source for an <c>image</c> or <c>document</c> content block.</summary>
+public sealed record AnthropicContentSource(
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("media_type")] string MediaType,
+    [property: JsonPropertyName("data")] string Data);
 
 /// <summary>One tool definition in Anthropic wire format.</summary>
 public sealed record AnthropicToolDefinition(

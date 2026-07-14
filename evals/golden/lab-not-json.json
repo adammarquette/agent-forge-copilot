@@ -1,0 +1,9 @@
+{
+  "id": "lab-not-json",
+  "category": "extraction",
+  "doc_type": "lab_pdf",
+  "media_type": "application/pdf",
+  "stub_model_response": "I'm sorry, I could not read this document.",
+  "expect_success": false,
+  "rubrics": ["schema_valid", "safe_refusal", "no_phi_in_logs"]
+}

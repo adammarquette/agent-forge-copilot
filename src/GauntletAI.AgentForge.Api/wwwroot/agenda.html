@@ -47,6 +47,8 @@
     .spinner { width: 34px; height: 34px; border: 3px solid var(--border); border-top-color: var(--accent);
       border-radius: 50%; margin: 0 auto; animation: spin .8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .banner { background: var(--flag-bg); color: var(--flag-text); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 14px; font-weight: 600; }
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -56,6 +58,10 @@
       <h1>Daily Agenda</h1>
       <span class="asof" id="asof"></span>
     </header>
+
+    <div id="drill-warning" class="banner" hidden>
+      Couldn’t open the patient view. Please reload the Daily Agenda and try again.
+    </div>
 
     <div id="loading" class="state">
       <div class="spinner" aria-hidden="true"></div>
@@ -96,16 +102,30 @@
         try { return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
         catch (e) { return ''; }
       }
-      function selectPatient(patientId) {
+      function selectPatient(patientId, displayName) {
         // Drill into one patient via a PATIENT-scoped launch through OpenEMR, not by reusing the
         // roster's user-scoped token: the per-patient brief reads Encounter/DiagnosticReport/
         // DocumentReference, which OpenEMR forbids (403) under a user scope but allows under a
-        // patient-bound token (gitlab#76). Top-level navigation (not fetch/iframe) so the
-        // SameSite=Lax EHR-launch bridge cookie rides along. Root-relative /interface/... hits
-        // OpenEMR through the same-origin reverse-proxy front door.
-        window.location.assign(
-          '/interface/modules/custom_modules/oe-module-agentforge/public/agenda-drilldown-launch.php?patient='
-          + encodeURIComponent(patientId));
+        // patient-bound token (gitlab#76). Root-relative /interface/... hits OpenEMR through the
+        // same-origin reverse-proxy front door.
+        var url = '/interface/modules/custom_modules/oe-module-agentforge/public/agenda-drilldown-launch.php?patient='
+          + encodeURIComponent(patientId);
+        el('drill-warning').hidden = true;
+        // Open the patient in OpenEMR's own modal (dlgopen), same as the per-patient chart button -
+        // the agenda stays behind the modal and is there when it's dismissed (gitlab#37). This page
+        // runs in OpenEMR's tab iframe, same-origin via the reverse-proxy front door, so it reaches
+        // the top frame's dlgopen (library/dialog.js, loaded by interface/main/tabs/main.php).
+        // Same-origin also lets the SMART re-launch complete inside the modal iframe without the
+        // SameSite bridge-cookie dance (documentation/agent-forge/IFRAME_REVERT.md).
+        var title = displayName ? ('AgentForge — ' + displayName) : 'AgentForge';
+        try {
+          var top = window.top;
+          if (top && typeof top.dlgopen === 'function') {
+            top.dlgopen(url, 'agentforge-launch', 'modal-full', top.innerHeight, '', title, { allowExternal: true });
+            return;
+          }
+        } catch (e) { /* cross-origin/unavailable top frame - fall through to the notice below */ }
+        el('drill-warning').hidden = false;
       }
       function render(data) {
         var rows = (data && data.rows) || [];
@@ -139,7 +159,7 @@
             });
             btn.appendChild(flags);
           }
-          btn.addEventListener('click', function () { selectPatient(r.patientId); });
+          btn.addEventListener('click', function () { selectPatient(r.patientId, r.displayName); });
           container.appendChild(btn);
         });
         show('rows');

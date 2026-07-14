@@ -1,0 +1,9 @@
+{
+  "id": "intake-empty-lists",
+  "category": "extraction",
+  "doc_type": "intake_form",
+  "media_type": "application/pdf",
+  "stub_model_response": "{\"demographics\":{\"full_name\":null,\"date_of_birth\":null,\"sex\":null},\"chief_concern\":null,\"current_medications\":[],\"allergies\":[],\"family_history\":[],\"citation\":{\"page\":1,\"quote\":\"blank intake form\",\"bounding_box\":null}}",
+  "expect_success": true,
+  "rubrics": ["schema_valid", "citation_present", "no_phi_in_logs"]
+}

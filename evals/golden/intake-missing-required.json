@@ -1,0 +1,9 @@
+{
+  "id": "intake-missing-required",
+  "category": "extraction",
+  "doc_type": "intake_form",
+  "media_type": "application/pdf",
+  "stub_model_response": "{\"demographics\":{\"full_name\":\"John Doe\",\"date_of_birth\":null,\"sex\":\"M\"},\"chief_concern\":\"chest pain\",\"allergies\":[],\"family_history\":[]}",
+  "expect_success": false,
+  "rubrics": ["schema_valid", "safe_refusal", "no_phi_in_logs"]
+}
