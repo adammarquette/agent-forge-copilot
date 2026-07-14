@@ -11,8 +11,18 @@ namespace GauntletAI.AgentForge.Agents;
 internal sealed record EvidenceToolResult(string ResourceType, string Id, string Section, string Text);
 
 /// <summary>
-/// Source-generated JSON for handing evidence to the critic as tool results (ENGINEERING_STANDARDS.md §3).
-/// Default (PascalCase) naming so the <c>ResourceType</c>/<c>Id</c> keys match the scanner exactly.
+/// Citation-shaped projection of an extracted patient lab value handed to the critic. Same mechanism as
+/// <see cref="EvidenceToolResult"/> (ResourceType "Lab", Id a whitespace-free slug of the test name), so the
+/// composer can cite <c>[Lab/&lt;slug&gt;]</c> for a patient-specific value and have it resolve rather than be
+/// suppressed as an uncited clinical claim.
+/// </summary>
+internal sealed record LabToolResult(string ResourceType, string Id, string TestName, string Value);
+
+/// <summary>
+/// Source-generated JSON for handing evidence and extracted labs to the critic as tool results
+/// (ENGINEERING_STANDARDS.md §3). Default (PascalCase) naming so the <c>ResourceType</c>/<c>Id</c> keys match
+/// the scanner exactly.
 /// </summary>
 [JsonSerializable(typeof(EvidenceToolResult[]))]
+[JsonSerializable(typeof(LabToolResult[]))]
 internal sealed partial class AgentsJsonContext : JsonSerializerContext;
