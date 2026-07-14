@@ -73,9 +73,14 @@ public sealed class McpToolServer(
             request.Site, request.PatientId, "vital-signs", request.SinceDate, cancellationToken)
             .ConfigureAwait(false);
 
-        McpToolServerLog.ResultCountCompleted(logger, toolName, correlationIdAccessor.CorrelationId, vitals.Count);
+        // Drop null-valued placeholder observations (BP panel parent, BMI, head circumference, ...): the
+        // mapper only reads valueQuantity, so a null Value means no numeric value at all - nothing the
+        // composer or the verification rules can use, just prompt bloat and token cost (reference: gitlab#78).
+        var valued = vitals.Where(v => v.Value is not null).ToList();
 
-        return new VitalsResult(vitals);
+        McpToolServerLog.ResultCountCompleted(logger, toolName, correlationIdAccessor.CorrelationId, valued.Count);
+
+        return new VitalsResult(valued);
     }
 
     /// <inheritdoc />
