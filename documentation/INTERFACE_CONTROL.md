@@ -1,8 +1,9 @@
 # INTERFACE CONTROL — External Interfaces (OpenEMR)
 
 **Interface Control Document (ICD)** for the AgentForge Clinical Co-Pilot sidecar.
-**Scope (this version):** the **OpenEMR** integration only. The sidecar-exposed interfaces (SignalR hub,
-`/health`+`/ready`, MCP tool schemas) and the LLM provider interface are deferred to a later revision.
+**Scope (this version):** the **OpenEMR** integration (Interfaces A–C) **and** the sidecar-exposed interfaces
+(Interface D: HTTP surface + OpenAPI, the SignalR chat hub, `/health`+`/ready`, and the MCP tool schemas). The
+LLM provider interface is the only one still deferred to a later revision.
 **Companion docs:** `ARCHITECTURE.md`, `ENGINEERING_STANDARDS.md`, `PRD.md`.
 **Status:** v0.1 — audit-informed against the fork. `[CONFIRM]` marks items to re-verify on the running stack.
 
@@ -19,6 +20,7 @@
 | A | Authorization & launch | sidecar → OpenEMR | HTTPS | OAuth2 + OIDC + SMART-on-FHIR v2 |
 | B | FHIR R4 Data API | sidecar → OpenEMR | HTTPS (`application/fhir+json`) | HL7 FHIR R4 / US Core |
 | C | Audit boundary | OpenEMR (internal) | — | `EventAuditLogger` (property, not a called API) |
+| D | Sidecar-exposed surface (BFF) | browser/orchestrator → sidecar | HTTPS / WebSocket | HTTP + OpenAPI 3.1, SignalR, MCP tool contracts |
 
 **Common properties**
 - **Base host:** the deployed OpenEMR instance (per-environment; see `ARCHITECTURE.md` §13).
@@ -207,6 +209,88 @@ Not an API the sidecar calls, but a **contract property** worth stating: OpenEMR
 server-side via `EventAuditLogger` (with break-glass support). Combined with the clinician-identity token
 model, this yields a **per-user, EHR-side audit trail** of exactly what the copilot accessed — independent of
 the sidecar's own provenance logging. Both trails carry the correlation ID (FR-AUTH-4 / FR-OBS-1).
+
+---
+
+## Interface D — Sidecar-Exposed Surface (BFF)
+
+Confirmed in this repo: `GauntletAI.AgentForge.Api` (`Program.cs`, `Launch/`, `Agenda/`, `Patient/`, `Chat/`,
+`Health/`) and `GauntletAI.AgentForge.Mcp` / `GauntletAI.AgentForge.Agent/McpToolCatalog.cs`.
+
+**Common properties**
+- **Base path:** every route below is served under the reverse-proxy `PathBase` (`/agentforge`) when
+  `Bff:PathBase` is set (staging/prod behind the nginx front door), or at the root when unset (`ARCHITECTURE.md`
+  §16 D16). Examples show the un-prefixed path.
+- **Auth:** the browser-facing endpoints and the hub carry **no bearer token**; identity is the server-side
+  session established by the SMART launch (D11). The token is held in the BFF and never sent to the browser.
+- **Session cookie:** `SameSite=Lax` behind the proxy, `None` in the root-hosted fallback (`Program.cs`; #63).
+
+### D.1 HTTP endpoints + OpenAPI
+
+| Method | Path | Purpose | Success | Error |
+|---|---|---|---|---|
+| GET | `/launch` | Begin the per-patient SMART EHR launch (`iss`, `launch` query) | 302 → OpenEMR `/authorize` | — |
+| GET | `/callback` | OAuth redirect back (`code`, `state`) | 302 → chat SPA | 400 (no pending launch / launch failure) |
+| GET | `/agenda/launch` | Begin the Daily Agenda (roster) SMART launch | 302 → OpenEMR `/authorize` | — |
+| GET | `/agenda/callback` | Agenda OAuth redirect back (`code`, `state`) | 302 → agenda SPA | 400 |
+| GET | `/agenda` | Roster payload `{ rows[], asOf }` for the launched clinician | 200 (JSON) | 401 (no agenda session) |
+| POST | `/agenda/select-patient` | Drill-down: scope a roster row to a patient | 200 | 401 |
+| GET | `/patient` | Launched patient's context (id, name, demographics, problems, meds, allergies) | 200 (JSON) | 401 (no session) |
+| POST | `/evidence/ask` | Week-2 multimodal evidence agent (**only mapped when the data tier is configured**) | 200 | — |
+| GET | `/health` | Liveness — process is up; **no** dependency checks (can't flap on a transient blip) | 200 | — |
+| GET | `/ready` | Readiness — OpenEMR + LLM + observability checks (NFR-HEALTH-1) | 200 | 503 (a dependency unreachable) |
+| GET | `/metrics` | Prometheus scrape (Epic 9) | 200 (text) | — |
+| GET | `/openapi/v1.json` | OpenAPI 3.1 document for this surface | 200 (JSON) | **404 in Production** |
+
+**OpenAPI generation** is wired via `Microsoft.AspNetCore.OpenApi` (`AddOpenApi()` + `MapOpenApi()`). The
+document is **served only in non-Production** — `Program.cs` guards `MapOpenApi()` with
+`!Environment.IsProduction()`, because the spec carries real endpoint/config detail and
+`ENGINEERING_STANDARDS.md` §6 forbids unauthenticated doc exposure in prod (verified: 200 in Development, 404
+in Production).
+
+### D.2 SignalR chat hub — `/hubs/chat`
+
+WebSocket (long-polling fallback). Not REST/OpenAPI-shaped, so its contract lives here, not in the OpenAPI
+document. Auth is the session only; every method throws `HubException` if the connection has no authenticated
+patient session (complete the SMART launch first).
+
+**Client → server**
+
+| Method | Args | Returns | Purpose |
+|---|---|---|---|
+| `RequestBrief` | — | — (messages arrive via the `ChatMessage` event) | Start the pre-visit brief (UC-1) |
+| `AskFollowUp` | `question: string` | — (via `ChatMessage`) | Follow-up within the session (UC-2) |
+| `Resume` | `lastSeenSequence: long` | `ChatMessage[]` | Replay everything after the last seen sequence — **idempotent** across reconnects (ENGINEERING_STANDARDS.md §12) |
+
+**Server → client**
+
+| Event | Payload | Notes |
+|---|---|---|
+| `ChatMessage` | `{ sequence: long, kind: string, payloadJson: string }` | `sequence` strictly increasing and never reused (drives `Resume`); `kind` discriminates the body (`"brief"`, `"answer"`); `payloadJson` is the already-serialized message body. |
+
+### D.3 MCP tool catalog
+
+Six read-only, patient-scoped tools (`ARCHITECTURE.md` §8.1, D2). Every tool **validates its input contract
+first** (`McpToolContract.Validate`, NFR-CONTRACT-1). **`patientId` and `site` are never tool arguments** —
+they are session-bound, resolved by the orchestrator from the authenticated launch context and forced by the
+dispatcher regardless of any model-supplied value (the schema-level + dispatch-level halves of FR-CHAT-3).
+
+| Tool | Request args | Result |
+|---|---|---|
+| `get_patient_summary` | *(none)* | `{ patient, activeProblems[], activeMedications[], allergies[] }` |
+| `get_interval_changes` | `since_date` (FHIR date-prefixed, e.g. `ge2026-01-01`; **required**) | `{ medicationChanges[], newLabs[], intervalEncounters[] }` |
+| `get_labs` | `since_date` (optional) | `{ labs[] }` — `ObservationRecord` (value, unit, reference range, date) |
+| `get_vitals` | `since_date` (optional) | `{ vitals[] }` — `ObservationRecord`; **null-valued placeholder observations are dropped** (#78) |
+| `get_recent_encounters` | `count` (int 1–20, default 3) | `{ encounters[] }` — thin list (date, type, reason) |
+| `get_documents` | `document_type` (case-insensitive substring, optional) | `{ documents[] }` — DiagnosticReport + DocumentReference narratives |
+
+The authoritative model-facing JSON schemas are in `McpToolCatalog.AllTools`; the result record shapes are the
+`*Result` types on `IMcpToolServer`.
+
+> **Definition of done for future changes (per this issue):** any MR that adds, removes, or changes an HTTP
+> endpoint in `GauntletAI.AgentForge.Api`, a `ChatHub` message contract, or an MCP tool's request/result shape
+> **must update this Interface D section (and the OpenAPI wiring) in the same MR** — an undocumented change to
+> Interface D is treated as incomplete, exactly like an undocumented breaking change to Interface A/B.
 
 ---
 

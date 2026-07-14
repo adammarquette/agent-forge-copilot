@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <!-- Force the patched Microsoft.OpenApi (2.7.5) over the vulnerable 2.0.0 that
+         Microsoft.AspNetCore.OpenApi pulls transitively - see Directory.Packages.props (NU1903). -->
+    <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Refit.HttpClientFactory" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
