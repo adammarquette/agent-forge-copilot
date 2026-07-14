@@ -18,7 +18,7 @@ answer-composition cases once P2 (RAG + graph) lands; the judge config will live
 
 ## Running
 ```
-dotnet run --project tools/GauntletAI.AgentForge.Evals -- evals
+dotnet run --project tests/GauntletAI.AgentForge.Evals -- evals
 ```
 Exit code 0 = gate passed; 1 = a category is below `pass_threshold` or regressed more than `max_regression`
 from its baseline (the build fails). Wired into CI as the `evals` job.
