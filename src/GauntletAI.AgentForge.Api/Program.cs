@@ -109,12 +109,35 @@ builder.Services.AddRefitClient<IOpenEmrAuthApi>()
     .AddHttpMessageHandler<CorrelationIdHandler>()
     .AddStandardResilienceHandler();
 
+// Staging OpenEMR routinely takes 4-8s per FHIR call; under the Daily Agenda's parallel fan-out the
+// framework's 10s attempt default was tripping, forcing retries/cancellations and "Summary
+// unavailable" rows (reference: gitlab#80). Give the FHIR client a wider budget from the same config
+// the validated OpenEmrOptions binds to (invalid values still fail fast via that options validation).
+var openEmrSection = builder.Configuration.GetSection(OpenEmrOptions.SectionName);
+var fhirAttemptTimeout = TimeSpan.FromSeconds(
+    openEmrSection.GetValue<int?>(nameof(OpenEmrOptions.FhirAttemptTimeoutSeconds))
+        ?? OpenEmrOptions.DefaultFhirAttemptTimeoutSeconds);
+var fhirTotalTimeout = TimeSpan.FromSeconds(
+    openEmrSection.GetValue<int?>(nameof(OpenEmrOptions.FhirTotalRequestTimeoutSeconds))
+        ?? OpenEmrOptions.DefaultFhirTotalRequestTimeoutSeconds);
+
 builder.Services.AddRefitClient<IOpenEmrFhirApi>()
     .ConfigureHttpClient((sp, client) =>
-        client.BaseAddress = new Uri(sp.GetRequiredService<IOptions<OpenEmrOptions>>().Value.BaseUrl))
+    {
+        client.BaseAddress = new Uri(sp.GetRequiredService<IOptions<OpenEmrOptions>>().Value.BaseUrl);
+        // HttpClient's outer timeout must exceed the pipeline's total, or it cancels first.
+        client.Timeout = fhirTotalTimeout + TimeSpan.FromSeconds(30);
+    })
     .AddHttpMessageHandler<AuthHandler>()
     .AddHttpMessageHandler<CorrelationIdHandler>()
-    .AddStandardResilienceHandler();
+    .AddStandardResilienceHandler(options =>
+    {
+        options.AttemptTimeout.Timeout = fhirAttemptTimeout;
+        options.TotalRequestTimeout.Timeout = fhirTotalTimeout;
+        // Handler invariant: SamplingDuration must be >= 2x AttemptTimeout.
+        options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(fhirAttemptTimeout.TotalSeconds * 2);
+        options.Retry.MaxRetryAttempts = 2;
+    });
 
 // LLM synthesis routinely runs longer than the framework's 10s/30s HTTP defaults, so the heaviest
 // agenda-summary prompt was tripping the attempt timeout and degrading to the deterministic fallback
