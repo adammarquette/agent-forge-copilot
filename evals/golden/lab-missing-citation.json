@@ -1,0 +1,9 @@
+{
+  "id": "lab-missing-citation",
+  "category": "extraction",
+  "doc_type": "lab_pdf",
+  "media_type": "application/pdf",
+  "stub_model_response": "{\"tests\":[{\"test_name\":\"INR\",\"value\":\"2.5\"}]}",
+  "expect_success": false,
+  "rubrics": ["schema_valid", "safe_refusal", "no_phi_in_logs"]
+}

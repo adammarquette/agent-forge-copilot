@@ -17,6 +17,11 @@
     <ProjectReference Include="..\GauntletAI.AgentForge.Llm\GauntletAI.AgentForge.Llm.csproj" />
     <ProjectReference Include="..\GauntletAI.AgentForge.Mcp\GauntletAI.AgentForge.Mcp.csproj" />
     <ProjectReference Include="..\GauntletAI.AgentForge.Agent\GauntletAI.AgentForge.Agent.csproj" />
+    <!-- Week 2 multimodal evidence agent -->
+    <ProjectReference Include="..\GauntletAI.AgentForge.Agents\GauntletAI.AgentForge.Agents.csproj" />
+    <ProjectReference Include="..\GauntletAI.AgentForge.Data\GauntletAI.AgentForge.Data.csproj" />
+    <ProjectReference Include="..\GauntletAI.AgentForge.Documents\GauntletAI.AgentForge.Documents.csproj" />
+    <ProjectReference Include="..\GauntletAI.AgentForge.Retrieval\GauntletAI.AgentForge.Retrieval.csproj" />
   </ItemGroup>
 
 </Project>

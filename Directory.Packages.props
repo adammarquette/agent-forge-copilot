@@ -56,6 +56,28 @@
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.9" />
 
+    <!--
+      Data tier (Week 2 - GauntletAI.AgentForge.Data): EF Core over PostgreSQL + pgvector for the
+      hybrid-RAG store and the sidecar-owned DerivedFactStore (W2_ARCHITECTURE.md §5, W2-D14).
+      EF Core provider major MUST match the EF Core major (net10 -> the 10.x line); the pgvector-EF
+      floor (>= 9.0.1) will NOT force it, so these are pinned to 10.x here on purpose. Pgvector packages
+      are 0.x (SemVer allows breaking minors pre-1.0) - bump deliberately, like the FluentAssertions cap.
+      Licenses: EF Core / Npgsql provider = MIT/PostgreSQL; pgvector-dotnet = MIT.
+    -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageVersion Include="Pgvector" Version="0.3.2" />
+    <PackageVersion Include="Pgvector.EntityFrameworkCore" Version="0.3.0" />
+
+    <!--
+      Security pin: Microsoft.EntityFrameworkCore.Design's MSBuild/Roslyn tooling pulls
+      System.Security.Cryptography.Xml 9.0.0, which has a high-severity CVE (NU1903). Pin up to the patched
+      10.0.9 (matches our other MS package cadence). The Design package is design-time only (PrivateAssets),
+      so this never ships at runtime - it exists solely to keep the audit gate green.
+    -->
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.9" />
+
     <!-- Test infrastructure (both test projects) -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />

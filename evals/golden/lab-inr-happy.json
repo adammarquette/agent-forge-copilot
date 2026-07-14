@@ -1,0 +1,10 @@
+{
+  "id": "lab-inr-happy",
+  "category": "extraction",
+  "doc_type": "lab_pdf",
+  "media_type": "application/pdf",
+  "stub_model_response": "{\"tests\":[{\"test_name\":\"INR\",\"value\":\"2.5\",\"unit\":null,\"reference_range\":\"2.0-3.0\",\"collection_date\":\"2026-07-01\",\"abnormal_flag\":false,\"citation\":{\"page\":1,\"quote\":\"INR 2.5\",\"bounding_box\":null}}]}",
+  "expect_success": true,
+  "expected_values": ["INR", "2.5"],
+  "rubrics": ["schema_valid", "citation_present", "factually_consistent", "no_phi_in_logs"]
+}

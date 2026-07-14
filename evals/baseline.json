@@ -1,0 +1,11 @@
+{
+  "pass_threshold": 1.0,
+  "max_regression": 0.05,
+  "categories": {
+    "schema_valid": 1.0,
+    "citation_present": 1.0,
+    "factually_consistent": 1.0,
+    "safe_refusal": 1.0,
+    "no_phi_in_logs": 1.0
+  }
+}

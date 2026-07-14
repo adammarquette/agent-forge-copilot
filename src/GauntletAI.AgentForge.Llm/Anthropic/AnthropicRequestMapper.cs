@@ -37,6 +37,12 @@ public static class AnthropicRequestMapper
             ToolUseId: toolResult.ToolUseId,
             ToolResultContent: toolResult.ResultJson,
             IsError: toolResult.IsError),
+        LlmImageContent image => new AnthropicRequestContentBlock(
+            Type: "image",
+            Source: new AnthropicContentSource("base64", image.MediaType, image.Base64Data)),
+        LlmDocumentContent document => new AnthropicRequestContentBlock(
+            Type: "document",
+            Source: new AnthropicContentSource("base64", document.MediaType, document.Base64Data)),
         _ => throw new ArgumentOutOfRangeException(nameof(content), content, "Unknown LlmContent type."),
     };
 
