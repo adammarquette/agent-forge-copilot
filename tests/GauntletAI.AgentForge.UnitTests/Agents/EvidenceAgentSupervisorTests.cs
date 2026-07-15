@@ -5,6 +5,7 @@ using GauntletAI.AgentForge.Data;
 using GauntletAI.AgentForge.Data.Entities;
 using GauntletAI.AgentForge.Documents;
 using GauntletAI.AgentForge.Llm;
+using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -21,6 +22,7 @@ public sealed class EvidenceAgentSupervisorTests
     private readonly IDerivedFactStore _factStore = A.Fake<IDerivedFactStore>();
     private readonly ILlmProvider _llm = A.Fake<ILlmProvider>();
     private readonly IClinicalResponseVerifier _verifier = A.Fake<IClinicalResponseVerifier>();
+    private readonly IAgentForgeMetrics _metrics = A.Fake<IAgentForgeMetrics>();
 
     private EvidenceAgentSupervisor CreateSut()
     {
@@ -33,7 +35,7 @@ public sealed class EvidenceAgentSupervisorTests
         A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._))
             .Returns(new VerificationResult(true, "verified answer", [], []));
         return new EvidenceAgentSupervisor(
-            _extractor, _retriever, _factStore, _llm, _verifier, NullLogger<EvidenceAgentSupervisor>.Instance);
+            _extractor, _retriever, _factStore, _llm, _verifier, _metrics, NullLogger<EvidenceAgentSupervisor>.Instance);
     }
 
     private static PendingDocument LabPdf() =>
@@ -199,5 +201,27 @@ public sealed class EvidenceAgentSupervisorTests
             .SelectMany(m => m.Content).OfType<LlmTextContent>().Select(c => c.Text));
         composerText.Should().Contain("[Derived/").And.Contain("Potassium 5.9 (H) mmol/L");
         toolResults!.Any(t => t.Contains("\"ResourceType\":\"Derived\"")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RunAsync_WithDocument_InstrumentsEachWorkerRoutingAndRetrieval()
+    {
+        // Guards FR-OBS-W2-1: the graph must be observable - every worker's latency, each routing decision,
+        // and the evidence-retrieval outcome are recorded, or the Week 2 dashboard panels have no data.
+        A.CallTo(() => _extractor.ExtractAsync(
+                A<ClinicalDocumentType>._, A<ReadOnlyMemory<byte>>._, A<string>._, A<CancellationToken>._))
+            .Returns(DocumentExtractionResult.Ok(ClinicalDocumentType.LabPdf, "{\"tests\":[]}", new LlmUsage(0, 0, 0m)));
+        var request = new EvidenceAgentRequest { PatientId = "p1", Question = "Is her INR therapeutic?", Document = LabPdf() };
+
+        await CreateSut().RunAsync(request, CancellationToken.None);
+
+        foreach (var worker in new[] { "intake-extractor", "evidence-retriever", "answer-composer", "critic" })
+        {
+            A.CallTo(() => _metrics.RecordWorkerLatency(worker, A<TimeSpan>._)).MustHaveHappened();
+        }
+
+        A.CallTo(() => _metrics.RecordRoutingDecision(A<string>._, A<string>._)).MustHaveHappened();
+        // The stubbed retriever returns no snippets, so this turn is a retrieval miss (hit: false, 0 results).
+        A.CallTo(() => _metrics.RecordEvidenceRetrieval(false, 0, A<TimeSpan>._)).MustHaveHappenedOnceExactly();
     }
 }

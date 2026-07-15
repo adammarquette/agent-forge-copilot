@@ -1,6 +1,7 @@
 using GauntletAI.AgentForge.Data;
 using GauntletAI.AgentForge.Data.Entities;
 using GauntletAI.AgentForge.Documents;
+using GauntletAI.AgentForge.Observability;
 using Microsoft.Extensions.Logging;
 
 namespace GauntletAI.AgentForge.Agents.Ingestion;
@@ -17,6 +18,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
     private readonly IDocumentExtractor _extractor;
     private readonly IDerivedFactStore _store;
     private readonly IDerivedFactMapper _mapper;
+    private readonly IAgentForgeMetrics _metrics;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DocumentIngestionService> _logger;
 
@@ -25,12 +27,14 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
         IDocumentExtractor extractor,
         IDerivedFactStore store,
         IDerivedFactMapper mapper,
+        IAgentForgeMetrics metrics,
         TimeProvider timeProvider,
         ILogger<DocumentIngestionService> logger)
     {
         _extractor = extractor;
         _store = store;
         _mapper = mapper;
+        _metrics = metrics;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -39,6 +43,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
     public async Task<DocumentIngestionResult> IngestAsync(
         DocumentIngestionRequest request, CancellationToken cancellationToken = default)
     {
+        var startTimestamp = _timeProvider.GetTimestamp();
         var contentHash = ContentHash.Compute(request.Content);
 
         // 1. Idempotency: the same bytes are never extracted or recorded twice (W2-D3).
@@ -46,6 +51,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
         if (existing is not null)
         {
             DocumentIngestionServiceLog.AlreadyIngested(_logger);
+            _metrics.RecordDocumentIngestion("already_ingested", _timeProvider.GetElapsedTime(startTimestamp));
             return DocumentIngestionResult.AlreadyIngested(
                 contentHash, existing.OpenEmrDocumentReferenceId, existing.DerivedFacts.Count);
         }
@@ -57,6 +63,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
         if (!extraction.Succeeded)
         {
             DocumentIngestionServiceLog.ExtractionRejected(_logger);
+            _metrics.RecordDocumentIngestion("extraction_rejected", _timeProvider.GetElapsedTime(startTimestamp));
             return DocumentIngestionResult.ExtractionRejected(contentHash, extraction.RejectionReason);
         }
 
@@ -81,6 +88,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
         await _store.AddAsync(document, cancellationToken).ConfigureAwait(false);
 
         DocumentIngestionServiceLog.Ingested(_logger, facts.Count);
+        _metrics.RecordDocumentIngestion("ingested", _timeProvider.GetElapsedTime(startTimestamp));
         return DocumentIngestionResult.Ingested(contentHash, request.DocumentReferenceId, facts.Count);
     }
 }
