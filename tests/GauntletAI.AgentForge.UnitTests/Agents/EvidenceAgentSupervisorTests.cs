@@ -1,6 +1,7 @@
 using FakeItEasy;
 using FluentAssertions;
 using GauntletAI.AgentForge.Agents;
+using GauntletAI.AgentForge.Data;
 using GauntletAI.AgentForge.Data.Entities;
 using GauntletAI.AgentForge.Documents;
 using GauntletAI.AgentForge.Llm;
@@ -17,6 +18,7 @@ public sealed class EvidenceAgentSupervisorTests
 {
     private readonly IDocumentExtractor _extractor = A.Fake<IDocumentExtractor>();
     private readonly IEvidenceRetriever _retriever = A.Fake<IEvidenceRetriever>();
+    private readonly IDerivedFactStore _factStore = A.Fake<IDerivedFactStore>();
     private readonly ILlmProvider _llm = A.Fake<ILlmProvider>();
     private readonly IClinicalResponseVerifier _verifier = A.Fake<IClinicalResponseVerifier>();
 
@@ -24,12 +26,14 @@ public sealed class EvidenceAgentSupervisorTests
     {
         IReadOnlyList<EvidenceSnippet> noEvidence = [];
         A.CallTo(() => _retriever.RetrieveAsync(A<string>._, A<int>._, A<CancellationToken>._)).Returns(noEvidence);
+        IReadOnlyList<DerivedFact> noFacts = [];
+        A.CallTo(() => _factStore.GetByPatientAsync(A<string>._, A<CancellationToken>._)).Returns(noFacts);
         A.CallTo(() => _llm.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
             .Returns(new LlmResponse("draft answer", [], LlmStopReason.EndTurn, new LlmUsage(0, 0, 0m)));
         A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._))
             .Returns(new VerificationResult(true, "verified answer", [], []));
         return new EvidenceAgentSupervisor(
-            _extractor, _retriever, _llm, _verifier, NullLogger<EvidenceAgentSupervisor>.Instance);
+            _extractor, _retriever, _factStore, _llm, _verifier, NullLogger<EvidenceAgentSupervisor>.Instance);
     }
 
     private static PendingDocument LabPdf() =>
@@ -149,5 +153,51 @@ public sealed class EvidenceAgentSupervisorTests
         var composerText = string.Concat(captured!.Messages
             .SelectMany(m => m.Content).OfType<LlmTextContent>().Select(c => c.Text));
         composerText.Should().Contain("[Lab/INR]");
+    }
+
+    [Fact]
+    public async Task RunAsync_SurfacesPreIngestedDerivedFacts_ToComposerAndCritic()
+    {
+        // The read side of E2 (UC-6): facts ingested pre-visit must reach the brief even with NO document
+        // attached this turn - surfaced to the composer as a [Derived/<slug>] token and made resolvable to
+        // the critic (ResourceType "Derived") so the value isn't suppressed as an uncited claim.
+        var fact = new DerivedFact
+        {
+            Id = Guid.NewGuid(),
+            FactType = "lab.result",
+            PayloadJson = "{}",
+            Citation = new Citation
+            {
+                SourceType = CitationSourceType.Derived,
+                SourceId = "docref-1",
+                PageOrSection = "1",
+                QuoteOrValue = "Potassium 5.9 (H) mmol/L",
+            },
+            Document = new IngestedDocument
+            {
+                PatientId = "p1",
+                ContentHash = "hash-1",
+                OpenEmrDocumentReferenceId = "docref-1",
+            },
+        };
+        var sut = CreateSut();
+        IReadOnlyList<DerivedFact> facts = [fact];
+        A.CallTo(() => _factStore.GetByPatientAsync("p1", A<CancellationToken>._)).Returns(facts);
+        LlmRequest? captured = null;
+        A.CallTo(() => _llm.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Invokes((LlmRequest r, CancellationToken _) => captured = r)
+            .Returns(new LlmResponse("draft answer", [], LlmStopReason.EndTurn, new LlmUsage(0, 0, 0m)));
+        IReadOnlyCollection<string>? toolResults = null;
+        A.CallTo(() => _verifier.Verify(A<string>._, A<IReadOnlyCollection<string>>._))
+            .Invokes((string _, IReadOnlyCollection<string> tr) => toolResults = tr)
+            .Returns(new VerificationResult(true, "verified answer", [], []));
+        var request = new EvidenceAgentRequest { PatientId = "p1", Question = "What changed?" };
+
+        await sut.RunAsync(request, CancellationToken.None);
+
+        var composerText = string.Concat(captured!.Messages
+            .SelectMany(m => m.Content).OfType<LlmTextContent>().Select(c => c.Text));
+        composerText.Should().Contain("[Derived/").And.Contain("Potassium 5.9 (H) mmol/L");
+        toolResults!.Any(t => t.Contains("\"ResourceType\":\"Derived\"")).Should().BeTrue();
     }
 }

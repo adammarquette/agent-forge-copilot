@@ -1,4 +1,6 @@
 using System.Text.Json;
+using GauntletAI.AgentForge.Data;
+using GauntletAI.AgentForge.Data.Entities;
 using GauntletAI.AgentForge.Documents;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Verification;
@@ -20,6 +22,7 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
 
     private readonly IDocumentExtractor _extractor;
     private readonly IEvidenceRetriever _retriever;
+    private readonly IDerivedFactStore _factStore;
     private readonly ILlmProvider _llm;
     private readonly IClinicalResponseVerifier _verifier;
     private readonly ILogger<EvidenceAgentSupervisor> _logger;
@@ -28,12 +31,14 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
     public EvidenceAgentSupervisor(
         IDocumentExtractor extractor,
         IEvidenceRetriever retriever,
+        IDerivedFactStore factStore,
         ILlmProvider llm,
         IClinicalResponseVerifier verifier,
         ILogger<EvidenceAgentSupervisor> logger)
     {
         _extractor = extractor;
         _retriever = retriever;
+        _factStore = factStore;
         _llm = llm;
         _verifier = verifier;
         _logger = logger;
@@ -67,17 +72,27 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
         // them) and the critic (to resolve those citations). Empty for non-lab extractions.
         var labFacts = ExtractLabFacts(factsJson);
 
+        // Load facts ingested for this patient BEFORE this turn (the pre-visit E2 path): the brief must
+        // surface these, not only a document attached this turn (UC-6). Read-only; empty when none on file.
+        var priorFacts = ProjectDerivedFacts(
+            await _factStore.GetByPatientAsync(request.PatientId, cancellationToken));
+        if (priorFacts.Count > 0)
+        {
+            Route(handoffs, SupervisorNode, "answer-composer",
+                $"{priorFacts.Count} pre-ingested document fact(s) on file for the patient");
+        }
+
         // 2. evidence-retriever.
         Route(handoffs, SupervisorNode, "evidence-retriever", "question needs guideline evidence");
         var evidence = await _retriever.RetrieveAsync(request.Question, DefaultTopK, cancellationToken);
 
         // 3. answer-composer.
         Route(handoffs, SupervisorNode, "answer-composer", "facts + evidence assembled");
-        var draft = await ComposeAsync(request.Question, factsJson, labFacts, evidence, cancellationToken);
+        var draft = await ComposeAsync(request.Question, factsJson, labFacts, priorFacts, evidence, cancellationToken);
 
         // 4. critic = the Week 1 verification gate, reused as a node.
         Route(handoffs, "answer-composer", "critic", "draft ready for verification");
-        var verification = _verifier.Verify(draft, BuildToolResults(factsJson, labFacts, evidence));
+        var verification = _verifier.Verify(draft, BuildToolResults(factsJson, labFacts, priorFacts, evidence));
         Route(handoffs, "critic", SupervisorNode,
             verification.Passed ? "all claims grounded" : $"{verification.SuppressedClaims.Count} uncited claim(s) suppressed");
 
@@ -100,7 +115,8 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
 
     private async Task<string> ComposeAsync(
         string question, string? factsJson, IReadOnlyList<LabFact> labFacts,
-        IReadOnlyList<EvidenceSnippet> evidence, CancellationToken cancellationToken)
+        IReadOnlyList<DerivedFactView> priorFacts, IReadOnlyList<EvidenceSnippet> evidence,
+        CancellationToken cancellationToken)
     {
         var facts = factsJson ?? "(no document facts on file)";
         var labText = labFacts.Count == 0
@@ -108,6 +124,10 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
             : string.Join("\n", labFacts.Select(l =>
                 $"[Lab/{l.Slug}] {l.TestName}: {l.Value}{(l.Unit is null ? "" : $" {l.Unit}")}"
                 + $"{(l.ReferenceRange is null ? "" : $" (ref {l.ReferenceRange})")}{(l.Abnormal == true ? " [ABNORMAL]" : "")}"));
+        var derivedText = priorFacts.Count == 0
+            ? "(no prior-document facts on file)"
+            : string.Join("\n", priorFacts.Select(d =>
+                $"[Derived/{d.Slug}] {d.FactType}: {d.Value} (source document {d.SourceDocRef}{(d.Page is null ? "" : $", page {d.Page}")})"));
         var evidenceText = evidence.Count == 0
             ? "(no guideline evidence found)"
             : string.Join("\n", evidence.Select(e => $"[Guideline/{e.ChunkId}] {e.DocumentId} - {e.Section}: {e.Text}"));
@@ -115,6 +135,7 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
         var userContent =
             $"Question: {question}\n\n"
             + $"Patient lab values (cite each with the token shown):\n{labText}\n\n"
+            + $"Patient facts from prior documents, source_type derived (cite each with the token shown):\n{derivedText}\n\n"
             + $"Full extracted document facts (JSON):\n{facts}\n\n"
             + $"Guideline evidence:\n{evidenceText}";
 
@@ -128,7 +149,8 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
     // Hand the extracted facts and retrieved evidence to the critic as the tool results the answer must be
     // grounded in - the same shape the Week 1 orchestrator passes to the verifier.
     private static List<string> BuildToolResults(
-        string? factsJson, IReadOnlyList<LabFact> labFacts, IReadOnlyList<EvidenceSnippet> evidence)
+        string? factsJson, IReadOnlyList<LabFact> labFacts, IReadOnlyList<DerivedFactView> priorFacts,
+        IReadOnlyList<EvidenceSnippet> evidence)
     {
         var results = new List<string>();
         if (factsJson is not null)
@@ -144,6 +166,16 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
                 .Select(l => new LabToolResult("Lab", l.Slug, l.TestName, l.Value))
                 .ToArray();
             results.Add(JsonSerializer.Serialize(labRecords, AgentsJsonContext.Default.LabToolResultArray));
+        }
+
+        if (priorFacts.Count > 0)
+        {
+            // Same mechanism for pre-ingested document facts (ResourceType "Derived" + Id slug), so a
+            // [Derived/<slug>] citation resolves and the fact isn't suppressed as an uncited claim.
+            var derivedRecords = priorFacts
+                .Select(d => new DerivedToolResult("Derived", d.Slug, d.FactType, d.Value))
+                .ToArray();
+            results.Add(JsonSerializer.Serialize(derivedRecords, AgentsJsonContext.Default.DerivedToolResultArray));
         }
 
         if (evidence.Count > 0)
@@ -229,4 +261,31 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
     // One extracted patient lab value in citable form (Slug is the whitespace-free [Lab/<slug>] id).
     private sealed record LabFact(
         string Slug, string TestName, string Value, string? Unit, string? ReferenceRange, bool? Abnormal);
+
+    // Projects pre-ingested facts to a citable view. Slug is a short per-fact id (the [Derived/<slug>] token);
+    // Value prefers the citation's verbatim quote/value, which already reads as e.g. "Potassium 5.9 (H) mmol/L".
+    // A fact with no quote/value is skipped rather than surfaced as an empty, uncitable line.
+    private static List<DerivedFactView> ProjectDerivedFacts(IReadOnlyList<DerivedFact> facts)
+    {
+        var views = new List<DerivedFactView>(facts.Count);
+        foreach (var fact in facts)
+        {
+            var value = fact.Citation.QuoteOrValue;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            var sourceDocRef = fact.Document?.OpenEmrDocumentReferenceId ?? fact.Citation.SourceId;
+            views.Add(new DerivedFactView(
+                fact.Id.ToString("N")[..8], fact.FactType, value, sourceDocRef, fact.Citation.PageOrSection));
+        }
+
+        return views;
+    }
+
+    // One pre-ingested document fact in citable form (Slug is the [Derived/<slug>] id; SourceDocRef anchors
+    // the citation to the OpenEMR source document).
+    private sealed record DerivedFactView(
+        string Slug, string FactType, string Value, string SourceDocRef, string? Page);
 }
