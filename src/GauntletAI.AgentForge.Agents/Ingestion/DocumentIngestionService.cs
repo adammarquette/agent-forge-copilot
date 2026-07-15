@@ -1,41 +1,36 @@
 using GauntletAI.AgentForge.Data;
 using GauntletAI.AgentForge.Data.Entities;
 using GauntletAI.AgentForge.Documents;
-using GauntletAI.AgentForge.Integration.OpenEmr.Standard;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace GauntletAI.AgentForge.Agents.Ingestion;
 
-/// <inheritdoc />
+/// <summary>
+/// Orchestrates document ingestion (W2_ARCHITECTURE.md §4): content-hash idempotency → extract → persist the
+/// derived facts, each citing the OpenEMR <c>DocumentReference</c> the front desk already uploaded to. The
+/// source document is authoritative in OpenEMR (uploaded natively), so the sidecar never writes it — it only
+/// derives facts. Runs pre-visit so the clinician's turn just reads ready facts. Degrades deterministically
+/// (a schema-gate rejection persists nothing) and cancellation propagates.
+/// </summary>
 public sealed class DocumentIngestionService : IDocumentIngestionService
 {
     private readonly IDocumentExtractor _extractor;
-    private readonly IOpenEmrDocumentWriter _writer;
-    private readonly IDocumentReferenceResolver _resolver;
     private readonly IDerivedFactStore _store;
     private readonly IDerivedFactMapper _mapper;
-    private readonly string _categoryPath;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DocumentIngestionService> _logger;
 
     /// <summary>Creates the ingestion orchestrator.</summary>
     public DocumentIngestionService(
         IDocumentExtractor extractor,
-        IOpenEmrDocumentWriter writer,
-        IDocumentReferenceResolver resolver,
         IDerivedFactStore store,
         IDerivedFactMapper mapper,
-        IOptions<DocumentIngestionOptions> options,
         TimeProvider timeProvider,
         ILogger<DocumentIngestionService> logger)
     {
         _extractor = extractor;
-        _writer = writer;
-        _resolver = resolver;
         _store = store;
         _mapper = mapper;
-        _categoryPath = options.Value.CategoryPath;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -46,7 +41,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
     {
         var contentHash = ContentHash.Compute(request.Content);
 
-        // 1. Idempotency: the same bytes are never written or recorded twice (W2-D3).
+        // 1. Idempotency: the same bytes are never extracted or recorded twice (W2-D3).
         var existing = await _store.FindByContentHashAsync(contentHash, cancellationToken).ConfigureAwait(false);
         if (existing is not null)
         {
@@ -65,39 +60,10 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
             return DocumentIngestionResult.ExtractionRejected(contentHash, extraction.RejectionReason);
         }
 
-        // 3. Snapshot BEFORE the write so the citation resolver can diff for the newly-appeared reference.
-        var knownBefore = await _resolver.SnapshotAsync(request.PatientId, cancellationToken).ConfigureAwait(false);
-
-        // 4. Write the source document to OpenEMR (authoritative there). A failure persists nothing.
-        var write = await _writer.WriteAsync(
-            new DocumentWriteRequest
-            {
-                PatientId = request.PatientId,
-                FileName = request.FileName,
-                Content = request.Content,
-                MediaType = request.MediaType,
-                CategoryPath = _categoryPath,
-                EncounterId = request.EncounterId,
-            },
-            cancellationToken).ConfigureAwait(false);
-        if (!write.Succeeded)
-        {
-            DocumentIngestionServiceLog.WriteFailed(_logger, write.Status.ToString());
-            return DocumentIngestionResult.WriteFailed(contentHash, write.Detail);
-        }
-
-        // 5. Resolve the DocumentReference id for citation; null leaves the citation pending (still persisted).
-        var citation = await _resolver.ResolveNewAsync(request.PatientId, knownBefore, cancellationToken)
-            .ConfigureAwait(false);
-        if (citation is null)
-        {
-            DocumentIngestionServiceLog.CitationPending(_logger);
-        }
-
-        // 6. Persist the sidecar-authoritative facts with lineage to the source document. CreatedAt/IngestedAt
-        // are app-set (no DB default); stamp one timestamp across the document and its facts.
+        // 3. Persist the derived facts, each citing the source DocumentReference the front desk uploaded to.
+        // CreatedAt/IngestedAt are app-set (no DB default); stamp one timestamp across the document and facts.
         var now = _timeProvider.GetUtcNow();
-        var facts = _mapper.Map(extraction, citation?.Id);
+        var facts = _mapper.Map(extraction, request.DocumentReferenceId);
         foreach (var fact in facts)
         {
             fact.CreatedAt = now;
@@ -108,13 +74,13 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
             PatientId = request.PatientId,
             DocumentType = request.DocumentType,
             ContentHash = contentHash,
-            OpenEmrDocumentReferenceId = citation?.Id,
+            OpenEmrDocumentReferenceId = request.DocumentReferenceId,
             IngestedAt = now,
             DerivedFacts = [.. facts],
         };
         await _store.AddAsync(document, cancellationToken).ConfigureAwait(false);
 
         DocumentIngestionServiceLog.Ingested(_logger, facts.Count);
-        return DocumentIngestionResult.Ingested(contentHash, citation?.Id, facts.Count);
+        return DocumentIngestionResult.Ingested(contentHash, request.DocumentReferenceId, facts.Count);
     }
 }

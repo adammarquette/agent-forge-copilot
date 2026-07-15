@@ -22,7 +22,6 @@ using GauntletAI.AgentForge.Documents;
 using GauntletAI.AgentForge.Retrieval;
 using GauntletAI.AgentForge.Agents.Ingestion;
 using GauntletAI.AgentForge.Api.Ingestion;
-using GauntletAI.AgentForge.Integration.OpenEmr.Standard;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -209,29 +208,10 @@ if (weekTwoEnabled)
     builder.Services.AddAgentForgeRetrieval();
     builder.Services.AddAgentForgeEvidenceAgent();
 
-    // Week 2 write-back (E2): the standard-API document client uses the SAME handler pipeline + resilience
-    // budget as the FHIR client, so it runs under the launched user's token - OpenEMR's front-office ACL is
-    // the write authority. Plus the ingestion services (writer, citation resolver, fact mapper, orchestrator).
-    builder.Services.AddRefitClient<IOpenEmrDocumentApi>()
-        .ConfigureHttpClient((sp, client) =>
-        {
-            client.BaseAddress = new Uri(sp.GetRequiredService<IOptions<OpenEmrOptions>>().Value.BaseUrl);
-            client.Timeout = fhirTotalTimeout + TimeSpan.FromSeconds(30);
-        })
-        .AddHttpMessageHandler<AuthHandler>()
-        .AddHttpMessageHandler<CorrelationIdHandler>()
-        .AddStandardResilienceHandler(options =>
-        {
-            options.AttemptTimeout.Timeout = fhirAttemptTimeout;
-            options.TotalRequestTimeout.Timeout = fhirTotalTimeout;
-            options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(fhirAttemptTimeout.TotalSeconds * 2);
-            options.Retry.MaxRetryAttempts = 2;
-        });
-
-    builder.Services.AddOptions<DocumentIngestionOptions>()
-        .Bind(builder.Configuration.GetSection(DocumentIngestionOptions.SectionName));
-    builder.Services.AddScoped<IOpenEmrDocumentWriter, OpenEmrDocumentWriter>();
-    builder.Services.AddScoped<IDocumentReferenceResolver, DocumentReferenceResolver>();
+    // Week 2 ingestion (E2): the front desk uploads through OpenEMR's own Documents; the oe-module-agentforge
+    // upload hook then calls POST /documents/ingest with the content, and the sidecar extracts + persists the
+    // derived facts citing the OpenEMR DocumentReference. No write-back - OpenEMR is authoritative for the
+    // source document, so there is no document write client, resolver, or category config.
     builder.Services.AddSingleton<IDerivedFactMapper, DerivedFactMapper>();
     builder.Services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
 }

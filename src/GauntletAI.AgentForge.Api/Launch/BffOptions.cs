@@ -34,14 +34,6 @@ public sealed class BffOptions : IValidatableObject
     public string AgendaPath { get; init; } = "/agenda.html";
 
     /// <summary>
-    /// Path the browser is redirected to for the front-office document-upload form (wwwroot/upload.html)
-    /// when the launch requests it (<c>?app=upload</c>). Reuses the patient launch + session; only the
-    /// landing page differs from <see cref="ChatPath"/>, so the front office gets a plain upload form
-    /// instead of the clinician chat (W2_ARCHITECTURE.md §4).
-    /// </summary>
-    public string UploadPath { get; init; } = "/upload.html";
-
-    /// <summary>
     /// Path prefix this sidecar is reached under behind a reverse proxy (e.g. <c>/agentforge</c>),
     /// or empty when root-hosted. Drives <c>UsePathBase</c> and the session cookie's <c>Path</c>/
     /// <c>SameSite</c> - non-empty means same-origin with the proxy, so <c>SameSite=Lax</c> suffices;

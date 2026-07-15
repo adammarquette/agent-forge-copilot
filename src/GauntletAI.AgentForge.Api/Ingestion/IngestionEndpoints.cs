@@ -1,34 +1,46 @@
 using GauntletAI.AgentForge.Agents.Ingestion;
-using GauntletAI.AgentForge.Api.Session;
 using GauntletAI.AgentForge.Data.Entities;
-using GauntletAI.AgentForge.Integration.OpenEmr.Http;
+using GauntletAI.AgentForge.Integration.OpenEmr;
+using GauntletAI.AgentForge.Integration.OpenEmr.Auth;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 
 namespace GauntletAI.AgentForge.Api.Ingestion;
 
 /// <summary>
-/// The front-office document-ingestion endpoint (W2_ARCHITECTURE.md §4): upload a source document for the
-/// current patient; the sidecar writes it back to OpenEMR and persists the derived facts. Thin by design —
-/// it runs the ingestion under the launched user's token (same custody as chat/agenda), so OpenEMR's
-/// front-office <c>patients:docs</c> ACL is the write authority; a user without it gets a clean failure.
+/// The document-ingestion endpoint (W2_ARCHITECTURE.md §4). The front desk uploads through OpenEMR's own
+/// Documents workflow; the <c>oe-module-agentforge</c> upload hook then calls this endpoint with the
+/// document's content + its OpenEMR <c>DocumentReference</c> id, carrying the uploading user's access token
+/// as a bearer. This runs pre-visit, so the clinician's turn only reads ready facts. The token is introspected
+/// per call (transient — validated, never stored): the transient-token model, not a sidecar-held identity.
 /// </summary>
 public static class IngestionEndpoints
 {
-    /// <summary>Maps <c>POST /ingest/document</c> — the front-office upload path.</summary>
+    /// <summary>Maps <c>POST /documents/ingest</c> — the OpenEMR-triggered ingestion call.</summary>
     public static IEndpointRouteBuilder MapIngestionEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/ingest/document", HandleIngestAsync).DisableAntiforgery();
+        endpoints.MapPost("/documents/ingest", HandleIngestAsync).DisableAntiforgery();
         return endpoints;
     }
 
     private static async Task<IResult> HandleIngestAsync(
         HttpContext httpContext,
-        IScopedAccessTokenProvider tokenProvider,
+        IOpenEmrAuthClient authClient,
+        IOptions<OpenEmrOptions> openEmrOptions,
         IDocumentIngestionService ingestionService)
     {
-        await httpContext.Session.LoadAsync(httpContext.RequestAborted).ConfigureAwait(false);
-        var session = httpContext.Session.TryGetPatientSession();
-        if (session is null)
+        // Authenticate the caller by introspecting the uploading user's bearer token - a valid, active token
+        // is the authority; no session, no stored credential. reference: documentation/W2_ARCHITECTURE.md §4
+        if (!TryReadBearerToken(httpContext, out var token))
+        {
+            return Results.Unauthorized();
+        }
+
+        var options = openEmrOptions.Value;
+        var introspection = await authClient
+            .IntrospectAsync(options.Site, token, options.ClientId, options.ClientSecret, httpContext.RequestAborted)
+            .ConfigureAwait(false);
+        if (!introspection.Active)
         {
             return Results.Unauthorized();
         }
@@ -36,7 +48,7 @@ public static class IngestionEndpoints
         var request = httpContext.Request;
         if (!request.HasFormContentType)
         {
-            return Results.BadRequest("Expected multipart/form-data with 'file' and 'docType'.");
+            return Results.BadRequest("Expected multipart/form-data with 'file', 'patientId', 'documentReferenceId', 'docType'.");
         }
 
         var form = await request.ReadFormAsync(httpContext.RequestAborted).ConfigureAwait(false);
@@ -47,37 +59,51 @@ public static class IngestionEndpoints
             return Results.BadRequest("'file' is required.");
         }
 
+        var patientId = form["patientId"].ToString();
+        var documentReferenceId = form["documentReferenceId"].ToString();
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(documentReferenceId))
+        {
+            return Results.BadRequest("'patientId' and 'documentReferenceId' are required.");
+        }
+
         if (!TryParseDocType(form["docType"].ToString(), out var documentType))
         {
             return Results.BadRequest("'docType' must be 'lab_pdf' or 'intake_form'.");
         }
 
-        var encounterId = form["eid"].ToString();
-
         using var buffer = new MemoryStream();
         await file.CopyToAsync(buffer, httpContext.RequestAborted).ConfigureAwait(false);
-
-        // Run the write/read under the launched user's token; OpenEMR's ACL is the front-office authority.
-        tokenProvider.AccessToken = session.AccessToken;
 
         var result = await ingestionService.IngestAsync(
             new DocumentIngestionRequest
             {
-                PatientId = session.PatientId,
+                PatientId = patientId,
+                DocumentReferenceId = documentReferenceId,
                 DocumentType = documentType,
                 Content = buffer.ToArray(),
                 MediaType = string.IsNullOrEmpty(file.ContentType) ? "application/octet-stream" : file.ContentType,
-                FileName = string.IsNullOrEmpty(file.FileName) ? "upload" : file.FileName,
-                EncounterId = string.IsNullOrWhiteSpace(encounterId) ? null : encounterId,
             },
             httpContext.RequestAborted).ConfigureAwait(false);
 
         return result.Status switch
         {
             DocumentIngestionStatus.Ingested or DocumentIngestionStatus.AlreadyIngested => Results.Ok(ToPayload(result)),
-            DocumentIngestionStatus.ExtractionRejected => Results.UnprocessableEntity(ToPayload(result)),
-            _ => Results.StatusCode(StatusCodes.Status502BadGateway),
+            _ => Results.UnprocessableEntity(ToPayload(result)),
         };
+    }
+
+    private static bool TryReadBearerToken(HttpContext httpContext, out string token)
+    {
+        token = string.Empty;
+        var header = httpContext.Request.Headers.Authorization.ToString();
+        const string prefix = "Bearer ";
+        if (string.IsNullOrEmpty(header) || !header.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        token = header[prefix.Length..].Trim();
+        return token.Length > 0;
     }
 
     private static bool TryParseDocType(string value, out ClinicalDocumentType documentType)
@@ -99,7 +125,6 @@ public static class IngestionEndpoints
     private static IngestionResponsePayload ToPayload(DocumentIngestionResult result) => new(
         result.Status.ToString(),
         result.DocumentReferenceId,
-        result.CitationPending,
         result.FactCount,
         result.Detail);
 }

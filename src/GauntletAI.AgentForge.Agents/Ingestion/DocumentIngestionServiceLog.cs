@@ -2,14 +2,14 @@ using Microsoft.Extensions.Logging;
 
 namespace GauntletAI.AgentForge.Agents.Ingestion;
 
-/// <summary>Structured log events for ingestion. Content hashes and counts only — no patient ids, file names,
-/// or document content (no PHI in logs, W2_ARCHITECTURE.md §12).</summary>
+/// <summary>Structured log events for ingestion. Counts only — no patient ids, file names, or document
+/// content (no PHI in logs, W2_ARCHITECTURE.md §12).</summary>
 internal static partial class DocumentIngestionServiceLog
 {
     [LoggerMessage(
         EventId = 4300,
         Level = LogLevel.Information,
-        Message = "Document already ingested (content hash present); skipping extraction and write.")]
+        Message = "Document already ingested (content hash present); skipping extraction.")]
     public static partial void AlreadyIngested(ILogger logger);
 
     [LoggerMessage(
@@ -20,18 +20,6 @@ internal static partial class DocumentIngestionServiceLog
 
     [LoggerMessage(
         EventId = 4302,
-        Level = LogLevel.Warning,
-        Message = "Ingestion stopped: the source-document write to OpenEMR failed ({Status}); nothing persisted.")]
-    public static partial void WriteFailed(ILogger logger, string status);
-
-    [LoggerMessage(
-        EventId = 4303,
-        Level = LogLevel.Warning,
-        Message = "Document written but its DocumentReference could not be resolved; persisting facts with a pending citation.")]
-    public static partial void CitationPending(ILogger logger);
-
-    [LoggerMessage(
-        EventId = 4304,
         Level = LogLevel.Information,
         Message = "Document ingested: {FactCount} derived fact(s) persisted.")]
     public static partial void Ingested(ILogger logger, int factCount);

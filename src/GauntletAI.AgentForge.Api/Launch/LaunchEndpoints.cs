@@ -12,8 +12,6 @@ public static class LaunchEndpoints
 {
     private const string PendingLaunchStateKey = "pending-launch.state";
     private const string PendingLaunchVerifierKey = "pending-launch.code-verifier";
-    private const string PendingLaunchAppKey = "pending-launch.app";
-    private const string UploadApp = "upload";
 
     /// <summary>Maps the SMART EHR launch and callback endpoints.</summary>
     public static IEndpointRouteBuilder MapLaunchEndpoints(this IEndpointRouteBuilder endpoints)
@@ -24,7 +22,7 @@ public static class LaunchEndpoints
     }
 
     private static async Task<IResult> HandleLaunchAsync(
-        HttpContext httpContext, SmartLaunchService launchService, string? iss, string? launch, string? app)
+        HttpContext httpContext, SmartLaunchService launchService, string? iss, string? launch)
     {
         _ = iss; // Present per SMART launch (INTERFACE_CONTROL.md A.3); not needed beyond the configured connection (v1: single fixed OpenEMR deployment).
         var (authorizeUrl, pending) = launchService.BeginLaunch(launch);
@@ -32,13 +30,6 @@ public static class LaunchEndpoints
         await httpContext.Session.LoadAsync(httpContext.RequestAborted).ConfigureAwait(false);
         httpContext.Session.SetString(PendingLaunchStateKey, pending.State);
         httpContext.Session.SetString(PendingLaunchVerifierKey, pending.CodeVerifier);
-        // The front-office upload entry point is the same patient launch with a different landing page
-        // (?app=upload -> the upload form, not the chat); carry the choice to the callback.
-        if (!string.IsNullOrEmpty(app))
-        {
-            httpContext.Session.SetString(PendingLaunchAppKey, app);
-        }
-
         await httpContext.Session.CommitAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
         return Results.Redirect(authorizeUrl.ToString());
@@ -51,7 +42,6 @@ public static class LaunchEndpoints
         await httpContext.Session.LoadAsync(httpContext.RequestAborted).ConfigureAwait(false);
         var pendingState = httpContext.Session.GetString(PendingLaunchStateKey);
         var pendingVerifier = httpContext.Session.GetString(PendingLaunchVerifierKey);
-        var pendingApp = httpContext.Session.GetString(PendingLaunchAppKey);
 
         if (string.IsNullOrEmpty(pendingState) || string.IsNullOrEmpty(pendingVerifier))
         {
@@ -73,17 +63,11 @@ public static class LaunchEndpoints
 
         httpContext.Session.Remove(PendingLaunchStateKey);
         httpContext.Session.Remove(PendingLaunchVerifierKey);
-        httpContext.Session.Remove(PendingLaunchAppKey);
         httpContext.Session.SavePatientSession(session);
         await httpContext.Session.CommitAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
-        // Front office lands on the upload form; clinicians land on the chat. Same session either way.
-        var landing = string.Equals(pendingApp, UploadApp, StringComparison.OrdinalIgnoreCase)
-            ? bffOptions.Value.UploadPath
-            : bffOptions.Value.ChatPath;
-
         // Prefix the reverse-proxy PathBase (/agentforge) - a bare "/index.html" redirect lands at
         // the proxy root, which isn't routed to this service, so it 404s (reference: gitlab#67).
-        return Results.Redirect(httpContext.Request.PathBase.Add(landing).ToString());
+        return Results.Redirect(httpContext.Request.PathBase.Add(bffOptions.Value.ChatPath).ToString());
     }
 }
