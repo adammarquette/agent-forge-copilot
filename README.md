@@ -46,6 +46,25 @@ Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issu
 | Administrator | `admin` | `P@ssw0rd1` |
 | Cardiologist (demo provider — the patients' attending) | `cardio1` | `P@ssw0rd1` |
 
+### Observability dashboard (Grafana)
+
+The Prometheus + Grafana stack (Epic 9, issue #57) is deployed on staging alongside the sidecar. Grafana
+requires a login (anonymous access is disabled); Prometheus is private (no public URL). Metrics are
+**operational only — no PHI** (see `NFR-SEC-W2-1`).
+
+**[agentforge-grafana-staging.up.railway.app](https://agentforge-grafana-staging.up.railway.app/)**
+
+| Service | Username | Password |
+|---|---|---|
+| Grafana (demo) | `admin` | `P@ssw0rd1` |
+
+> **Staging/demo only — not for production.** These are throwaway credentials for a synthetic-data, non-PHI
+> dashboard (same posture as the OpenEMR logins above), published here purely so a reviewer can open the demo.
+> A production deployment **must** replace them: set a strong, unique `GF_SECURITY_ADMIN_PASSWORD` (and rotate
+> `GF_SECURITY_ADMIN_USER`) on the `agentforge-grafana` service, keep the value out of source, and remove this
+> table. The real value lives in that Railway variable, not here. Prometheus stays reachable only over the
+> project's private network (`agentforge-prometheus.railway.internal:9090`).
+
 ---
 
 ## Where to find things

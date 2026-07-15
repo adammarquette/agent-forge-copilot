@@ -25,6 +25,24 @@ docker compose -f observability/docker-compose.yml up
 Pointing at a deployed instance (e.g. Railway) instead of local `dotnet run`: edit the `targets`
 list in `prometheus/prometheus.yml`.
 
+## Staging (deployed on Railway)
+
+The same stack runs on the `staging` environment (project `lucid-clarity`, issue #57) as two services
+alongside the sidecar, so the panels are viewable without running anything locally:
+
+- **`agentforge-grafana`** — public, login-gated. Credentials + URL are in the root
+  [`README.md`](../README.md#observability-dashboard-grafana). Built from `grafana/Dockerfile` (bakes the
+  same provisioning + dashboards; `grafana/staging/datasource.yml` overrides the datasource to the private
+  Prometheus).
+- **`agentforge-prometheus`** — **private only** (`agentforge-prometheus.railway.internal:9090`, no public
+  domain). Built from `prometheus/Dockerfile` (bakes `prometheus/prometheus.staging.yml`, which scrapes
+  `agent-forge-api-staging.railway.internal:8080/metrics` over the project's private network, and binds
+  `[::]` because Railway private networking is IPv6-only).
+
+Both build via Railway's `RAILWAY_DOCKERFILE_PATH` with the context at the repo root (same mechanism as
+`reverse-proxy/`), and deploy from CI (`.gitlab/ci/deploy.yml`) using `RAILWAY_TOKEN_STAGING`. Grafana admin
+credentials come from the `GF_SECURITY_ADMIN_*` Railway variables — never baked into the image.
+
 ## Alerts
 
 `alerts/agentforge-alerts.yml` - 4 rules (FR-OBS-4 requires ≥3), each with a `summary` and a
