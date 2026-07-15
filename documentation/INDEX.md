@@ -29,6 +29,7 @@ This file adds the missing third leg: **doc / requirement / use-case → code pr
 | [`AUDIT.md`](AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) | audit finding refs |
 | [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | — |
 | [`CI-SETUP.md`](CI-SETUP.md) · [`RAILWAY.md`](RAILWAY.md) | CI pipeline and Railway (staging) deployment operations | — |
+| [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the deployed `staging` environment — services, public vs private exposure, flows, trust boundaries (mermaid) | — |
 | [`supporting/`](supporting/) | Source requirement PDFs (Week 1 & 2) and the architecture-defense decks | — |
 
 ---
