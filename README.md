@@ -58,10 +58,12 @@ requires a login (anonymous access is disabled); Prometheus is private (no publi
 |---|---|---|
 | Grafana (demo) | `admin` | `P@ssw0rd1` |
 
-> The password is a **demo credential for a synthetic-data, non-PHI dashboard** — same posture as the OpenEMR
-> logins above. The real value lives in the `agentforge-grafana` service's `GF_SECURITY_ADMIN_PASSWORD`
-> Railway variable; rotate it there and update this table. Prometheus is reachable only over the project's
-> private network (`agentforge-prometheus.railway.internal:9090`).
+> **Staging/demo only — not for production.** These are throwaway credentials for a synthetic-data, non-PHI
+> dashboard (same posture as the OpenEMR logins above), published here purely so a reviewer can open the demo.
+> A production deployment **must** replace them: set a strong, unique `GF_SECURITY_ADMIN_PASSWORD` (and rotate
+> `GF_SECURITY_ADMIN_USER`) on the `agentforge-grafana` service, keep the value out of source, and remove this
+> table. The real value lives in that Railway variable, not here. Prometheus stays reachable only over the
+> project's private network (`agentforge-prometheus.railway.internal:9090`).
 
 ---
 
