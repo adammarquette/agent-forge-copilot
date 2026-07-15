@@ -198,13 +198,17 @@ clinician authority — it derives facts and makes **no** user-scoped FHIR call 
 token; a token would only have proven "OpenEMR is calling." Verification against staging (2026-07-14) also
 found OpenEMR does not advertise `client_credentials`/`private_key_jwt`, so a transient backend-services token
 isn't available without enabling system scopes + registering a system client. Instead the endpoint
-authenticates by **trusted origin**: the reverse proxy is the sole public ingress and does **not** route
-`/documents/ingest` (only `/agentforge/*` reaches the sidecar), and the sidecar has **no public domain of its
-own**, so the route is reachable only over the Railway private network — i.e. the module cron. This keeps
-Week 1's transient-token custody intact everywhere the clinician's flow touches FHIR; nothing is stored here
-and no token is minted. A **shared-secret header** is the tracked hardening follow-up (defense-in-depth
-against in-project callers or accidental public re-exposure), deliberately out of scope for the MVP.
-reference: gitlab#91
+authenticates by **trusted origin**, and two things must BOTH hold for that to be true: (1) the sidecar has
+**no public domain of its own**, and (2) the reverse proxy — the sole public ingress — **explicitly 404s
+`/agentforge/documents/`**. Point (2) is load-bearing and easy to get wrong: the endpoint lives under the
+sidecar's `/agentforge` PathBase, so without an explicit block the proxy's generic `/agentforge/` rule would
+forward `/agentforge/documents/ingest` straight to it (it did, until the block was added — the exposure that
+prompted this correction). The cron reaches the endpoint over `railway.internal`, bypassing the proxy, so the
+block costs it nothing. With both in place the route is reachable only over the Railway private network — i.e.
+the module cron. This keeps Week 1's transient-token custody intact everywhere the clinician's flow touches
+FHIR; nothing is stored here and no token is minted. A **shared-secret header** is the tracked hardening
+follow-up (defense-in-depth against in-project callers or a proxy misconfiguration re-exposing the path),
+deliberately out of scope for the MVP. reference: gitlab#91, gitlab#92
 
 **Idempotency.** Ingest is keyed by a SHA-256 content hash; re-forwarding the same bytes is a no-op that
 returns the existing record, so a cron re-run or overlap never double-persists.
