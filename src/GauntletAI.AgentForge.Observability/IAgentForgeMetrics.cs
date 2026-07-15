@@ -36,4 +36,10 @@ public interface IAgentForgeMetrics
 
     /// <summary>Records one evidence-retrieval call: whether it hit (returned any snippets), how many, and how long it took.</summary>
     void RecordEvidenceRetrieval(bool hit, int resultCount, TimeSpan duration);
+
+    /// <summary>Records the wall-clock latency of one rerank (cross-encoder) call.</summary>
+    void RecordRerankLatency(TimeSpan duration);
+
+    /// <summary>Records one retrieval degradation — a half or the reranker failed and was skipped — by stage (sparse/dense/rerank).</summary>
+    void RecordRetrievalDegradation(string stage);
 }

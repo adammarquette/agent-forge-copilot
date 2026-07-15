@@ -23,6 +23,8 @@ public sealed class AgentForgeMetrics : IAgentForgeMetrics, IDisposable
     private readonly Counter<long> _evidenceRetrievalsTotal;
     private readonly Histogram<double> _evidenceRetrievalDurationSeconds;
     private readonly Histogram<long> _evidenceRetrievalResults;
+    private readonly Histogram<double> _rerankDurationSeconds;
+    private readonly Counter<long> _retrievalDegradationsTotal;
 
     /// <summary>Creates the meter and every instrument it publishes under <see cref="MeterName"/>.</summary>
     public AgentForgeMetrics()
@@ -58,6 +60,11 @@ public sealed class AgentForgeMetrics : IAgentForgeMetrics, IDisposable
             "agentforge.evidence_retrieval.duration", unit: "s", description: "Wall-clock duration of one evidence-retrieval call.");
         _evidenceRetrievalResults = _meter.CreateHistogram<long>(
             "agentforge.evidence_retrieval.results", unit: "{snippet}", description: "Snippets returned by one evidence-retrieval call.");
+        _rerankDurationSeconds = _meter.CreateHistogram<double>(
+            "agentforge.rerank.duration", unit: "s", description: "Wall-clock duration of one rerank (cross-encoder) call.");
+        _retrievalDegradationsTotal = _meter.CreateCounter<long>(
+            "agentforge.retrieval_degradations", unit: "{degradation}",
+            description: "Retrieval degradations (a half or the reranker failed and was skipped), by stage.");
     }
 
     /// <inheritdoc />
@@ -115,6 +122,13 @@ public sealed class AgentForgeMetrics : IAgentForgeMetrics, IDisposable
         _evidenceRetrievalDurationSeconds.Record(duration.TotalSeconds);
         _evidenceRetrievalResults.Record(resultCount);
     }
+
+    /// <inheritdoc />
+    public void RecordRerankLatency(TimeSpan duration) => _rerankDurationSeconds.Record(duration.TotalSeconds);
+
+    /// <inheritdoc />
+    public void RecordRetrievalDegradation(string stage) =>
+        _retrievalDegradationsTotal.Add(1, new KeyValuePair<string, object?>("stage", stage));
 
     /// <inheritdoc />
     public void Dispose() => _meter.Dispose();
