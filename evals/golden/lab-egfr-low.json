@@ -1,0 +1,18 @@
+{
+    "id": "lab-egfr-low",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"eGFR\",\"value\":\"44\",\"unit\":\"mL/min/1.73m2\",\"reference_range\":\">60\",\"collection_date\":\"2026-06-15\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"eGFR 44 mL/min/1.73m2\",\"bounding_box\":null}}]}",
+    "expect_success": true,
+    "expected_values": [
+        "eGFR",
+        "44"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

@@ -1,0 +1,21 @@
+{
+    "id": "intake-post-mi",
+    "category": "extraction",
+    "doc_type": "intake_form",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"demographics\":{\"full_name\":\"Halima Testafar\",\"date_of_birth\":\"1953-07-07\",\"sex\":\"F\"},\"chief_concern\":\"post-MI follow-up\",\"current_medications\":[{\"name\":\"clopidogrel\",\"dose\":\"75mg daily\",\"citation\":{\"page\":1,\"quote\":\"clopidogrel 75mg\",\"bounding_box\":null}},{\"name\":\"rosuvastatin\",\"dose\":\"20mg nightly\",\"citation\":{\"page\":1,\"quote\":\"rosuvastatin 20mg\",\"bounding_box\":null}}],\"allergies\":[\"codeine\"],\"family_history\":[\"father: MI at 55\",\"mother: type 2 diabetes\",\"sister: hyperlipidemia\"],\"citation\":{\"page\":1,\"quote\":\"Patient intake form\",\"bounding_box\":null}}",
+    "expect_success": true,
+    "expected_values": [
+        "clopidogrel",
+        "post-MI follow-up"
+    ],
+    "phi_tokens": [
+        "Halima Testafar"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

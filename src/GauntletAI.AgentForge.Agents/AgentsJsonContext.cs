@@ -19,10 +19,19 @@ internal sealed record EvidenceToolResult(string ResourceType, string Id, string
 internal sealed record LabToolResult(string ResourceType, string Id, string TestName, string Value);
 
 /// <summary>
+/// Citation-shaped projection of a fact ingested from a document <b>before</b> this turn (the pre-visit E2
+/// path). Same mechanism as <see cref="LabToolResult"/> (ResourceType "Derived", Id a per-fact slug), so the
+/// composer can cite <c>[Derived/&lt;slug&gt;]</c> for a document-derived value and have it resolve — the
+/// <c>source_type: derived</c> class the answer keeps distinct from <c>fhir</c>/<c>guideline</c> (FR-RAG-3).
+/// </summary>
+internal sealed record DerivedToolResult(string ResourceType, string Id, string FactType, string Value);
+
+/// <summary>
 /// Source-generated JSON for handing evidence and extracted labs to the critic as tool results
 /// (ENGINEERING_STANDARDS.md §3). Default (PascalCase) naming so the <c>ResourceType</c>/<c>Id</c> keys match
 /// the scanner exactly.
 /// </summary>
 [JsonSerializable(typeof(EvidenceToolResult[]))]
 [JsonSerializable(typeof(LabToolResult[]))]
+[JsonSerializable(typeof(DerivedToolResult[]))]
 internal sealed partial class AgentsJsonContext : JsonSerializerContext;

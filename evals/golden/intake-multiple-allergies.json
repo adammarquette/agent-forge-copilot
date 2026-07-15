@@ -1,0 +1,20 @@
+{
+    "id": "intake-multiple-allergies",
+    "category": "extraction",
+    "doc_type": "intake_form",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"demographics\":{\"full_name\":\"Junko Almeida\",\"date_of_birth\":\"1979-06-11\",\"sex\":\"F\"},\"chief_concern\":\"new patient cardiac evaluation\",\"current_medications\":[{\"name\":\"losartan\",\"dose\":\"50mg daily\",\"citation\":{\"page\":1,\"quote\":\"losartan 50mg\",\"bounding_box\":null}}],\"allergies\":[\"penicillin\",\"sulfa\",\"shellfish\",\"latex\"],\"family_history\":[\"mother: hypertension\"],\"citation\":{\"page\":1,\"quote\":\"Patient intake form\",\"bounding_box\":null}}",
+    "expect_success": true,
+    "expected_values": [
+        "losartan"
+    ],
+    "phi_tokens": [
+        "Junko Almeida"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

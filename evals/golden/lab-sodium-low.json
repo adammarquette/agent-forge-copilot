@@ -1,0 +1,18 @@
+{
+    "id": "lab-sodium-low",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"Sodium\",\"value\":\"128\",\"unit\":\"mmol/L\",\"reference_range\":\"135-145\",\"collection_date\":\"2026-06-15\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"Sodium 128 (L) mmol/L\",\"bounding_box\":null}}]}",
+    "expect_success": true,
+    "expected_values": [
+        "Sodium",
+        "128"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

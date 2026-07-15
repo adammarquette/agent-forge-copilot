@@ -1,0 +1,18 @@
+{
+    "id": "lab-ldl-high",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"LDL Cholesterol\",\"value\":\"168\",\"unit\":\"mg/dL\",\"reference_range\":\"<100\",\"collection_date\":\"2026-06-15\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"LDL 168 (H) mg/dL\",\"bounding_box\":null}}]}",
+    "expect_success": true,
+    "expected_values": [
+        "LDL",
+        "168"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

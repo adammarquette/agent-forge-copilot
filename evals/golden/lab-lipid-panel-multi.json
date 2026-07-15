@@ -1,0 +1,19 @@
+{
+    "id": "lab-lipid-panel-multi",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"Total Cholesterol\",\"value\":\"244\",\"unit\":\"mg/dL\",\"reference_range\":\"<200\",\"collection_date\":\"2026-06-10\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"Total Cholesterol 244\",\"bounding_box\":null}},{\"test_name\":\"LDL Cholesterol\",\"value\":\"165\",\"unit\":\"mg/dL\",\"reference_range\":\"<100\",\"collection_date\":\"2026-06-10\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"LDL 165\",\"bounding_box\":null}},{\"test_name\":\"HDL Cholesterol\",\"value\":\"38\",\"unit\":\"mg/dL\",\"reference_range\":\">40\",\"collection_date\":\"2026-06-10\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"HDL 38\",\"bounding_box\":null}},{\"test_name\":\"Triglycerides\",\"value\":\"205\",\"unit\":\"mg/dL\",\"reference_range\":\"<150\",\"collection_date\":\"2026-06-10\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"Triglycerides 205\",\"bounding_box\":null}}]}",
+    "expect_success": true,
+    "expected_values": [
+        "LDL",
+        "165",
+        "HDL"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

@@ -1,0 +1,18 @@
+{
+    "id": "lab-tsh-high",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"TSH\",\"value\":\"9.8\",\"unit\":\"mIU/L\",\"reference_range\":\"0.4-4.0\",\"collection_date\":\"2026-06-15\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"TSH 9.8 (H) mIU/L\",\"bounding_box\":null}}]}",
+    "expect_success": true,
+    "expected_values": [
+        "TSH",
+        "9.8"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

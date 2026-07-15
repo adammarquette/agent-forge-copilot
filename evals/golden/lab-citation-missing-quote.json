@@ -1,0 +1,13 @@
+{
+    "id": "lab-citation-missing-quote",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"INR\",\"value\":\"2.5\",\"citation\":{\"page\":1,\"bounding_box\":null}}]}",
+    "expect_success": false,
+    "rubrics": [
+        "schema_valid",
+        "safe_refusal",
+        "no_phi_in_logs"
+    ]
+}
