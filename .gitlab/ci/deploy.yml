@@ -49,7 +49,8 @@ deploy:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   environment:
     name: staging
-    url: https://agent-forge-api-staging-staging.up.railway.app
+    # The sidecar is reached only through the reverse proxy under /agentforge (no direct domain, gitlab#92).
+    url: https://agent-forge-reverse-proxy-staging.up.railway.app/agentforge
   before_script:
     - railway --version
   script:

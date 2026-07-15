@@ -22,7 +22,10 @@ post-deploy-smoke-test:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   variables:
     GIT_STRATEGY: none
-    DEPLOYED_URL: https://agent-forge-api-staging-staging.up.railway.app
+    # The sidecar has no public domain of its own (removed with the ingest exposure fix, gitlab#92); its only
+    # ingress is the reverse proxy under /agentforge. Health-check through the front door - the same path a
+    # real request takes - not the deleted direct domain. reference: gitlab#92
+    DEPLOYED_URL: https://agent-forge-reverse-proxy-staging.up.railway.app
   script:
     - |
       check() {
@@ -43,8 +46,8 @@ post-deploy-smoke-test:
         cat /tmp/body 2>/dev/null; echo
         return 1
       }
-      check "/health"
-      check "/ready"
+      check "/agentforge/health"
+      check "/agentforge/ready"
 
 # -----------------------------------------------------------------------------
 # VERIFY (reverse-proxy) — post-deploy smoke test against the front door
