@@ -56,6 +56,17 @@ server {
         return 404;
     }
 
+    # /evidence/ask is the stateless Week 2 evidence endpoint. By design it needs no SMART session, and
+    # nothing browser-side ever calls it - the OpenEMR module only SMART-launches the app (confirmed: the
+    # fork has no reference to this path), so it has no reason to sit on the public front door, while every
+    # call drives LLM + Cohere rerank quota. Block it here exactly like /documents/ above: reachable only
+    # over the private network (railway.internal), for demos/tests run inside it. Exact match so only this
+    # route is blocked, not the rest of the sidecar API. 404 (not 403) to avoid advertising the route.
+    # reference: agent-forge-copilot#105.
+    location = /agentforge/evidence/ask {
+        return 404;
+    }
+
     # Everything else the sidecar serves (chat SPA, launch/callback, API).
     # Timeout is above AgentOptions.TurnDeadline's 60s default so a
     # slow-but-legitimate agent turn isn't cut off by the proxy before the
