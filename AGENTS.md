@@ -10,7 +10,10 @@ integrates with OpenEMR only over standard FHIR/OAuth/SMART. Base namespace: **`
 solution: **`GauntletAI.AgentForge.slnx`** (repo root), with projects under `src/` and `tests/`.
 
 ## Source of truth (read before coding)
-The `documentation/` folder is authoritative; these AGENTS files summarize and point to it.
+**Start at `README.md`, then `documentation/INDEX.md` — the wiki's front door.** `INDEX.md` sequences the docs
+below and carries the doc/requirement/use-case → code-project traceability leg the individual files don't;
+traverse from there instead of re-deriving context each session. The `documentation/` folder is authoritative;
+these AGENTS files summarize and point to it.
 - `PRD.md` — requirements (FR-/NFR- IDs). `USERS.md` — the user + use cases every capability must trace to.
 - `ARCHITECTURE.md` — decisions & topology. `ENGINEERING_STANDARDS.md` — stack, standards, testing tiers.
 - `INTERFACE_CONTROL.md` — the OpenEMR external interface (ICD).
