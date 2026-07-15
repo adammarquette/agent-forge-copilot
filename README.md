@@ -52,7 +52,7 @@ The Prometheus + Grafana stack (Epic 9, issue #57) is deployed on staging alongs
 requires a login (anonymous access is disabled); Prometheus is private (no public URL). Metrics are
 **operational only — no PHI** (see `NFR-SEC-W2-1`).
 
-**[_Grafana staging URL — populated once the Railway domain is generated_]**
+**[agentforge-grafana-staging.up.railway.app](https://agentforge-grafana-staging.up.railway.app/)**
 
 | Service | Username | Password |
 |---|---|---|
