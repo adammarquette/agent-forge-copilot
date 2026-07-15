@@ -1,0 +1,20 @@
+{
+    "id": "intake-valve-disease",
+    "category": "extraction",
+    "doc_type": "intake_form",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"demographics\":{\"full_name\":\"Kwame Lindqvist\",\"date_of_birth\":\"1951-10-08\",\"sex\":\"M\"},\"chief_concern\":\"aortic stenosis surveillance\",\"current_medications\":[{\"name\":\"atorvastatin\",\"dose\":\"20mg nightly\",\"citation\":{\"page\":1,\"quote\":\"atorvastatin 20mg\",\"bounding_box\":null}},{\"name\":\"aspirin\",\"dose\":\"81mg daily\",\"citation\":{\"page\":1,\"quote\":\"aspirin 81mg\",\"bounding_box\":null}}],\"allergies\":[\"iodine contrast\"],\"family_history\":[],\"citation\":{\"page\":1,\"quote\":\"Patient intake form\",\"bounding_box\":null}}",
+    "expect_success": true,
+    "expected_values": [
+        "aortic stenosis surveillance"
+    ],
+    "phi_tokens": [
+        "Kwame Lindqvist"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

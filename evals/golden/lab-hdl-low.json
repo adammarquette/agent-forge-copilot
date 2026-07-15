@@ -1,0 +1,18 @@
+{
+    "id": "lab-hdl-low",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"HDL Cholesterol\",\"value\":\"32\",\"unit\":\"mg/dL\",\"reference_range\":\">40\",\"collection_date\":\"2026-06-15\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"HDL 32 (L) mg/dL\",\"bounding_box\":null}}]}",
+    "expect_success": true,
+    "expected_values": [
+        "HDL",
+        "32"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

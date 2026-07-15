@@ -1,0 +1,18 @@
+{
+    "id": "lab-digoxin-toxic",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"Digoxin\",\"value\":\"2.6\",\"unit\":\"ng/mL\",\"reference_range\":\"0.8-2.0\",\"collection_date\":\"2026-06-15\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"Digoxin 2.6 (H) ng/mL\",\"bounding_box\":null}}]}",
+    "expect_success": true,
+    "expected_values": [
+        "Digoxin",
+        "2.6"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

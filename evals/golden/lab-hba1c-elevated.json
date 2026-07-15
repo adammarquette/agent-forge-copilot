@@ -1,0 +1,18 @@
+{
+    "id": "lab-hba1c-elevated",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"HbA1c\",\"value\":\"8.2\",\"unit\":\"%\",\"reference_range\":\"4.0-5.6\",\"collection_date\":\"2026-06-15\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"HbA1c 8.2 (H) %\",\"bounding_box\":null}}]}",
+    "expect_success": true,
+    "expected_values": [
+        "HbA1c",
+        "8.2"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

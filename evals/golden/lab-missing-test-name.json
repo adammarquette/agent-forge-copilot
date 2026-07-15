@@ -1,0 +1,13 @@
+{
+    "id": "lab-missing-test-name",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"value\":\"2.5\",\"citation\":{\"page\":1,\"quote\":\"2.5\",\"bounding_box\":null}}]}",
+    "expect_success": false,
+    "rubrics": [
+        "schema_valid",
+        "safe_refusal",
+        "no_phi_in_logs"
+    ]
+}

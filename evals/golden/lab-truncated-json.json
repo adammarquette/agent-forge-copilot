@@ -1,0 +1,13 @@
+{
+    "id": "lab-truncated-json",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"Potassium\",\"value\":\"5.0\",",
+    "expect_success": false,
+    "rubrics": [
+        "schema_valid",
+        "safe_refusal",
+        "no_phi_in_logs"
+    ]
+}

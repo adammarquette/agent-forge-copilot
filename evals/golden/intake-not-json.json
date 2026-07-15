@@ -1,0 +1,13 @@
+{
+    "id": "intake-not-json",
+    "category": "extraction",
+    "doc_type": "intake_form",
+    "media_type": "application/pdf",
+    "stub_model_response": "Unable to extract structured data from this intake form.",
+    "expect_success": false,
+    "rubrics": [
+        "schema_valid",
+        "safe_refusal",
+        "no_phi_in_logs"
+    ]
+}

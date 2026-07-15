@@ -1,0 +1,21 @@
+{
+    "id": "intake-cardiology-full",
+    "category": "extraction",
+    "doc_type": "intake_form",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"demographics\":{\"full_name\":\"Arthur Penhaligon\",\"date_of_birth\":\"1955-09-03\",\"sex\":\"M\"},\"chief_concern\":\"exertional chest pain\",\"current_medications\":[{\"name\":\"aspirin\",\"dose\":\"81mg daily\",\"citation\":{\"page\":1,\"quote\":\"aspirin 81mg daily\",\"bounding_box\":null}},{\"name\":\"atorvastatin\",\"dose\":\"40mg nightly\",\"citation\":{\"page\":1,\"quote\":\"atorvastatin 40mg\",\"bounding_box\":null}},{\"name\":\"lisinopril\",\"dose\":\"10mg daily\",\"citation\":{\"page\":1,\"quote\":\"lisinopril 10mg\",\"bounding_box\":null}}],\"allergies\":[\"sulfa\"],\"family_history\":[\"father: MI at 58\",\"mother: hypertension\"],\"citation\":{\"page\":1,\"quote\":\"Patient intake form\",\"bounding_box\":null}}",
+    "expect_success": true,
+    "expected_values": [
+        "atorvastatin",
+        "exertional chest pain"
+    ],
+    "phi_tokens": [
+        "Arthur Penhaligon"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}
