@@ -7,12 +7,12 @@ using Microsoft.EntityFrameworkCore;
 namespace GauntletAI.AgentForge.Retrieval;
 
 /// <summary>
-/// Evidence-retriever backed by Postgres full-text search over the guideline corpus (the sparse half of the
-/// hybrid design, W2_ARCHITECTURE.md §5). The RRF fusion with pgvector dense search + rerank is the documented
-/// fast-follow; this baseline gives a working, grounded retriever with no embeddings dependency. The query is
-/// raw parameterized SQL (W2-D14) — the FTS ranking is not expressible in LINQ.
+/// The sparse half of hybrid retrieval (W2_ARCHITECTURE.md §5): Postgres full-text search over the guideline
+/// corpus. Composed with the dense half and reranked by <see cref="HybridEvidenceRetriever"/>; it needs no
+/// embeddings, so it is also the sparse-only degradation path when Cohere is unavailable. The query is raw
+/// parameterized SQL (W2-D14) — the FTS ranking is not expressible in LINQ.
 /// </summary>
-public sealed class FtsEvidenceRetriever : IEvidenceRetriever
+public sealed class FtsEvidenceRetriever : ISparseRetriever
 {
     private const string RetrieveSql = """
         SELECT gd."Source", gc."Section", gc."Id"::text, gc."Content",
