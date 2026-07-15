@@ -116,17 +116,17 @@ The front desk uploads clinical documents through **OpenEMR's own Documents work
 staff already use — so **OpenEMR is authoritative for the source file** and there is no parallel sidecar
 upload UI (W2-D3, revised — see §15). An `oe-module-agentforge` **Background Service (cron)** then forwards
 each new document to the sidecar's `POST /documents/ingest` with its content, its OpenEMR `DocumentReference`
-id, the patient id, and `doc_type` (a closed enum: `lab_pdf | intake_form`), carrying the run's **transient
-bearer token** (introspected per call, never stored). This runs **pre-visit**, so heavy VLM extraction never
-lands in the clinician's ~90-second window — the copilot only reads already-persisted facts. The flow is
-**introspect → idempotency check → extract → validate → persist derived facts**, and the schema is the gate
-between the model and everything downstream.
+id, the patient id, and `doc_type` (a closed enum: `lab_pdf | intake_form`). The endpoint is reachable **only
+over the private network** — trusted-origin auth, not a token (W2-D17, see §15). This runs **pre-visit**, so
+heavy VLM extraction never lands in the clinician's ~90-second window — the copilot only reads
+already-persisted facts. The flow is **idempotency check → extract → validate → persist derived facts**, and
+the schema is the gate between the model and everything downstream.
 
 ```mermaid
 flowchart TD
     U["Front desk uploads via OpenEMR Documents<br/>(OpenEMR = authority for the file)"] --> K["oe-module-agentforge cron<br/>scans new documents (Section 11.3)"]
-    K --> P["POST /documents/ingest<br/>content + DocumentReference id + patient + doc_type<br/>(transient bearer token)"]
-    P --> V["Introspect token (active?)<br/>+ content-hash idempotency check"]
+    K --> P["POST /documents/ingest<br/>content + DocumentReference id + patient + doc_type<br/>(private network only — trusted origin)"]
+    P --> V["content-hash idempotency check"]
     V -->|already ingested| Z["No-op (idempotent)"]
     V -->|new| E["VLM extraction (ILlmProvider vision)<br/>doc_type-specific prompt + schema"]
     E --> F["Strict schema validation<br/>(System.Text.Json source-gen)"]
@@ -190,14 +190,21 @@ construction.
 `documents.id`, filtered to configured categories → `doc_type`) and forwards each to `POST /documents/ingest`:
 `{ content, documentReferenceId, patientId, docType, mediaType }`. Chosen over patching
 `Document::createDocument` (a core, upgrade-fragile edit) because the cron is module-only and upgrade-safe,
-and over a browser-JS trigger because that can't seat a token pre-visit. It runs pre-visit, so the clinician
-turn stays fast (§11.3).
+and over a browser-JS trigger because only a server-side scan runs reliably pre-visit without the clinician
+present. It runs pre-visit, so the clinician turn stays fast (§11.3).
 
-**Auth is a transient token (W2-D16).** The cron authenticates each call with a short-lived
-`client_credentials` access token (minted per run via a registered confidential *system* client, discarded
-after) sent as a bearer; the endpoint **introspects** it (active check) and stores nothing. This preserves
-Week 1's transient-token custody — no sidecar-held identity, no stored token. The only persisted item is the
-system client's key material in module config (a credential to *mint* transient tokens, not a token itself).
+**Auth is trusted private-network origin (W2-D17, supersedes W2-D16).** The ingest endpoint carries no
+clinician authority — it derives facts and makes **no** user-scoped FHIR call — so it never needed a user
+token; a token would only have proven "OpenEMR is calling." Verification against staging (2026-07-14) also
+found OpenEMR does not advertise `client_credentials`/`private_key_jwt`, so a transient backend-services token
+isn't available without enabling system scopes + registering a system client. Instead the endpoint
+authenticates by **trusted origin**: the reverse proxy is the sole public ingress and does **not** route
+`/documents/ingest` (only `/agentforge/*` reaches the sidecar), and the sidecar has **no public domain of its
+own**, so the route is reachable only over the Railway private network — i.e. the module cron. This keeps
+Week 1's transient-token custody intact everywhere the clinician's flow touches FHIR; nothing is stored here
+and no token is minted. A **shared-secret header** is the tracked hardening follow-up (defense-in-depth
+against in-project callers or accidental public re-exposure), deliberately out of scope for the MVP.
+reference: gitlab#91
 
 **Idempotency.** Ingest is keyed by a SHA-256 content hash; re-forwarding the same bytes is a no-op that
 returns the existing record, so a cron re-run or overlap never double-persists.
@@ -520,7 +527,7 @@ automated tier). Every test names the failure mode it guards (Week 1 §8 rule).
 | # | Risk / tradeoff | Mitigation |
 |---|---|---|
 | 1 | VLM hallucinates a field label / overstates confidence | Schema is the gate; unschematized output discarded; `factually_consistent` + `citation_present` rubrics; confidence captured |
-| 2 | Ingestion trigger lives in the fork (module cron) | Module-only Background Service (no core `Document::createDocument` patch); transient `client_credentials` token, introspected; content-hash idempotency; the sidecar writes nothing to OpenEMR |
+| 2 | Ingestion trigger lives in the fork (module cron) | Module-only Background Service (no core `Document::createDocument` patch); ingest reachable only over the private network (W2-D17 trusted origin, no token); content-hash idempotency; the sidecar writes nothing to OpenEMR |
 | 3 | Derived-fact store is new PHI-at-rest | Encrypted, scoped, audited, no-PHI-in-telemetry; documented as a new surface |
 | 4 | Rerank/embeddings add latency + cost + a new dependency | Small corpus; `IReranker`/`IEmbeddingProvider` seams; sparse-only degradation; cost tracked per query |
 | 5 | Supervisor becomes a black box | Typed state machine; every handoff logged; worker spans are children of the supervisor span |
@@ -549,15 +556,17 @@ automated tier). Every test names the failure mode it guards (Week 1 §8 rule).
 | **W2-D13** | Cloud-native target (AWS default); Railway stays the sprint demo | Railway single-instance as the architecture | Redundant/performant target reconciled with the Week 1 Railway public-URL hard gate; same container image both ways |
 | **W2-D14** | Shared `GauntletAI.AgentForge.Data` project — EF Core + Pgvector.EntityFrameworkCore for entities / vector / index / KNN; raw SQL for RRF; EF Migrations for schema + scripts | Dapper / raw Npgsql only; per-project DbContexts | ORM-native for entities, migrations, and dense KNN; raw SQL only where hybrid fusion needs it; one migrations home; EF provider major pinned to the EF Core 10 line in CPM (the pgvector-EF floor won't force it) |
 | **W2-D15** | Front desk uploads via OpenEMR-native Documents; an `oe-module-agentforge` Background Service (cron) forwards new docs to the sidecar `POST /documents/ingest` | Sidecar upload form + write-back (Option 1); patch `Document::createDocument`; browser-JS trigger | Consistent OpenEMR upload path (no double-entry); OpenEMR has no document-created event, so a module cron is the module-only, upgrade-safe trigger; extraction runs pre-visit so the clinician turn stays fast |
-| **W2-D16** | Cron authenticates to `/documents/ingest` with a transient `client_credentials` token, introspected per call | Sidecar-held/refresh-token admin identity; shared secret | No stored token or identity (preserves Week 1 transient custody); the sidecar just introspects; only the system client's key material is persisted config, not a token |
+| **W2-D16** *(superseded by W2-D17)* | Cron authenticates to `/documents/ingest` with a transient `client_credentials` token, introspected per call | Sidecar-held/refresh-token admin identity; shared secret | Dropped: the endpoint carries no clinician authority (no user token needed) and staging OpenEMR does not advertise `client_credentials`/`private_key_jwt` |
+| **W2-D17** | `/documents/ingest` authenticates by **trusted private-network origin** — sidecar has no public domain, the reverse proxy does not route the path, so only the in-project cron can reach it | Transient `client_credentials` token (W2-D16); shared secret now | No token to mint or introspect; preserves Week 1 transient-token custody everywhere the clinician flow touches FHIR; shared-secret header is the tracked follow-up (gitlab#91), out of scope for MVP |
 
 ---
 
 ## 16. Items To Confirm (before/at MVP)
 
-- **[CONFIRM]** The `oe-module-agentforge` ingestion cron: the `client_credentials` token flow
-  (private_key_jwt system client) against the fork's OAuth, the category→`doc_type` mapping, and the
-  `documents`/`Document` read API used by the scan. *(fork-side; agent-forge#44)*
+- **[CONFIRM]** The `oe-module-agentforge` ingestion cron: the category→`doc_type` mapping and the
+  `Document` read API (`get_data`/`get_uuid`) used by the scan, exercised against a running OpenEMR. *(The
+  `documents`/`categories_to_documents` schema and the private-network trust model are verified — 2026-07-14;
+  the token flow is no longer needed, see W2-D17.)* *(fork-side; agent-forge#44)*
 - **[CONFIRM]** Vector store final pick (pgvector vs Qdrant) once corpus size is known; embeddings +
   reranker providers under assumed BAA.
 - **[CONFIRM]** Document-ingestion p95 SLO number, and derived-fact-store RPO/RTO — set from Week 2 baselines.
