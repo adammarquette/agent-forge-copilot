@@ -205,7 +205,7 @@ if (weekTwoEnabled)
 {
     builder.Services.AddAgentForgeData(builder.Configuration);
     builder.Services.AddAgentForgeDocuments();
-    builder.Services.AddAgentForgeRetrieval();
+    builder.Services.AddAgentForgeRetrieval(builder.Configuration);
     builder.Services.AddAgentForgeEvidenceAgent();
 
     // Week 2 ingestion (E2): the front desk uploads through OpenEMR's own Documents; the oe-module-agentforge
