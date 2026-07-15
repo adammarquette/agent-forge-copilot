@@ -56,27 +56,15 @@ server {
         return 404;
     }
 
-    # /evidence/ask is the stateless demo endpoint - by design it needs no SMART session (unlike the
-    # 401-gated agenda/patient routes), which also leaves it open to the public front door, and every
-    # call drives LLM + Cohere rerank quota. Gate it here at the edge with a shared-secret header
-    # (staging/demo control, same spirit as the Grafana basic-auth creds); the expected value is
-    # injected from the EVIDENCE_API_KEY env var at container start and kept out of source. An unset
-    # var leaves the literal "${EVIDENCE_API_KEY}" here, which no caller can match - fail-closed. Exact
-    # match so only this one route is gated, not the rest of the sidecar API. The `if`-with-`return` is
-    # one of nginx's documented-safe `if` uses; proxy_pass stays at the location level.
+    # /evidence/ask is the stateless Week 2 evidence endpoint. By design it needs no SMART session, and
+    # nothing browser-side ever calls it - the OpenEMR module only SMART-launches the app (confirmed: the
+    # fork has no reference to this path), so it has no reason to sit on the public front door, while every
+    # call drives LLM + Cohere rerank quota. Block it here exactly like /documents/ above: reachable only
+    # over the private network (railway.internal), for demos/tests run inside it. Exact match so only this
+    # route is blocked, not the rest of the sidecar API. 404 (not 403) to avoid advertising the route.
     # reference: agent-forge-copilot#105.
     location = /agentforge/evidence/ask {
-        if ($http_x_agentforge_key != "${EVIDENCE_API_KEY}") {
-            return 401;
-        }
-        set $sidecar_upstream ${SIDECAR_UPSTREAM};
-        proxy_pass http://$sidecar_upstream;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_read_timeout 120s;
+        return 404;
     }
 
     # Everything else the sidecar serves (chat SPA, launch/callback, API).

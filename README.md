@@ -65,25 +65,18 @@ requires a login (anonymous access is disabled); Prometheus is private (no publi
 > table. The real value lives in that Railway variable, not here. Prometheus stays reachable only over the
 > project's private network (`agentforge-prometheus.railway.internal:9090`).
 
-### Evidence API (`/agentforge/evidence/ask`)
+### Front-door surface (what's reachable, and how it's protected)
 
-The stateless multimodal-evidence endpoint (Week 2) needs no SMART session by design, so unlike the
-session-gated agenda routes it would otherwise be open on the public front door — and every call drives LLM
-+ Cohere rerank quota. The reverse proxy gates it (issue #105) behind a shared-secret header; requests
-without it get `401`:
+The sidecar is a browser-facing SMART app, so its launch and session routes are reachable through the
+public front door and secured by **auth**, not by hiding them. Two paths that need no browser access are
+blocked at the proxy instead:
 
-```
-curl -X POST https://agent-forge-reverse-proxy-staging.up.railway.app/agentforge/evidence/ask \
-  -H "X-AgentForge-Key: <EVIDENCE_API_KEY>" \
-  -F "question=What is the guideline LDL target for a patient with established ASCVD?"
-```
-
-> **Staging/demo control — not a production auth design.** `EVIDENCE_API_KEY` is a single shared secret
-> injected into the `agent-forge-reverse-proxy` service's env (kept out of source, same posture as the creds
-> above); the value lives in that Railway variable and the masked `EVIDENCE_API_KEY` CI variable, not here. It
-> caps casual quota abuse for the demo — it is not per-user auth. `/agentforge/documents/*` stays fully
-> blocked (private-network only, W2-D17); `/agentforge/launch` + `/callback` stay public (required for the
-> SMART launch); `/agentforge/agenda` + `/patient` stay `401`-gated by the BFF session.
+| Path | Public? | How it's protected |
+|---|---|---|
+| `/agentforge/launch`, `/callback` (+ agenda variants) | Yes | SMART OAuth flow (state / `aud` / token exchange) — the browser must reach these for the embedded launch |
+| `/agentforge/agenda`, `/patient` | Yes | `401` — BFF session cookie required |
+| `/agentforge/documents/*` | **No — `404`** | Private-network only; ingestion authenticates by trusted origin (W2-D17) |
+| `/agentforge/evidence/ask` | **No — `404`** | Private-network only (issue #105). Stateless Week 2 endpoint with no browser client — the OpenEMR module only launches the app, it never calls this — so it stays off the public front door and can't burn LLM/Cohere quota from the internet. Reachable over `agent-forge-api-staging.railway.internal:8080` for demos/tests run inside the private network. |
 
 ---
 
