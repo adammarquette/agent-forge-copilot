@@ -1,6 +1,7 @@
 using FakeItEasy;
 using FluentAssertions;
 using GauntletAI.AgentForge.Agents;
+using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Retrieval;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -17,6 +18,7 @@ public sealed class HybridEvidenceRetrieverTests
     private readonly ISparseRetriever _sparse = A.Fake<ISparseRetriever>();
     private readonly IDenseRetriever _dense = A.Fake<IDenseRetriever>();
     private readonly IReranker _reranker = A.Fake<IReranker>();
+    private readonly IAgentForgeMetrics _metrics = A.Fake<IAgentForgeMetrics>();
 
     private HybridEvidenceRetriever CreateSut()
     {
@@ -27,7 +29,7 @@ public sealed class HybridEvidenceRetrieverTests
         A.CallTo(() => _reranker.RerankAsync(A<string>._, A<IReadOnlyList<RerankDocument>>._, A<int>._, A<CancellationToken>._))
             .ReturnsLazily((string _, IReadOnlyList<RerankDocument> docs, int k, CancellationToken _) =>
                 (IReadOnlyList<RerankedCandidate>)[.. docs.Take(k).Select((d, i) => new RerankedCandidate(d.Id, 1.0 - (i * 0.01)))]);
-        return new HybridEvidenceRetriever(_sparse, _dense, _reranker, NullLogger<HybridEvidenceRetriever>.Instance);
+        return new HybridEvidenceRetriever(_sparse, _dense, _reranker, _metrics, NullLogger<HybridEvidenceRetriever>.Instance);
     }
 
     private static EvidenceSnippet Snip(string chunkId, string text = "text") =>
@@ -52,6 +54,7 @@ public sealed class HybridEvidenceRetrieverTests
                     d.Count == 3 && d.Any(x => x.Id == "a") && d.Any(x => x.Id == "b") && d.Any(x => x.Id == "c")),
                 A<int>._, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
+        A.CallTo(() => _metrics.RecordRerankLatency(A<TimeSpan>._)).MustHaveHappened();
     }
 
     [Fact]
@@ -64,6 +67,7 @@ public sealed class HybridEvidenceRetrieverTests
         var result = await sut.RetrieveAsync("q", 5, CancellationToken.None);
 
         result.Select(r => r.ChunkId).Should().BeEquivalentTo(["a", "b"]);
+        A.CallTo(() => _metrics.RecordRetrievalDegradation("dense")).MustHaveHappenedOnceExactly();
     }
 
     [Fact]
@@ -79,6 +83,7 @@ public sealed class HybridEvidenceRetrieverTests
         // "b" is ranked in both halves, so RRF puts it first; degradation must still return that fused order.
         result.Should().NotBeEmpty();
         result[0].ChunkId.Should().Be("b");
+        A.CallTo(() => _metrics.RecordRetrievalDegradation("rerank")).MustHaveHappenedOnceExactly();
     }
 
     [Fact]
