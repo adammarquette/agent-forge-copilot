@@ -1,0 +1,21 @@
+{
+    "id": "intake-heart-failure",
+    "category": "extraction",
+    "doc_type": "intake_form",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"demographics\":{\"full_name\":\"Delphine Achebe\",\"date_of_birth\":\"1961-05-30\",\"sex\":\"F\"},\"chief_concern\":\"worsening dyspnea and ankle swelling\",\"current_medications\":[{\"name\":\"furosemide\",\"dose\":\"40mg daily\",\"citation\":{\"page\":1,\"quote\":\"furosemide 40mg\",\"bounding_box\":null}},{\"name\":\"carvedilol\",\"dose\":\"12.5mg BID\",\"citation\":{\"page\":1,\"quote\":\"carvedilol 12.5mg\",\"bounding_box\":null}},{\"name\":\"sacubitril/valsartan\",\"dose\":\"49/51mg BID\",\"citation\":{\"page\":1,\"quote\":\"sacubitril/valsartan\",\"bounding_box\":null}}],\"allergies\":[\"NKDA\"],\"family_history\":[],\"citation\":{\"page\":1,\"quote\":\"Patient intake form\",\"bounding_box\":null}}",
+    "expect_success": true,
+    "expected_values": [
+        "furosemide",
+        "carvedilol"
+    ],
+    "phi_tokens": [
+        "Delphine Achebe"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

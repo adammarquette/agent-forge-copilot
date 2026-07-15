@@ -1,0 +1,18 @@
+{
+    "id": "lab-troponin-normal",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"Troponin I\",\"value\":\"0.01\",\"unit\":\"ng/mL\",\"reference_range\":\"<0.04\",\"collection_date\":\"2026-06-15\",\"abnormal_flag\":false,\"citation\":{\"page\":1,\"quote\":\"Troponin I 0.01 ng/mL\",\"bounding_box\":null}}]}",
+    "expect_success": true,
+    "expected_values": [
+        "Troponin I",
+        "0.01"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

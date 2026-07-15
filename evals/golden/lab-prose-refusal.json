@@ -1,0 +1,13 @@
+{
+    "id": "lab-prose-refusal",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "The lab report scan is too faint to read any values with confidence.",
+    "expect_success": false,
+    "rubrics": [
+        "schema_valid",
+        "safe_refusal",
+        "no_phi_in_logs"
+    ]
+}

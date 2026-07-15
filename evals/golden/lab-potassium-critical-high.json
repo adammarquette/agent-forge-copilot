@@ -1,0 +1,18 @@
+{
+    "id": "lab-potassium-critical-high",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"Potassium\",\"value\":\"6.4\",\"unit\":\"mmol/L\",\"reference_range\":\"3.5-5.1\",\"collection_date\":\"2026-06-15\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"Potassium 6.4 (H) mmol/L\",\"bounding_box\":null}}]}",
+    "expect_success": true,
+    "expected_values": [
+        "Potassium",
+        "6.4"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

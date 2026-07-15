@@ -1,0 +1,16 @@
+{
+    "id": "intake-missing-allergies",
+    "category": "extraction",
+    "doc_type": "intake_form",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"demographics\":{\"full_name\":\"Nadia Bergstrom\",\"date_of_birth\":\"1983-11-27\",\"sex\":\"F\"},\"chief_concern\":\"palpitations\",\"current_medications\":[],\"family_history\":[],\"citation\":{\"page\":1,\"quote\":\"Intake\",\"bounding_box\":null}}",
+    "expect_success": false,
+    "phi_tokens": [
+        "Nadia Bergstrom"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "safe_refusal",
+        "no_phi_in_logs"
+    ]
+}

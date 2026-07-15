@@ -1,0 +1,20 @@
+{
+    "id": "intake-med-no-dose",
+    "category": "extraction",
+    "doc_type": "intake_form",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"demographics\":{\"full_name\":\"Grigor Vasquez\",\"date_of_birth\":\"1958-03-19\",\"sex\":\"M\"},\"chief_concern\":\"medication reconciliation\",\"current_medications\":[{\"name\":\"warfarin\",\"citation\":{\"page\":1,\"quote\":\"warfarin (dose not stated)\",\"bounding_box\":null}}],\"allergies\":[\"aspirin\"],\"family_history\":[],\"citation\":{\"page\":1,\"quote\":\"Patient intake form\",\"bounding_box\":null}}",
+    "expect_success": true,
+    "expected_values": [
+        "warfarin"
+    ],
+    "phi_tokens": [
+        "Grigor Vasquez"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

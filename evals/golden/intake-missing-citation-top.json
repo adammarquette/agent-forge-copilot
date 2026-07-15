@@ -1,0 +1,16 @@
+{
+    "id": "intake-missing-citation-top",
+    "category": "extraction",
+    "doc_type": "intake_form",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"demographics\":{\"full_name\":\"Liesl Okonjo\",\"date_of_birth\":\"1966-04-02\",\"sex\":\"F\"},\"chief_concern\":\"hypertension\",\"current_medications\":[],\"allergies\":[],\"family_history\":[]}",
+    "expect_success": false,
+    "phi_tokens": [
+        "Liesl Okonjo"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "safe_refusal",
+        "no_phi_in_logs"
+    ]
+}

@@ -1,0 +1,20 @@
+{
+    "id": "intake-nkda",
+    "category": "extraction",
+    "doc_type": "intake_form",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"demographics\":{\"full_name\":\"Fiadh O'Brien\",\"date_of_birth\":\"1972-12-01\",\"sex\":\"F\"},\"chief_concern\":\"preoperative cardiac clearance\",\"current_medications\":[{\"name\":\"metoprolol succinate\",\"dose\":\"50mg daily\",\"citation\":{\"page\":1,\"quote\":\"metoprolol succinate 50mg\",\"bounding_box\":null}}],\"allergies\":[\"NKDA\"],\"family_history\":[\"mother: MI at 65\"],\"citation\":{\"page\":1,\"quote\":\"Patient intake form\",\"bounding_box\":null}}",
+    "expect_success": true,
+    "expected_values": [
+        "metoprolol succinate"
+    ],
+    "phi_tokens": [
+        "Fiadh O'Brien"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}

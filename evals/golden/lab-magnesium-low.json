@@ -1,0 +1,18 @@
+{
+    "id": "lab-magnesium-low",
+    "category": "extraction",
+    "doc_type": "lab_pdf",
+    "media_type": "application/pdf",
+    "stub_model_response": "{\"tests\":[{\"test_name\":\"Magnesium\",\"value\":\"1.2\",\"unit\":\"mg/dL\",\"reference_range\":\"1.7-2.2\",\"collection_date\":\"2026-06-15\",\"abnormal_flag\":true,\"citation\":{\"page\":1,\"quote\":\"Magnesium 1.2 (L) mg/dL\",\"bounding_box\":null}}]}",
+    "expect_success": true,
+    "expected_values": [
+        "Magnesium",
+        "1.2"
+    ],
+    "rubrics": [
+        "schema_valid",
+        "citation_present",
+        "factually_consistent",
+        "no_phi_in_logs"
+    ]
+}
