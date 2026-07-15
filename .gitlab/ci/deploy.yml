@@ -145,6 +145,10 @@ nginx-deploy:
   script:
     - export RAILWAY_TOKEN="$RAILWAY_TOKEN_RP"
     - railway variable set "RAILWAY_DOCKERFILE_PATH=/reverse-proxy/Dockerfile" --service "$RAILWAY_SERVICE_RP"
+    # Shared-secret gate for /agentforge/evidence/ask (reference: agent-forge-copilot#105). Guarded so an
+    # unset CI var is NOT pushed as empty - an empty expected value would fail OPEN (a missing request
+    # header also compares empty); leaving the var unset keeps nginx's literal fallback, which fails closed.
+    - if [ -n "$EVIDENCE_API_KEY" ]; then railway variable set "EVIDENCE_API_KEY=$EVIDENCE_API_KEY" --service "$RAILWAY_SERVICE_RP"; fi
     - railway up --service "$RAILWAY_SERVICE_RP" --ci
 
 # -----------------------------------------------------------------------------

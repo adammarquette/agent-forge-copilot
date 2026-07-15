@@ -56,6 +56,29 @@ server {
         return 404;
     }
 
+    # /evidence/ask is the stateless demo endpoint - by design it needs no SMART session (unlike the
+    # 401-gated agenda/patient routes), which also leaves it open to the public front door, and every
+    # call drives LLM + Cohere rerank quota. Gate it here at the edge with a shared-secret header
+    # (staging/demo control, same spirit as the Grafana basic-auth creds); the expected value is
+    # injected from the EVIDENCE_API_KEY env var at container start and kept out of source. An unset
+    # var leaves the literal "${EVIDENCE_API_KEY}" here, which no caller can match - fail-closed. Exact
+    # match so only this one route is gated, not the rest of the sidecar API. The `if`-with-`return` is
+    # one of nginx's documented-safe `if` uses; proxy_pass stays at the location level.
+    # reference: agent-forge-copilot#105.
+    location = /agentforge/evidence/ask {
+        if ($http_x_agentforge_key != "${EVIDENCE_API_KEY}") {
+            return 401;
+        }
+        set $sidecar_upstream ${SIDECAR_UPSTREAM};
+        proxy_pass http://$sidecar_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
+    }
+
     # Everything else the sidecar serves (chat SPA, launch/callback, API).
     # Timeout is above AgentOptions.TurnDeadline's 60s default so a
     # slow-but-legitimate agent turn isn't cut off by the proxy before the
