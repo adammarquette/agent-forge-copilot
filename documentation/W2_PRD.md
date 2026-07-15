@@ -14,7 +14,7 @@
 > specifies only what Week 2 *adds*, in the same shape: every requirement carries an ID (FR-/NFR-), a
 > MoSCoW priority, acceptance criteria (AC), and the Week 1 use case(s) it serves. It is the umbrella that
 > `W2_ARCHITECTURE.md` answers — this doc says *what and why*; the architecture doc says *how* (decisions
-> W2-D1..D14). **The user has not changed:** it is still the outpatient cardiologist in the ~90-second
+> W2-D1..D17). **The user has not changed:** it is still the outpatient cardiologist in the ~90-second
 > window; Week 2 just means the "what changed" they need is now partly locked inside a scanned PDF the
 > front desk uploaded. Nothing here is a capability for its own sake — if a requirement can't be traced to
 > a `USERS.md` use case, it doesn't belong (Week 2's watch-word: *narrower is stronger*).
@@ -30,7 +30,7 @@
 | Deployment target | Railway (sprint public-URL hard gate); HIPAA-eligible cloud is the documented target (`ARCHITECTURE.md` D15) |
 | Data policy | **Demo/synthetic data only.** No real PHI at any stage — including document images, extracted fields, traces, and screenshots. |
 | LLM/VLM data policy | Assume a signed no-training BAA with the model provider(s); PHI-minimization applies regardless. |
-| Reopened Week 1 decision | **No write-back (D13)** — Week 2 requires persisting source documents; scoped and constrained in §6 / FR-DOC-3. |
+| Week 1 decision kept | **No write-back (D13)** — Week 2 adds document *ingestion* (read + derive facts) with the sidecar never writing to OpenEMR; the front desk uploads source documents natively via OpenEMR (§6 / FR-DOC-3). |
 | Open decisions | Tracked in §14; deeper `[CONFIRM]` items live in `W2_ARCHITECTURE.md` §16. |
 
 ---
@@ -104,8 +104,7 @@ Week 1 user trust the agent even when the truth arrived as a scan.
   handoffs.
 - **G-W2-5.** Prove quality with a 50-case boolean-rubric eval suite behind a **PR-blocking** CI gate that
   fails on meaningful regression.
-- **G-W2-6.** Round-trip documents and derived facts through OpenEMR/the sidecar with **one authority per
-  data type** — no duplicate or untraceable records.
+- **G-W2-6.** Keep source documents (OpenEMR-held) and derived facts (sidecar-owned) under **one authority per data type** — no duplicate or untraceable records, and no write-back.
 
 ### 4.2 Non-Goals (Week 2)
 - **NG-W2-1.** A general medical-document AI platform. Two document types that work reliably beats five that
@@ -154,18 +153,11 @@ graceful degradation); each new UC anchors to a Week 1 UC and inherits its trust
 ## 6. Product Scope (Week 2)
 
 Week 2 expands the read-only conversational agent with a **document ingestion path**, a **hybrid evidence
-retriever**, and a **small supervisor/worker graph**, surfaced in the same deployed app. In scope: document
-upload + strict-schema extraction (lab PDF, intake form); source-document write-back to OpenEMR with
-derived facts owned by the sidecar; hybrid RAG + rerank over a small guideline corpus; a supervisor with an
+retriever**, and a **small supervisor/worker graph**, surfaced in the same deployed app. In scope: document ingestion + strict-schema extraction (lab PDF, intake form); front-desk-uploaded source documents held by OpenEMR with derived facts owned by the sidecar; hybrid RAG + rerank over a small guideline corpus; a supervisor with an
 intake-extractor and an evidence-retriever worker; the citation contract + click-to-source overlay; the
 eval CI gate; and the Week 2 observability/cost extensions.
 
-**The one reopened Week 1 decision is write-back (D13).** Week 2 requires persisting documents, so the
-no-write-back stance is narrowed — **not abandoned** — to the minimum the fork supports: **source documents
-are written to OpenEMR** (standard REST, idempotent on a content hash) and **derived facts are
-sidecar-owned records** that cite the OpenEMR document. One authority per data type; nothing written twice
-(FR-DOC-3; `W2_ARCHITECTURE.md` §4, W2-D3). Out of scope: writing derived Observations into OpenEMR, real
-PHI, and everything in NG-W2-3.
+**Week 1's no-write-back stance (D13) is kept intact — not reopened.** The sidecar never writes clinical data to OpenEMR: the front desk uploads source documents through OpenEMR's own Documents workflow (OpenEMR is authoritative for the file), and an `oe-module-agentforge` background service forwards each new document to the sidecar's `POST /documents/ingest`, which extracts and persists **sidecar-owned derived facts** that cite the OpenEMR document. One authority per data type; nothing written twice, idempotent on a content hash (FR-DOC-3; `W2_ARCHITECTURE.md` §4, W2-D3). Out of scope: writing anything — source documents or derived Observations — back into OpenEMR, real PHI, and everything in NG-W2-3.
 
 ---
 
@@ -176,21 +168,13 @@ requirement it satisfies. The *how* is deferred to `W2_ARCHITECTURE.md` (section
 
 ### 7.1 Document ingestion & extraction *(Core Req 1–2 · Stage 1)*
 
-- **FR-DOC-1 (Must) — Ingestion tool.** Implement `attach_and_extract(patient_id, file_path, doc_type)`
-  (or equivalent) supporting `doc_type ∈ {lab_pdf, intake_form}` (closed enum). It stores the source
-  document, returns strict-schema JSON, and links every derived fact to the source. *Serves:* UC-6.
-  *AC:* uploading a lab PDF returns schema-valid JSON with a resolvable source citation per fact; an
-  unsupported `doc_type` is rejected at the boundary. *(→ arch §3)*
+- **FR-DOC-1 (Must) — Ingestion endpoint.** Implement `POST /documents/ingest` (called by the `oe-module-agentforge` background service) accepting a document's content, its OpenEMR `DocumentReference` id, the patient id, and `doc_type ∈ {lab_pdf, intake_form}` (closed enum). It returns strict-schema JSON and links every derived fact to the source document; it does **not** store the source (OpenEMR holds it). *Serves:* UC-6. *AC:* ingesting a lab PDF returns schema-valid JSON with a resolvable source citation per fact; an unsupported `doc_type` is rejected at the boundary. *(→ arch §3)*
 - **FR-DOC-2 (Must) — Schema is the source of truth.** Raw VLM output never bypasses validation; output is
   validated against a strict schema (Pydantic/Zod/`System.Text.Json` source-gen equivalent) and anything
   that fails is rejected with a structured error and **no derived facts persisted**. *Serves:* UC-6, UC-8.
   *AC:* an injected unschematized/extra field causes rejection and zero persisted facts, logged. *(→ arch
   §3, W2-D6; NFR-CONTRACT-W2-1)*
-- **FR-DOC-3 (Must) — Source write-back + data authority.** The source document is stored in OpenEMR via a
-  supported path; derived facts are sidecar-owned and cite the OpenEMR document. One authority per data
-  type; re-ingesting the same file does not create a duplicate. *Serves:* UC-6; "FHIR/OpenEMR integrity."
-  *AC:* re-uploading an identical file returns the existing document reference (content-hash idempotency);
-  no derived Observation is written into OpenEMR. *(→ arch §4, W2-D3)*
+- **FR-DOC-3 (Must) — Data authority, no write-back.** The source document is uploaded natively through OpenEMR's Documents workflow (OpenEMR is authoritative for it); the sidecar writes nothing back and owns only the derived facts, which cite the OpenEMR document. One authority per data type; re-ingesting the same content is an idempotent no-op. *Serves:* UC-6; "FHIR/OpenEMR integrity." *AC:* re-forwarding identical content returns the existing derived-fact record (content-hash idempotency); nothing is written into OpenEMR. *(→ arch §4, W2-D3)*
 - **FR-DOC-4 (Must) — Required extraction fields.** `lab_pdf` extracts at least `{test_name, value, unit,
   reference_range, collection_date, abnormal_flag, source_citation}` per test; `intake_form` extracts at
   least `{demographics, chief_concern, current_medications, allergies, family_history, source_citation}`.
@@ -285,8 +269,7 @@ These are graded alongside the core submission and are **not optional** (per the
 Week 1 NFR where one exists; the *how* is in `W2_ARCHITECTURE.md`.
 
 - **NFR-CONTRACT-W2-1 (Must) — Typed contract on every new interface + canonical extraction schemas.**
-  Document ingestion I/O, RAG retrieval I/O, supervisor↔worker handoffs, and the document-write call each
-  have a strict, exported schema. The extraction schemas (`lab_pdf`, `intake_form`) are the canonical
+  Document ingestion I/O, RAG retrieval I/O, and supervisor↔worker handoffs each have a strict, exported schema. The extraction schemas (`lab_pdf`, `intake_form`) are the canonical
   contracts — raw VLM output does not bypass them. *Extends:* NFR-CONTRACT-1. *AC:* schemas exported;
   malformed payloads rejected at the boundary with a structured error; supervisor↔worker contracts covered
   by contract tests. *(→ arch §9)*
@@ -296,8 +279,7 @@ Week 1 NFR where one exists; the *how* is in `W2_ARCHITECTURE.md`.
   note exists for any changed schema; the data-authority table (owner/lineage/access/validation) is
   documented. *(→ arch §4, §9, W2-D3)*
 - **NFR-TRACE-W2-1 (Must) — Correlation ID + distributed tracing across the graph.** The Week 1 correlation
-  ID propagates into document ingestion, every worker handoff, VLM/embedding/rerank calls, and the document
-  write; each worker invocation is a **child span** of the supervisor span, with extraction/retrieval
+  ID propagates into document ingestion, every worker handoff, VLM/embedding/rerank calls; each worker invocation is a **child span** of the supervisor span, with extraction/retrieval
   sub-calls traceable within their worker span. *Extends:* NFR-TRACE-1 / FR-OBS-1. *AC:* a full multi-agent
   trace is reconstructable from the correlation ID alone. *(→ arch §6, §10)*
 - **NFR-LOG-W2-1 (Must) — Consistent structured logging, extended not forked.** Week 2 events
@@ -396,7 +378,7 @@ publicly deployed app running the Week 2 core flow.
 | ID | Risk | Impact | Mitigation |
 |---|---|---|---|
 | RW1 | VLM hallucinates a field label / overstates confidence | Fabricated clinical fact | Schema is the gate; unschematized output discarded; confidence captured; `factually_consistent`+`citation_present` rubrics (FR-DOC-2/5, FR-EVAL-W2-2) |
-| RW2 | Write-back reopens the Week 1 auth/certification surface | Compliance/trust regression | Minimal write (document only, standard REST); derived facts stay sidecar-side; write scope + client registration confirmed with fork before merge (FR-DOC-3, arch §4) |
+| RW2 | Ingestion trigger lives in the fork (module background service) | Compliance/trust regression | Sidecar writes nothing to OpenEMR; ingest reachable only over the private network (trusted origin, no token); content-hash idempotency; derived facts stay sidecar-side (FR-DOC-3, arch §4, W2-D17) |
 | RW3 | Derived-fact store is a new PHI-at-rest surface | HIPAA exposure | Encrypted, clinician-scoped, audited, never in telemetry; called out explicitly (NFR-SEC-W2-1) |
 | RW4 | Rerank/embeddings add latency, cost, and a new dependency | Slow/expensive answers | Small corpus; provider seams; sparse-only degradation; cost tracked per query (FR-RAG-2, NFR-SLO-W2-1) |
 | RW5 | Supervisor becomes a black box | Unexplainable routing | Typed state machine; every handoff logged; worker spans children of the supervisor span (FR-GRAPH-1, NFR-TRACE-W2-1) |
@@ -411,7 +393,7 @@ publicly deployed app running the Week 2 core flow.
 ## 11. Phasing (mapped to the four sprint checkpoints — Central/Austin)
 
 - **Architecture Defense (4h):** this `W2_PRD.md` + `W2_ARCHITECTURE.md`; defend the all-.NET single-service
-  choice, the schema-as-source-of-truth stance, the write-back data-authority split, and why the eval gate
+  choice, the schema-as-source-of-truth stance, the no-write-back data-authority split, and why the eval gate
   is built first.
 - **MVP (Tue 11:59PM):** two document types ingesting to strict schema with citations; supervisor + two
   workers with logged handoffs; the 50-case set + PR-blocking gate **provably failing on an injected
@@ -458,12 +440,10 @@ publicly deployed app running the Week 2 core flow.
 
 ## 14. Open Decisions (Week 2)
 
-Resolved decisions and their rationale live in `W2_ARCHITECTURE.md` §15 (W2-D1..D14). Items still to
+Resolved decisions and their rationale live in `W2_ARCHITECTURE.md` §15 (W2-D1..D17). Items still to
 confirm before/at MVP (mirroring `W2_ARCHITECTURE.md` §16):
 
-1. **Document-write scope** on `POST /api/patient/:pid/document` and whether the copilot OAuth client needs
-   re-registration (finalizeScopes silent-narrowing) — fork-side, saga #71 E2.
-2. **Document controller contract** (multipart vs JSON; returns a citable `DocumentReference` id).
+1. **Ingestion trigger (fork side)** — the `oe-module-agentforge` background service: the category→`doc_type` mapping and the `Document` read API used by the scan, exercised against a running OpenEMR (fork-side, agent-forge#44). 2. **Ingest trust model** — `/documents/ingest` authenticates by trusted private-network origin (no token); the shared-secret-header hardening (W2-D17) is a tracked follow-up (gitlab#91), out of scope for MVP.
 3. **Vector store + providers** — pgvector vs Qdrant once corpus size is known; embeddings + reranker under
    assumed BAA.
 4. **Document-ingestion p95 SLO** and derived-fact-store **RPO/RTO** — set from Week 2 baselines.
