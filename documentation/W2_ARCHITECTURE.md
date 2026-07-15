@@ -11,9 +11,10 @@ inspectable multi-agent graph* to the Week 1 read-only conversational agent.
 
 > **How to read this document.** This is the Week 2 companion to `ARCHITECTURE.md`, not a replacement.
 > Week 1 decisions (sidecar-not-fork, OAuth passthrough, MCP tool layer, two-layer verification, one
-> LLM provider behind `ILlmProvider`, correlation-ID observability) still hold; this doc only describes
-> what Week 2 *adds* and the one Week 1 decision it deliberately reopens (**no write-back**, D13). The
-> README separates Week 1 baseline behavior from Week 2 multimodal behavior so a grader can run the core
+> LLM provider behind `ILlmProvider`, correlation-ID observability) still hold — including **no write-back**
+> (D13): Week 2 adds document *ingestion* (read + derive facts) without the sidecar ever writing to OpenEMR.
+> This doc describes what Week 2 adds on top of the Week 1 baseline. The README separates Week 1 baseline
+> behavior from Week 2 multimodal behavior so a grader can run the core
 > Week 2 flow without guessing a branch or env var.
 
 ---
@@ -45,16 +46,15 @@ suggestions" reuses the two-layer attribution + domain-constraint gate that alre
 supervisor is a typed state machine with explicit, logged handoffs; each worker invocation is a **child
 span** of the supervisor span, so routing is inspectable from the trace alone (not a black box).
 
-**Write-back is grounded in what the fork actually supports (W2-D3) — the strongest decision here.**
-Confirmed against the fork route table (`apis/routes/_rest_routes_fhir_r4_us_core_3_1_0.inc.php`): the
-FHIR API is **read-only for our data types** — only `Organization`, `Patient`, and `Practitioner`
-implement create; there is **no** `POST /fhir/Observation`, `/fhir/DocumentReference`, `/fhir/Binary`,
-or `/fhir/DiagnosticReport`. Writes live on the **standard REST API** (`POST /api/patient/:pid/document`).
-So the data-authority split is: **source documents are written to OpenEMR** (via standard REST, then
-citable via `GET /fhir/DocumentReference` + `GET /fhir/Binary/:id`) and **derived facts are sidecar-owned
-records** that cite the OpenEMR `DocumentReference` id + page + bounding box. Each data type has exactly
-one authority; the same class of data is never written twice, so "no duplicate or untraceable records,
-no silent overwrites" holds by construction. Document writes are idempotent on a content hash.
+**Data authority with no write-back (W2-D3, revised) — one of the strongest decisions here.** The sidecar
+**never writes clinical data to OpenEMR.** The front desk uploads source documents through OpenEMR's own
+Documents workflow (one consistent, native upload path), so **OpenEMR is authoritative for the source
+file**; an `oe-module-agentforge` Background Service (cron) then forwards each new document to the sidecar,
+which extracts and persists **sidecar-owned derived facts** that cite the OpenEMR `DocumentReference` id +
+page + bounding box. Each data type has exactly one authority; the same class of data is never written
+twice, so "no duplicate or untraceable records, no silent overwrites" holds by construction. Ingestion is
+idempotent on a content hash. (An earlier draft had the sidecar POST the source document via the standard
+REST API; §15 W2-D15 records why that was dropped.)
 
 **Quality is proven by an eval gate that can actually block a merge (W2-D4).** A 50-case golden set with
 **boolean** rubrics (`schema_valid`, `citation_present`, `factually_consistent`, `safe_refusal`,
@@ -91,7 +91,7 @@ capability has no user justification, it is cut.
 | Week 2 capability | Serves (Week 1 UC) | Week 2 requirement |
 |---|---|---|
 | Ingest lab PDF + intake form → strict-schema JSON | UC-1, UC-3 | Core Req 1, 2; Stage 1 |
-| Source-document write-back + derived-fact store | UC-1, UC-3 | Core Req 1; FHIR/OpenEMR integrity |
+| Ingest OpenEMR-uploaded documents + derived-fact store | UC-1, UC-3 | Core Req 1; FHIR/OpenEMR integrity |
 | Hybrid RAG + rerank over a guideline corpus | UC-2, UC-3 | Core Req 3; Stage 2 |
 | Supervisor + intake-extractor + evidence-retriever | UC-1, UC-2 | Core Req 4; Stage 3 |
 | Critic node (reject uncited/unsafe) | UC-3, UC-5 | Core Deliverables; reuses FR-VERIF-* |
@@ -112,25 +112,27 @@ domain filters). Documented so the seams support them later; not built this spri
 
 ## 3. Document Ingestion Flow (Stage 1 / Core Req 1–2)
 
-A single tool, `attach_and_extract(patient_id, file_path, doc_type)`, drives ingestion. `doc_type` is a
-closed enum: `lab_pdf | intake_form`. The flow is **extract → validate → persist source → persist derived
-facts → return citations**, and the schema is the gate between the model and everything downstream.
-Ingestion runs **asynchronously by default** (queue + autoscaled worker pool, Section 11.3) so heavy VLM
-extraction never blocks a request; the agent reads already-extracted facts, with an inline on-demand
-fallback under the per-request deadline (Section 10). The logical pipeline below is identical either way.
+The front desk uploads clinical documents through **OpenEMR's own Documents workflow** — the native path
+staff already use — so **OpenEMR is authoritative for the source file** and there is no parallel sidecar
+upload UI (W2-D3, revised — see §15). An `oe-module-agentforge` **Background Service (cron)** then forwards
+each new document to the sidecar's `POST /documents/ingest` with its content, its OpenEMR `DocumentReference`
+id, the patient id, and `doc_type` (a closed enum: `lab_pdf | intake_form`). The endpoint is reachable **only
+over the private network** — trusted-origin auth, not a token (W2-D17, see §15). This runs **pre-visit**, so
+heavy VLM extraction never lands in the clinician's ~90-second window — the copilot only reads
+already-persisted facts. The flow is **idempotency check → extract → validate → persist derived facts**, and
+the schema is the gate between the model and everything downstream.
 
 ```mermaid
 flowchart TD
-    A["attach_and_extract(patient_id, file_path, doc_type)"] --> B{Digital or scanned?}
-    B -->|digital PDF| C["PdfPig: text + word bboxes"]
-    B -->|scanned/image| D["Render page to image"]
-    C --> E["VLM extraction (ILlmProvider vision)<br/>doc_type-specific prompt + schema"]
-    D --> E
+    U["Front desk uploads via OpenEMR Documents<br/>(OpenEMR = authority for the file)"] --> K["oe-module-agentforge cron<br/>scans new documents (Section 11.3)"]
+    K --> P["POST /documents/ingest<br/>content + DocumentReference id + patient + doc_type<br/>(private network only — trusted origin)"]
+    P --> V["content-hash idempotency check"]
+    V -->|already ingested| Z["No-op (idempotent)"]
+    V -->|new| E["VLM extraction (ILlmProvider vision)<br/>doc_type-specific prompt + schema"]
     E --> F["Strict schema validation<br/>(System.Text.Json source-gen)"]
-    F -->|invalid| G["Reject: structured error,<br/>no derived facts persisted, logged"]
-    F -->|valid| H["Persist SOURCE doc to OpenEMR<br/>POST /api/patient/:pid/document<br/>(content-hash idempotency)"]
-    H --> I["Persist DERIVED facts sidecar-side<br/>each linked to DocumentReference id"]
-    I --> J["Return DocumentIngestResult:<br/>facts + citations {…, page, bbox}"]
+    F -->|invalid| G["Reject: structured error,<br/>no facts persisted, logged"]
+    F -->|valid| I["Persist DERIVED facts sidecar-side<br/>each citing the DocumentReference id + page + bbox"]
+    I --> J["DerivedFactStore"]
 ```
 
 **Extraction (W2-D5).** Extraction is a multimodal call behind the existing `ILlmProvider` seam (a
@@ -159,48 +161,53 @@ extraction confidence is captured for observability and for the `factually_consi
 
 ---
 
-## 4. Write-Back & Data Authority (FHIR/OpenEMR integrity)
+## 4. Data Authority & the Ingestion Trigger (FHIR/OpenEMR integrity)
 
-This is the Week 1 decision Week 2 reopens. `ARCHITECTURE.md` D5/D13 made **no write-back** load-bearing;
-Week 2 requires persisting documents and derived facts. The design keeps the trust story intact by writing
-as little, and as traceably, as the fork allows.
+Week 2 keeps Week 1's **no-write-back** posture intact: **the sidecar never writes clinical data to
+OpenEMR.** The front desk uploads source documents through OpenEMR's own Documents workflow, so OpenEMR is
+authoritative for the file; the sidecar only *receives* the content it is handed and *derives* facts from
+it. (An earlier draft had the sidecar POST the source document via the standard REST API; that was dropped
+in the Option 2 pivot — see §15 W2-D15 — to keep one consistent upload path in OpenEMR and to move
+extraction pre-visit.)
 
-**Fork reality (confirmed, not assumed).** From the fork route tables:
-
-| Need | Supported path | Not available |
-|---|---|---|
-| Store source document | `POST /api/patient/:pid/document` (standard REST → OpenEMR Documents) | — |
-| Read document back | `GET /fhir/DocumentReference`, `GET /fhir/Binary/:id` | — |
-| Write derived lab/observation | *(none)* | `POST /fhir/Observation`, `/fhir/DiagnosticReport` |
-| Write document as FHIR | *(none — `$docref` is a **read** operation)* | `POST /fhir/DocumentReference`, `/fhir/Binary` |
-
-**Data-authority rule (W2-D3).** One authority per data type, no silent overwrites:
+**Data-authority rule (W2-D3, revised).** One authority per data type, no silent overwrites:
 
 | Data type | Authority | Written how | Cited how |
 |---|---|---|---|
-| Source document (PDF / form image) | **OpenEMR** | `POST /api/patient/:pid/document` | `DocumentReference` id + `Binary` |
+| Source document (PDF / form image) | **OpenEMR** | uploaded natively via OpenEMR Documents | `DocumentReference` id + `Binary` |
 | Derived fact (lab value, intake field) | **Sidecar** | sidecar `DerivedFactStore` row | back-reference to `DocumentReference` id + page + bbox |
 | Guideline chunk / evidence | **Sidecar** (corpus) | corpus index (Section 5) | chunk id + doc metadata |
 | Citation record | **Sidecar** | emitted with each answer | self (Section 6) |
 
-We do **not** write derived Observations into OpenEMR: there is no supported FHIR/REST path, and a raw DB
-write would bypass OpenEMR ACLs and reopen the certification questions Week 1 closed. Derived facts live
-in the sidecar, each citing the OpenEMR document they came from — so the source is authoritative and
-auditable in OpenEMR, and the interpretation is authoritative and versioned in the sidecar. Nothing is
-written twice, so duplicates are impossible by construction.
+The sidecar writes nothing to OpenEMR — no source-document POST, no derived Observations (there is no
+supported FHIR/REST create path for them, and a raw DB write would bypass OpenEMR ACLs). Each source
+document is authoritative and auditable in OpenEMR; its interpretation (the derived facts) is authoritative
+and versioned in the sidecar, citing the source. Nothing is written twice, so duplicates are impossible by
+construction.
 
-**Idempotency.** The source-document write is keyed by a SHA-256 content hash; re-ingesting the same file
-returns the existing `DocumentReference` instead of creating a second one.
+**The trigger (W2-D15).** OpenEMR has no "document created" event to subscribe to, so an
+`oe-module-agentforge` **Background Service (cron)** scans for newly-uploaded documents (a watermark over
+`documents.id`, filtered to configured categories → `doc_type`) and forwards each to `POST /documents/ingest`:
+`{ content, documentReferenceId, patientId, docType, mediaType }`. Chosen over patching
+`Document::createDocument` (a core, upgrade-fragile edit) because the cron is module-only and upgrade-safe,
+and over a browser-JS trigger because only a server-side scan runs reliably pre-visit without the clinician
+present. It runs pre-visit, so the clinician turn stays fast (§11.3).
 
-**[CONFIRM] fork-side coordination (agent-forge):**
-1. Which scope gates `POST /api/patient/:pid/document`, and — per the `ScopeRepository::finalizeScopes()`
-   silent-narrowing behavior documented for the agenda flow (`ARCHITECTURE.md` §19.2) — whether the
-   copilot's OAuth client must be **re-registered** to include that write scope (a granted-but-unregistered
-   scope is silently dropped, not rejected).
-2. The exact request/response contract of the document controller (multipart vs. JSON; whether it returns
-   a resolvable `DocumentReference` id for citation linkage).
+**Auth is trusted private-network origin (W2-D17, supersedes W2-D16).** The ingest endpoint carries no
+clinician authority — it derives facts and makes **no** user-scoped FHIR call — so it never needed a user
+token; a token would only have proven "OpenEMR is calling." Verification against staging (2026-07-14) also
+found OpenEMR does not advertise `client_credentials`/`private_key_jwt`, so a transient backend-services token
+isn't available without enabling system scopes + registering a system client. Instead the endpoint
+authenticates by **trusted origin**: the reverse proxy is the sole public ingress and does **not** route
+`/documents/ingest` (only `/agentforge/*` reaches the sidecar), and the sidecar has **no public domain of its
+own**, so the route is reachable only over the Railway private network — i.e. the module cron. This keeps
+Week 1's transient-token custody intact everywhere the clinician's flow touches FHIR; nothing is stored here
+and no token is minted. A **shared-secret header** is the tracked hardening follow-up (defense-in-depth
+against in-project callers or accidental public re-exposure), deliberately out of scope for the MVP.
+reference: gitlab#91
 
-Both are fork-side; tracked on saga #71 epic **E2** and coordinated with the `agent-forge` repo.
+**Idempotency.** Ingest is keyed by a SHA-256 content hash; re-forwarding the same bytes is a no-op that
+returns the existing record, so a cron re-run or overlap never double-persists.
 
 ---
 
@@ -273,7 +280,8 @@ extracted? does a claim need guideline evidence? is the answer ready? Every deci
 fabricates content — it only routes.
 
 **Workers.**
-- **intake-extractor** wraps Section 3 (`attach_and_extract` + schema validation + write-back).
+- **intake-extractor** persists what the ingestion flow (Section 3) already extracted — the copilot reads
+  the pre-computed facts rather than extracting in the turn. No write-back; OpenEMR holds the source document.
 - **evidence-retriever** wraps Section 5 (hybrid retrieve → rerank → top-k snippets).
 
 **Critic = Verification, promoted (W2-D8).** The critic node is the Week 1 two-layer Verification
@@ -347,7 +355,7 @@ as a canonical schema (NFR-CONTRACT-1). Supervisor↔worker contracts are covere
 | Intake fact | Sidecar `DerivedFactStore` | VLM extraction of an OpenEMR document | clinician-scoped session | `IntakeExtraction` schema |
 | Guideline chunk | Sidecar corpus index | ingested guideline corpus (versioned) | read-only, non-PHI | chunk schema + embedding dim check |
 | Citation record | Sidecar (per answer) | emitted by the answer composer | clinician-scoped session | `Citation` schema |
-| Source document | **OpenEMR** | uploaded via `attach_and_extract` | OpenEMR ACLs (unchanged) | content-hash + MIME check |
+| Source document | **OpenEMR** | uploaded natively via OpenEMR Documents | OpenEMR ACLs (unchanged) | content-hash + MIME check |
 
 **Migration safety.** Any schema change from Week 1 carries a migration note. New `System.Text.Json`
 contracts and the `DerivedFactStore` are additive (new projects/tables); no Week 1 tool contract changes
@@ -431,33 +439,33 @@ freely:
 - **Rolling, health-gated deploys** with a documented rollback (Week 1 ops requirement), so a bad deploy
   never takes the fleet down at once.
 
-### 11.3 Asynchronous document ingestion (redundancy + performance)
-Document extraction is the heaviest, spikiest path (VLM calls on multi-page scans), so it is **decoupled
-from the request** via a queue + autoscaled worker pool:
+### 11.3 Pre-visit, decoupled document ingestion (redundancy + performance)
+Extraction is the heaviest, spikiest path (VLM calls on multi-page scans), so it is **decoupled from the
+clinician's turn**: it runs **pre-visit** (the front desk uploads before the appointment, and the module
+cron forwards it then), and at scale the sidecar's ingest endpoint can absorb spikes via an internal queue
++ autoscaled worker pool:
 
 ```mermaid
 flowchart LR
-    U["Front-desk / clinician upload"] --> API["Ingestion API (stateless)"]
-    API -->|store source doc| OE["OpenEMR Documents"]
-    API -->|enqueue + return job id| Q[["Ingestion queue (managed)"]]
+    U["Front desk uploads via OpenEMR Documents"] --> OE["OpenEMR (authority for the file)"]
+    OE --> CR["oe-module-agentforge cron<br/>scans new documents"]
+    CR -->|POST /documents/ingest (content + docRef id)| API["Ingest API (stateless)"]
+    API -->|enqueue (scale-out)| Q[["Ingestion queue (managed)"]]
     Q --> W1["Extraction worker"]
-    Q --> W2["Extraction worker"]
-    Q --> W3["Extraction worker (autoscaled)"]
+    Q --> W2["Extraction worker (autoscaled)"]
     W1 --> DFS["DerivedFactStore (Multi-AZ)"]
     W2 --> DFS
-    W3 --> DFS
-    ST["GET /extraction/{jobId}"] --> DFS
 ```
 
-- Upload returns fast with a **job id**; extraction runs on the worker pool; `GET /extraction/{jobId}`
-  reports status (the extraction-status endpoint, Section 9). This is the realistic flow — the front desk
-  uploads *before* the visit, so derived facts are ready when the physician asks.
-- The queue gives **backpressure, bounded retries, and redundancy** (a failed worker's message is
-  redelivered then dead-lettered; a spike is absorbed, not dropped) and keeps the interactive agent turn
-  fast because it reads already-extracted facts instead of blocking on a VLM call.
+- The **cron is the primary decoupling**: the front desk uploads *before* the visit, so derived facts are
+  ready when the physician asks — no extraction in the ~90-second clinician window. (The MVP extracts
+  synchronously inside each `/documents/ingest` call; the cron interval is what keeps it off the hot path.)
+- For scale, the ingest endpoint can **enqueue** instead of extracting inline; the queue gives
+  **backpressure, bounded retries, and redundancy** (a failed worker's message is redelivered then
+  dead-lettered; a spike is absorbed, not dropped).
 - **On-demand fallback:** if the agent needs a not-yet-processed document mid-turn, the intake-extractor
-  worker runs extraction inline under the Week 1 per-request deadline + degradation (Section 10) — the
-  async path is the default, not the only path.
+  can extract inline under the Week 1 per-request deadline + degradation (Section 10) — the pre-visit path
+  is the default, not the only path.
 
 ### 11.4 Performance levers (tie to `PRD.md` §15.1)
 - **Caching:** prompt/context caching at the model provider; a **retrieval cache** (rerank results keyed by
@@ -519,7 +527,7 @@ automated tier). Every test names the failure mode it guards (Week 1 §8 rule).
 | # | Risk / tradeoff | Mitigation |
 |---|---|---|
 | 1 | VLM hallucinates a field label / overstates confidence | Schema is the gate; unschematized output discarded; `factually_consistent` + `citation_present` rubrics; confidence captured |
-| 2 | Write-back reopens auth/cert surface (Week 1 D13) | Minimal write (document only, standard REST); derived facts stay sidecar-side; write scope + client registration confirmed with fork before merge |
+| 2 | Ingestion trigger lives in the fork (module cron) | Module-only Background Service (no core `Document::createDocument` patch); ingest reachable only over the private network (W2-D17 trusted origin, no token); content-hash idempotency; the sidecar writes nothing to OpenEMR |
 | 3 | Derived-fact store is new PHI-at-rest | Encrypted, scoped, audited, no-PHI-in-telemetry; documented as a new surface |
 | 4 | Rerank/embeddings add latency + cost + a new dependency | Small corpus; `IReranker`/`IEmbeddingProvider` seams; sparse-only degradation; cost tracked per query |
 | 5 | Supervisor becomes a black box | Typed state machine; every handoff logged; worker spans are children of the supervisor span |
@@ -535,7 +543,7 @@ automated tier). Every test names the failure mode it guards (Week 1 §8 rule).
 |---|---|---|---|
 | **W2-D1** | All-.NET, single service — expand this repo | New Python service (LangGraph/Cohere); Python worker beside .NET | Compounds Week 1 auth/observability/contracts on one trace; spec permits equivalents; narrower is stronger |
 | **W2-D2** | Small typed supervisor + 2 workers | Dynamic agent graph framework | Inspectable, logged, unit-testable handoffs; requirement is inspectability, not a specific framework |
-| **W2-D3** | Data-authority split: docs→OpenEMR, derived facts→sidecar | Write derived Observations into OpenEMR (FHIR/DB) | Fork has no supported Observation write; DB write bypasses ACLs; split gives one authority per type, zero duplication |
+| **W2-D3** *(revised)* | No write-back: OpenEMR owns source docs (native upload), sidecar owns derived facts | Sidecar POSTs the source doc via standard REST (earlier draft); write derived Observations | One consistent OpenEMR upload path; sidecar writes nothing; extraction moves pre-visit — see W2-D15 |
 | **W2-D4** | PR-blocking eval gate, boolean rubrics, >5% regression fails | Advisory eval report; 1–10 ratings | The graded HARD GATE; boolean = actionable; block a merge, not just report |
 | **W2-D5** | VLM extraction behind existing `ILlmProvider` | Dedicated OCR/vision service | No new service; multimodal is a provider call; keeps one model seam |
 | **W2-D6** | Schema is the source of truth; VLM output never bypasses it | Trust VLM JSON directly | "Vision extraction without invention"; NFR-CONTRACT-1 applied to vision |
@@ -543,19 +551,22 @@ automated tier). Every test names the failure mode it guards (Week 1 §8 rule).
 | **W2-D8** | Critic = Week 1 Verification promoted to a graph node | New critic agent | Reuse the two-layer attribution + domain gate; strongest "Week 1 compounds" story |
 | **W2-D9** | Deterministic rubric checks where mechanical; LLM judge only for consistency/refusal | LLM judge for everything | Cheaper, less nondeterministic; mechanical checks can't drift |
 | **W2-D10** | Stateless services; externalize BFF session/token + DataProtection to a replicated cache | In-process session/token state | Enables N-replica horizontal redundancy; a replica loss drops no sessions; tokens still never reach the browser (preserves D11) |
-| **W2-D11** | Async document ingestion via queue + autoscaled worker pool | Synchronous extraction inside the request | Decouples the heavy/spiky VLM path; backpressure + redundancy + fast interactive turns; matches the realistic pre-visit upload flow |
+| **W2-D11** | Pre-visit ingestion, decoupled from the clinician turn (module cron forwards; sidecar can enqueue at scale) | Synchronous extraction inside the clinician turn | The doctor's ~90-second window reads ready facts; the cron interval keeps extraction off the hot path; the queue is the scale-out seam |
 | **W2-D12** | Managed Multi-AZ data stores (pgvector Postgres + replicated cache), no SPOF | Single-node Postgres + in-process cache | Redundancy + read-replica performance + standby failover; the sprint seams make scale-out config, not rewrite |
 | **W2-D13** | Cloud-native target (AWS default); Railway stays the sprint demo | Railway single-instance as the architecture | Redundant/performant target reconciled with the Week 1 Railway public-URL hard gate; same container image both ways |
 | **W2-D14** | Shared `GauntletAI.AgentForge.Data` project — EF Core + Pgvector.EntityFrameworkCore for entities / vector / index / KNN; raw SQL for RRF; EF Migrations for schema + scripts | Dapper / raw Npgsql only; per-project DbContexts | ORM-native for entities, migrations, and dense KNN; raw SQL only where hybrid fusion needs it; one migrations home; EF provider major pinned to the EF Core 10 line in CPM (the pgvector-EF floor won't force it) |
+| **W2-D15** | Front desk uploads via OpenEMR-native Documents; an `oe-module-agentforge` Background Service (cron) forwards new docs to the sidecar `POST /documents/ingest` | Sidecar upload form + write-back (Option 1); patch `Document::createDocument`; browser-JS trigger | Consistent OpenEMR upload path (no double-entry); OpenEMR has no document-created event, so a module cron is the module-only, upgrade-safe trigger; extraction runs pre-visit so the clinician turn stays fast |
+| **W2-D16** *(superseded by W2-D17)* | Cron authenticates to `/documents/ingest` with a transient `client_credentials` token, introspected per call | Sidecar-held/refresh-token admin identity; shared secret | Dropped: the endpoint carries no clinician authority (no user token needed) and staging OpenEMR does not advertise `client_credentials`/`private_key_jwt` |
+| **W2-D17** | `/documents/ingest` authenticates by **trusted private-network origin** — sidecar has no public domain, the reverse proxy does not route the path, so only the in-project cron can reach it | Transient `client_credentials` token (W2-D16); shared secret now | No token to mint or introspect; preserves Week 1 transient-token custody everywhere the clinician flow touches FHIR; shared-secret header is the tracked follow-up (gitlab#91), out of scope for MVP |
 
 ---
 
 ## 16. Items To Confirm (before/at MVP)
 
-- **[CONFIRM]** Document-write scope on `POST /api/patient/:pid/document` + whether the copilot OAuth client
-  needs re-registration (finalizeScopes silent-narrowing). *(fork-side; saga #71 E2)*
-- **[CONFIRM]** Document controller request/response contract (multipart vs JSON; returns a citable
-  `DocumentReference` id).
+- **[CONFIRM]** The `oe-module-agentforge` ingestion cron: the category→`doc_type` mapping and the
+  `Document` read API (`get_data`/`get_uuid`) used by the scan, exercised against a running OpenEMR. *(The
+  `documents`/`categories_to_documents` schema and the private-network trust model are verified — 2026-07-14;
+  the token flow is no longer needed, see W2-D17.)* *(fork-side; agent-forge#44)*
 - **[CONFIRM]** Vector store final pick (pgvector vs Qdrant) once corpus size is known; embeddings +
   reranker providers under assumed BAA.
 - **[CONFIRM]** Document-ingestion p95 SLO number, and derived-fact-store RPO/RTO — set from Week 2 baselines.

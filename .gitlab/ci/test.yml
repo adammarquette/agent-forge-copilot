@@ -1,6 +1,8 @@
 # -----------------------------------------------------------------------------
-# TEST stage - unit tests (fully mocked) + integration tests (real OpenEMR).
-# Both consume the build artifacts and run with --no-build.
+# TEST stage - unit tests (fully mocked). The integration suite (real OpenEMR) is
+# defined here too but runs POST-DEPLOY in the `verify` stage (gitlab#70) so it can't
+# gate the deploy - see its own header below. Both consume the build artifacts and run
+# with --no-build.
 #
 # Results handling: every project writes into ONE shared results directory
 # ($CI_PROJECT_DIR/TestResults) via --results-directory, and each logger uses
@@ -73,6 +75,22 @@ unit-tests:
       done
     - *verify_results
 
+# The DETERMINISTIC eval rubrics (schema_valid / citation_present / no_phi_in_logs) run as xUnit theory
+# tests - one result per golden case - in the standard dotnet-test flow, so an extraction/schema regression
+# shows up as an ordinary red test. This is the hermetic half of the eval split: it never calls an LLM
+# judge. The baseline/regression policy and the judge-bound rubrics stay in the console `evals` job
+# (evals.yml). Single known project, so its path is referenced directly rather than globbed.
+eval-tests:
+  <<: *test_template
+  script:
+    - dotnet restore "tests/GauntletAI.AgentForge.EvalTests/GauntletAI.AgentForge.EvalTests.csproj"
+    - |
+      dotnet test "tests/GauntletAI.AgentForge.EvalTests/GauntletAI.AgentForge.EvalTests.csproj" --no-build -c $BUILD_CONFIG \
+        --results-directory "$CI_PROJECT_DIR/TestResults" \
+        --logger "junit;LogFileName={assembly}.junit.xml" \
+        --logger "trx;LogFileName={assembly}.trx"
+    - *verify_results
+
 # Integration tests exercise the real deployed OpenEMR (FHIR/OAuth/SMART) in the
 # single Railway "staging" environment - per ENGINEERING_STANDARDS.md §8.2 /
 # tests/AGENTS.md, nothing here is mocked and there is no throwaway service container:
@@ -88,29 +106,28 @@ unit-tests:
 # OpenEmrQa__LoginUsername/LoginPassword (GitLab issue #30) are optional - only QA staff
 # credentials, gating OpenEmrQaFixture's last-resort Playwright login self-heal.
 #
-# The `rules` below gate the job on OpenEmrQa__BaseUrl: until that variable is set the
-# job is simply not added to the pipeline (keeping the pipeline green), and it activates
-# automatically once the QA variables are configured. Set OpenEmrQa__BaseUrl last.
+# Placement (gitlab#70): this runs as a POST-DEPLOY, health-gated smoke test in the `verify`
+# stage - deliberately downstream of `deploy`, so a transient OpenEMR outage (classically the fork
+# redeploying mid-pipeline) can no longer veto the sidecar deploy. Deploy now gates only on build +
+# unit-tests + evals, all sidecar-owned. The suite's own preflight (script below) waits for OpenEMR
+# to report healthy and SKIPS with a distinct "dependency unavailable" signal if it never does, so
+# an external outage no longer looks like 35 real assertion failures.
 #
-# On MR pipelines the job runs but does not block merge (allow_failure: true) - the suite
-# still has known-flaky/data-gap failures (issue #26 and friends) that would otherwise
-# block every MR, unrelated changes included. It surfaces real regressions for review
-# before merge rather than only on develop's post-merge pipeline. Push pipelines to
-# develop/main (protected branches; `fix/*` and `epic-*` are also protected so their MR
-# pipelines can read the protected QA variables) keep the original hard-gate behavior.
-# Flip this to a required check once the known-flaky tests are fixed.
+# The `rules` gate the job on OpenEmrQa__BaseUrl (until it's set the job isn't added, keeping the
+# pipeline green) and on the default branch: because it `needs: [deploy]`, and deploy only runs on
+# main, it is inherently main-only (post-merge, post-deploy). allow_failure stays true - a real
+# regression here is a warning to investigate/roll back, not a merge/deploy blocker (the deploy has
+# already gone out; a verify-stage failure means "fix forward or roll back", same as the /health +
+# /ready smoke tests). Note: this drops the previous non-blocking MR-pipeline run - re-add a
+# health-gated MR variant if pre-merge integration signal is wanted.
 integration-tests:
   <<: *test_template
+  stage: verify
+  needs: ["build", "deploy"]
   rules:
     - if: '$OpenEmrQa__BaseUrl == null'
       when: never
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      allow_failure: true
-    # Known-flaky QA Playwright login (#22/#30) intermittently fails token acquisition and, because the
-    # deploy job sits behind the test stage with no needs-bypass, was blocking deploys on main. Keep it
-    # allow_failure here too so a flake can't gate the deploy; the real gates (build, evals, unit-tests)
-    # stay hard. Revert to a required check once #22/#30 is fixed.
-    - when: on_success
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       allow_failure: true
   # Cache the downloaded browser binary (~180MB) across runs - it's pinned to the
   # Microsoft.Playwright package version below, so a version bump naturally busts it.
@@ -123,6 +140,30 @@ integration-tests:
   script:
     - |
       set -e
+      # Preflight (gitlab#70): wait for OpenEMR to actually be serving before running the suite.
+      # The FHIR capability statement is unauthenticated (AUDIT.md §2.2 - metadata uses
+      # SkipAuthorizationStrategy) and needs the whole FHIR/OAuth stack initialised, so a 2xx here
+      # means the login page the Playwright fixture drives will render too. If OpenEMR never comes
+      # up within the budget (e.g. the fork is mid-redeploy), SKIP the suite with a distinct signal
+      # and exit 0 - an external-dependency outage must not masquerade as 35 assertion failures.
+      health_url="${OpenEmrQa__BaseUrl}/apis/${OpenEmrQa__Site}/fhir/metadata"
+      echo "Preflight: waiting for OpenEMR at ${health_url} ..."
+      healthy=0
+      for i in $(seq 1 24); do
+        status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$health_url" || echo "000")
+        if [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
+          echo "OpenEMR healthy (HTTP ${status}) after attempt ${i}."
+          healthy=1
+          break
+        fi
+        echo "  attempt ${i}: HTTP ${status}, OpenEMR not ready; retrying in 5s..."
+        sleep 5
+      done
+      if [ "$healthy" -ne 1 ]; then
+        echo "::: OpenEMR did not become healthy within the preflight budget - SKIPPING the integration suite."
+        echo "::: This is an external-dependency-unavailable condition, NOT a sidecar test failure (gitlab#70)."
+        exit 0
+      fi
       # OpenEmrQaFixture's last-resort self-heal (GitLab issue #30) drives a real, headless
       # browser login when neither a refresh token nor a still-valid static token is
       # configured - install the browser binary it needs. Skipped when the login

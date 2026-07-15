@@ -34,6 +34,8 @@ public static class DataServiceCollectionExtensions
             });
         });
 
+        services.AddScoped<IDerivedFactStore, DerivedFactStore>();
+
         return services;
     }
 }

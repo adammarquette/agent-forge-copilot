@@ -176,7 +176,12 @@ Full root-cause chain and follow-ups: agent-forge-copilot#67. UI workstream: #68
 
 ## CI / deployment flow
 
-Pipeline: lint → build → test (unit + integration) → deploy → verify (post-deploy smoke test).
+Pipeline: lint → build → test (unit) → deploy → verify (post-deploy `/health`+`/ready`
+smoke test **and** the integration suite). Integration tests run **post-deploy**, not as a
+deploy gate (#70): they drive a live browser login against the external QA OpenEMR, so a
+transient OpenEMR outage must not veto a sidecar deploy. The job waits for OpenEMR to be
+healthy (a FHIR-metadata preflight) and skips with a distinct "dependency unavailable"
+signal if it never comes up, rather than failing the whole suite on login timeouts.
 
 - **Integration tests** run the BFF **in-process** on the GitLab runner and
   talk to the staging OpenEMR over FHIR/OAuth. They need these GitLab CI
@@ -396,7 +401,29 @@ rather than going through `deploy.yml`.
 `/ready` failing immediately after a deploy that previously passed is the
 signal, not a slow first-boot (OpenEMR's first-boot delay, see Known quirks
 below, doesn't apply to `agent-forge-api` - it has no persistent volume/setup
-step).
+step). This check is **automated**: the `verify`-stage `post-deploy-smoke-test`
+job curls `/health`+`/ready` on every deploy, so a **red `post-deploy-smoke-test`
+is the rollback signal** - no need to watch by hand.
+
+**Only the health smoke test is a rollback signal - not the integration suite.**
+Since #70, the `verify` stage also runs the health-gated `integration-tests`
+job, but it is `allow_failure` and exercises the **external** OpenEMR (via a
+live browser login). A red or skipped `integration-tests` means the fork/QA
+OpenEMR was unavailable or a real integration regression to *investigate* - it
+does **not** mean the sidecar deploy is bad, so it is **not** a rollback
+trigger. Roll back only when `post-deploy-smoke-test` (the deployed sidecar's
+own `/health`+`/ready`) goes red.
+
+**Rollback is manual today** (one of the three paths above, triggered by a red
+`post-deploy-smoke-test`). The bad build is live for the ~1-2 min the smoke test
+takes to fail - acceptable for staging. **Auto-rollback is deliberately deferred:**
+a `when: on_failure` `verify` job (`needs: [post-deploy-smoke-test]`) could
+redeploy the last known-good Railway deployment via the Railway API, but it
+needs care to select the last *successful* deployment (not just N-1), avoid
+rollback loops, and must never be wired to the `allow_failure` integration job.
+Add it as its own tracked change if/when the brief bad-state window stops being
+acceptable (e.g. a prod cutover, ARCHITECTURE.md §13.2); staging keeps the human
+"fix forward or roll back" call for now.
 
 ## Known quirks
 

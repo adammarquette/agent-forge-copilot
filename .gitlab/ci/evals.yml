@@ -15,8 +15,8 @@ evals:
   script:
     # restore repopulates the NuGet cache in this fresh container (issue #21), then run the
     # golden-set gate; a non-zero exit code fails the job and blocks the merge.
-    - dotnet restore "tools/GauntletAI.AgentForge.Evals/GauntletAI.AgentForge.Evals.csproj"
-    - dotnet run --project "tools/GauntletAI.AgentForge.Evals" -c $BUILD_CONFIG -- evals
+    - dotnet restore "tests/GauntletAI.AgentForge.Evals/GauntletAI.AgentForge.Evals.csproj"
+    - dotnet run --project "tests/GauntletAI.AgentForge.Evals" -c $BUILD_CONFIG -- evals
   artifacts:
     when: always
     paths:

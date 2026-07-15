@@ -17,9 +17,12 @@ namespace GauntletAI.AgentForge.Agent;
 /// <see cref="IClinicalResponseVerifier"/> before it becomes an <see cref="AgentTurnResult"/> -
 /// the mandatory gate FR-VERIF-0 requires. The one deliberate exception is the deterministic
 /// fallback path (PRD.md §13.1, Epic 10): when the LLM call itself fails after retries exhausted,
-/// or the turn exceeds its tool-call round budget, the result is raw tool JSON, not synthesized
-/// prose - there is no claim to ground, so it bypasses the verifier by design rather than being
-/// stripped to nothing by a citation check built for prose.
+/// the turn exceeds its tool-call round budget, or a malformed final answer is still malformed
+/// after one repair attempt (below), the result is raw tool JSON, not synthesized prose - there is
+/// no claim to ground, so it bypasses the verifier by design rather than being stripped to nothing
+/// by a citation check built for prose. A malformed final answer (empty, truncated at MaxTokens, or
+/// an unexpected stop) is rejected against the final-answer contract *before* the verifier and gets
+/// one bounded repair re-prompt; only a well-formed answer reaches FR-VERIF-0.
 /// </summary>
 public sealed class AgentOrchestrator(
     ILlmProvider llmProvider,
@@ -43,6 +46,11 @@ public sealed class AgentOrchestrator(
         "Give me a short summary of this patient for today's agenda list - the one or two things " +
         "that matter most, in 1-3 sentences. This is read in a scan alongside several other " +
         "patients, not the full pre-visit brief.";
+
+    private const string MalformedOutputRepairPrompt =
+        "Your previous reply could not be used - it was empty or stopped before finishing. Reply " +
+        "again with a complete, plain-text answer, citing each clinical fact with its " +
+        "[ResourceType/Id] source exactly as instructed.";
 
     /// <summary>Starts a new session for a patient and generates the initial pre-visit brief (UC-1).</summary>
     public Task<AgentTurnResult> StartBriefAsync(string site, string patientId, CancellationToken cancellationToken)
@@ -106,6 +114,10 @@ public sealed class AgentOrchestrator(
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadlineOnlyCts.Token);
         var operationToken = linkedCts.Token;
 
+        // PRD.md §13.1 "unexpected / unparseable model output": one bounded repair attempt across the
+        // whole turn before degrading. Separate from the tool-call round budget below.
+        var repairAttempted = false;
+
         for (var round = 0; round < MaxToolCallRounds; round++)
         {
             using var llmActivity = AgentForgeActivitySource.Instance.StartActivity("llm.complete");
@@ -134,6 +146,33 @@ public sealed class AgentOrchestrator(
 
             if (response.StopReason != LlmStopReason.ToolUse || response.ToolCalls.Count == 0)
             {
+                // PRD.md §13.1: validate the model's final output against the "complete, non-empty
+                // answer" contract (NFR-CONTRACT-1) *before* the verifier - an empty, truncated
+                // (MaxTokens), or otherwise unexpected stop is rejected here, one repair re-prompt is
+                // issued, and only then does it degrade to the deterministic fallback. This is
+                // distinct from FR-VERIF-0's grounding gate, which runs on a well-formed answer below
+                // and may still legitimately suppress it to nothing.
+                if (!IsWellFormedFinalAnswer(response))
+                {
+                    if (!repairAttempted)
+                    {
+                        repairAttempted = true;
+                        AgentOrchestratorLog.MalformedOutputRepairAttempt(
+                            logger, response.StopReason, !string.IsNullOrWhiteSpace(response.Content));
+                        messages =
+                        [
+                            .. messages,
+                            BuildRejectedAssistantTurn(response),
+                            LlmMessage.FromText(LlmRole.User, MalformedOutputRepairPrompt),
+                        ];
+                        continue;
+                    }
+
+                    return BuildDeterministicFallback(
+                        state, messages, toolResultJsonThisTurn,
+                        $"Model output failed the final-answer contract (stop reason {response.StopReason}) after one repair attempt.");
+                }
+
                 var verification = verifier.Verify(response.Content, toolResultJsonThisTurn);
                 metrics.RecordVerificationResult(verification.Passed);
                 var verifiedMessages = messages.Append(
@@ -194,6 +233,27 @@ public sealed class AgentOrchestrator(
         var result = await toolDispatcher.DispatchAsync(site, patientId, toolCall, cancellationToken).ConfigureAwait(false);
         AgentOrchestratorLog.ToolCallDispatched(logger, toolCall.ToolName, result.IsError);
         return result;
+    }
+
+    /// <summary>
+    /// The final-answer contract (PRD.md §13.1 / NFR-CONTRACT-1): a usable answer is one the model
+    /// finished cleanly (<see cref="LlmStopReason.EndTurn"/>) with actual text. A truncated
+    /// (<see cref="LlmStopReason.MaxTokens"/>), unexpected (<see cref="LlmStopReason.Other"/>), or
+    /// empty response is malformed - it may cut off mid-fact or mid-citation, so it is not shipped.
+    /// </summary>
+    private static bool IsWellFormedFinalAnswer(LlmResponse response) =>
+        response.StopReason == LlmStopReason.EndTurn && !string.IsNullOrWhiteSpace(response.Content);
+
+    /// <summary>
+    /// Appends the model's own rejected turn before the repair prompt so the re-prompt has an
+    /// assistant turn to answer, preserving the alternating user/assistant shape real providers
+    /// require. Empty/whitespace content is replaced with a marker so the message is never itself
+    /// empty (which providers reject).
+    /// </summary>
+    private static LlmMessage BuildRejectedAssistantTurn(LlmResponse response)
+    {
+        var text = string.IsNullOrWhiteSpace(response.Content) ? "(no answer produced)" : response.Content;
+        return new LlmMessage(LlmRole.Assistant, [new LlmTextContent(text)]);
     }
 
     private static List<LlmContent> BuildAssistantContent(LlmResponse response)

@@ -1,3 +1,4 @@
+using GauntletAI.AgentForge.Llm;
 using Microsoft.Extensions.Logging;
 
 namespace GauntletAI.AgentForge.Agent;
@@ -13,4 +14,7 @@ internal static partial class AgentOrchestratorLog
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Degraded to deterministic fallback: {Reason}")]
     public static partial void DegradedToDeterministicFallback(ILogger logger, string reason);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Rejected malformed model output (stopReason={StopReason}, hasContent={HasContent}); attempting one repair.")]
+    public static partial void MalformedOutputRepairAttempt(ILogger logger, LlmStopReason stopReason, bool hasContent);
 }
