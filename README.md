@@ -65,6 +65,19 @@ requires a login (anonymous access is disabled); Prometheus is private (no publi
 > table. The real value lives in that Railway variable, not here. Prometheus stays reachable only over the
 > project's private network (`agentforge-prometheus.railway.internal:9090`).
 
+### Front-door surface (what's reachable, and how it's protected)
+
+The sidecar is a browser-facing SMART app, so its launch and session routes are reachable through the
+public front door and secured by **auth**, not by hiding them. Two paths that need no browser access are
+blocked at the proxy instead:
+
+| Path | Public? | How it's protected |
+|---|---|---|
+| `/agentforge/launch`, `/callback` (+ agenda variants) | Yes | SMART OAuth flow (state / `aud` / token exchange) — the browser must reach these for the embedded launch |
+| `/agentforge/agenda`, `/patient` | Yes | `401` — BFF session cookie required |
+| `/agentforge/documents/*` | **No — `404`** | Private-network only; ingestion authenticates by trusted origin (W2-D17) |
+| `/agentforge/evidence/ask` | **No — `404`** | Private-network only (issue #105). Stateless Week 2 endpoint with no browser client — the OpenEMR module only launches the app, it never calls this — so it stays off the public front door and can't burn LLM/Cohere quota from the internet. Reachable over `agent-forge-api-staging.railway.internal:8080` for demos/tests run inside the private network. |
+
 ---
 
 ## Where to find things
