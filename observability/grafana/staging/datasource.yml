@@ -1,0 +1,14 @@
+# Staging datasource override: points Grafana at the private Prometheus service
+# (agentforge-prometheus) over Railway's internal network. The local-compose
+# provisioning file (../provisioning/datasources/prometheus.yml) keeps
+# http://prometheus:9090; this file replaces it in the staging image only.
+# reference: documentation/RAILWAY.md, gitlab#57
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://agentforge-prometheus.railway.internal:9090
+    isDefault: true
+    editable: false

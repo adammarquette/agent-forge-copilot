@@ -143,3 +143,71 @@ nginx-deploy:
     - export RAILWAY_TOKEN="$RAILWAY_TOKEN_RP"
     - railway variable set "RAILWAY_DOCKERFILE_PATH=/reverse-proxy/Dockerfile" --service "$RAILWAY_SERVICE_RP"
     - railway up --service "$RAILWAY_SERVICE_RP" --ci
+
+# -----------------------------------------------------------------------------
+# DEPLOY (observability) — Prometheus + Grafana, deployed as two sibling services
+# in the SAME "staging" environment (project lucid-clarity), issue #57. Same
+# `railway up` + RAILWAY_DOCKERFILE_PATH mechanism as nginx-deploy above; both
+# reuse RAILWAY_TOKEN_STAGING.
+#
+# The services must already exist on Railway before these run — `railway up`
+# deploys TO a service, it does not create one (same "Service not found" gotcha
+# nginx-deploy hit). Manual + allow_failure for the same reason it is: standing
+# up sibling infra is an operator decision, not something to fire automatically
+# on every merge to main.
+#
+# Prometheus stays PRIVATE (no domain) — it binds [::]:9090 (Railway private
+# networking is IPv6-only) and is scraped by nobody but Grafana over the
+# internal network. Grafana is the only public surface, and it is login-gated:
+# GF_AUTH_ANONYMOUS_ENABLED=false + admin credentials from GitLab CI variables
+# (never baked into the image). GF_ADMIN_PASSWORD is a masked/protected GitLab
+# variable; the demo value is documented in the root README. Re-asserted on every
+# deploy (same self-healing rationale as Llm__ApiKey on the API deploy above).
+# -----------------------------------------------------------------------------
+
+prometheus-deploy:
+  stage: deploy
+  image:
+    name: ghcr.io/railwayapp/cli:latest
+    entrypoint: [""]
+  interruptible: false
+  variables:
+    GIT_DEPTH: "1"
+    RAILWAY_SERVICE_PROM: "agentforge-prometheus"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+      allow_failure: true
+  environment:
+    name: observability-prometheus
+  before_script:
+    - railway --version
+  script:
+    - export RAILWAY_TOKEN="$RAILWAY_TOKEN_STAGING"
+    - railway variable set "RAILWAY_DOCKERFILE_PATH=/observability/prometheus/Dockerfile" --service "$RAILWAY_SERVICE_PROM"
+    - railway up --service "$RAILWAY_SERVICE_PROM" --ci
+
+grafana-deploy:
+  stage: deploy
+  image:
+    name: ghcr.io/railwayapp/cli:latest
+    entrypoint: [""]
+  interruptible: false
+  variables:
+    GIT_DEPTH: "1"
+    RAILWAY_SERVICE_GRAFANA: "agentforge-grafana"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+      allow_failure: true
+  environment:
+    name: observability-grafana
+  before_script:
+    - railway --version
+  script:
+    - export RAILWAY_TOKEN="$RAILWAY_TOKEN_STAGING"
+    - railway variable set "RAILWAY_DOCKERFILE_PATH=/observability/grafana/Dockerfile" --service "$RAILWAY_SERVICE_GRAFANA"
+    - railway variable set "GF_SECURITY_ADMIN_USER=admin" --service "$RAILWAY_SERVICE_GRAFANA"
+    - railway variable set "GF_SECURITY_ADMIN_PASSWORD=$GF_ADMIN_PASSWORD" --service "$RAILWAY_SERVICE_GRAFANA"
+    - railway variable set "GF_AUTH_ANONYMOUS_ENABLED=false" --service "$RAILWAY_SERVICE_GRAFANA"
+    - railway up --service "$RAILWAY_SERVICE_GRAFANA" --ci
