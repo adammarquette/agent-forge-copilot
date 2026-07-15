@@ -19,6 +19,16 @@ public sealed class DerivedFactStore : IDerivedFactStore
             .FirstOrDefaultAsync(d => d.ContentHash == contentHash, cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<DerivedFact>> GetByPatientAsync(
+        string patientId, CancellationToken cancellationToken = default) =>
+        await _db.DerivedFacts
+            .Include(f => f.Document)
+            .Where(f => f.Document!.PatientId == patientId)
+            .OrderByDescending(f => f.CreatedAt)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+    /// <inheritdoc />
     public async Task AddAsync(IngestedDocument document, CancellationToken cancellationToken = default)
     {
         _db.IngestedDocuments.Add(document);
