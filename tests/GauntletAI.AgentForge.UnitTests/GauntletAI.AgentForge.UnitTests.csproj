@@ -34,6 +34,7 @@
     <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Verification\GauntletAI.AgentForge.Verification.csproj" />
     <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Documents\GauntletAI.AgentForge.Documents.csproj" />
     <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Agents\GauntletAI.AgentForge.Agents.csproj" />
+    <ProjectReference Include="..\..\src\GauntletAI.AgentForge.Retrieval\GauntletAI.AgentForge.Retrieval.csproj" />
   </ItemGroup>
 
   <ItemGroup>

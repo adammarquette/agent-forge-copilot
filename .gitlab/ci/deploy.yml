@@ -56,6 +56,9 @@ deploy:
   script:
     - export RAILWAY_TOKEN="$RAILWAY_TOKEN_STAGING"
     - railway variable set "Llm__ApiKey=$Llm__ApiKey" --service agent-forge-api-staging
+    # Cohere embed + rerank key for hybrid RAG (E3). Guarded: only assert it when the masked GitLab variable
+    # is set, so a deploy without it can't blank the key. Absent -> the sidecar degrades to sparse-only FTS.
+    - if [ -n "$Cohere__ApiKey" ]; then railway variable set "Cohere__ApiKey=$Cohere__ApiKey" --service agent-forge-api-staging; fi
     # reference: gitlab#67 - re-assert the reverse-proxy-aware host/path config, the SMART OAuth
     # clients, and their scopes on every deploy so a rebuild or fresh service reproduces the working
     # launch - the same self-healing rationale as Llm__ApiKey above. Every host MUST be the reverse-
