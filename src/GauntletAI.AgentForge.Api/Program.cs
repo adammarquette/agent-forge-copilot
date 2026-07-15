@@ -20,6 +20,8 @@ using GauntletAI.AgentForge.Api.Evidence;
 using GauntletAI.AgentForge.Data;
 using GauntletAI.AgentForge.Documents;
 using GauntletAI.AgentForge.Retrieval;
+using GauntletAI.AgentForge.Agents.Ingestion;
+using GauntletAI.AgentForge.Api.Ingestion;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -205,6 +207,13 @@ if (weekTwoEnabled)
     builder.Services.AddAgentForgeDocuments();
     builder.Services.AddAgentForgeRetrieval();
     builder.Services.AddAgentForgeEvidenceAgent();
+
+    // Week 2 ingestion (E2): the front desk uploads through OpenEMR's own Documents; the oe-module-agentforge
+    // upload hook then calls POST /documents/ingest with the content, and the sidecar extracts + persists the
+    // derived facts citing the OpenEMR DocumentReference. No write-back - OpenEMR is authoritative for the
+    // source document, so there is no document write client, resolver, or category config.
+    builder.Services.AddSingleton<IDerivedFactMapper, DerivedFactMapper>();
+    builder.Services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
 }
 
 builder.Services.AddScoped<SmartLaunchService>();
@@ -360,6 +369,7 @@ app.MapPatientEndpoints();
 if (weekTwoEnabled)
 {
     app.MapEvidenceEndpoints();
+    app.MapIngestionEndpoints();
 }
 
 app.MapHub<ChatHub>("/hubs/chat");
