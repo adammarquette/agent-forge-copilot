@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using System.Text.Json;
 using GauntletAI.AgentForge.Data;
 using GauntletAI.AgentForge.Data.Entities;
 using GauntletAI.AgentForge.Documents;
 using GauntletAI.AgentForge.Llm;
+using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Logging;
 
@@ -25,6 +27,7 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
     private readonly IDerivedFactStore _factStore;
     private readonly ILlmProvider _llm;
     private readonly IClinicalResponseVerifier _verifier;
+    private readonly IAgentForgeMetrics _metrics;
     private readonly ILogger<EvidenceAgentSupervisor> _logger;
 
     /// <summary>Creates the supervisor.</summary>
@@ -34,6 +37,7 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
         IDerivedFactStore factStore,
         ILlmProvider llm,
         IClinicalResponseVerifier verifier,
+        IAgentForgeMetrics metrics,
         ILogger<EvidenceAgentSupervisor> logger)
     {
         _extractor = extractor;
@@ -41,6 +45,7 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
         _factStore = factStore;
         _llm = llm;
         _verifier = verifier;
+        _metrics = metrics;
         _logger = logger;
     }
 
@@ -54,8 +59,10 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
         if (request.Document is { } document)
         {
             Route(handoffs, SupervisorNode, "intake-extractor", "document attached; extraction needed");
+            var extractStart = Stopwatch.GetTimestamp();
             var extraction = await _extractor.ExtractAsync(
                 document.DocumentType, document.Content, document.MediaType, cancellationToken);
+            _metrics.RecordWorkerLatency("intake-extractor", Stopwatch.GetElapsedTime(extractStart));
 
             if (extraction.Succeeded)
             {
@@ -84,15 +91,23 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
 
         // 2. evidence-retriever.
         Route(handoffs, SupervisorNode, "evidence-retriever", "question needs guideline evidence");
+        var retrieveStart = Stopwatch.GetTimestamp();
         var evidence = await _retriever.RetrieveAsync(request.Question, DefaultTopK, cancellationToken);
+        var retrieveElapsed = Stopwatch.GetElapsedTime(retrieveStart);
+        _metrics.RecordWorkerLatency("evidence-retriever", retrieveElapsed);
+        _metrics.RecordEvidenceRetrieval(evidence.Count > 0, evidence.Count, retrieveElapsed);
 
         // 3. answer-composer.
         Route(handoffs, SupervisorNode, "answer-composer", "facts + evidence assembled");
+        var composeStart = Stopwatch.GetTimestamp();
         var draft = await ComposeAsync(request.Question, factsJson, labFacts, priorFacts, evidence, cancellationToken);
+        _metrics.RecordWorkerLatency("answer-composer", Stopwatch.GetElapsedTime(composeStart));
 
         // 4. critic = the Week 1 verification gate, reused as a node.
         Route(handoffs, "answer-composer", "critic", "draft ready for verification");
+        var criticStart = Stopwatch.GetTimestamp();
         var verification = _verifier.Verify(draft, BuildToolResults(factsJson, labFacts, priorFacts, evidence));
+        _metrics.RecordWorkerLatency("critic", Stopwatch.GetElapsedTime(criticStart));
         Route(handoffs, "critic", SupervisorNode,
             verification.Passed ? "all claims grounded" : $"{verification.SuppressedClaims.Count} uncited claim(s) suppressed");
 
@@ -111,6 +126,7 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
     {
         handoffs.Add(new HandoffEvent(from, to, reason));
         EvidenceAgentSupervisorLog.Handoff(_logger, from, to, reason);
+        _metrics.RecordRoutingDecision(from, to);
     }
 
     private async Task<string> ComposeAsync(

@@ -16,6 +16,13 @@ public sealed class AgentForgeMetrics : IAgentForgeMetrics, IDisposable
     private readonly Counter<long> _verificationResultsTotal;
     private readonly Counter<long> _llmTokensTotal;
     private readonly Counter<double> _llmCostUsdTotal;
+    private readonly Counter<long> _documentIngestionsTotal;
+    private readonly Histogram<double> _documentIngestionDurationSeconds;
+    private readonly Histogram<double> _workerDurationSeconds;
+    private readonly Counter<long> _routingDecisionsTotal;
+    private readonly Counter<long> _evidenceRetrievalsTotal;
+    private readonly Histogram<double> _evidenceRetrievalDurationSeconds;
+    private readonly Histogram<long> _evidenceRetrievalResults;
 
     /// <summary>Creates the meter and every instrument it publishes under <see cref="MeterName"/>.</summary>
     public AgentForgeMetrics()
@@ -34,6 +41,23 @@ public sealed class AgentForgeMetrics : IAgentForgeMetrics, IDisposable
             "agentforge.llm_tokens", unit: "{token}", description: "LLM tokens consumed, by direction.");
         _llmCostUsdTotal = _meter.CreateCounter<double>(
             "agentforge.llm_cost_usd", unit: "{USD}", description: "Estimated LLM cost.");
+
+        // Week 2 instruments (FR-OBS-W2-1). Dimensions are bounded, low-cardinality, and PHI-free
+        // (outcome/worker/node tags only - never a patient value or document text).
+        _documentIngestionsTotal = _meter.CreateCounter<long>(
+            "agentforge.document_ingestions", unit: "{document}", description: "Document-ingestion attempts, by outcome.");
+        _documentIngestionDurationSeconds = _meter.CreateHistogram<double>(
+            "agentforge.document_ingestion.duration", unit: "s", description: "Wall-clock duration of one ingestion attempt.");
+        _workerDurationSeconds = _meter.CreateHistogram<double>(
+            "agentforge.worker.duration", unit: "s", description: "Wall-clock duration of one supervisor-graph worker, by worker.");
+        _routingDecisionsTotal = _meter.CreateCounter<long>(
+            "agentforge.routing_decisions", unit: "{decision}", description: "Supervisor routing decisions (handoffs), by from/to node.");
+        _evidenceRetrievalsTotal = _meter.CreateCounter<long>(
+            "agentforge.evidence_retrievals", unit: "{retrieval}", description: "Evidence-retrieval calls, by hit/miss outcome.");
+        _evidenceRetrievalDurationSeconds = _meter.CreateHistogram<double>(
+            "agentforge.evidence_retrieval.duration", unit: "s", description: "Wall-clock duration of one evidence-retrieval call.");
+        _evidenceRetrievalResults = _meter.CreateHistogram<long>(
+            "agentforge.evidence_retrieval.results", unit: "{snippet}", description: "Snippets returned by one evidence-retrieval call.");
     }
 
     /// <inheritdoc />
@@ -63,6 +87,33 @@ public sealed class AgentForgeMetrics : IAgentForgeMetrics, IDisposable
         _llmTokensTotal.Add(inputTokens, new KeyValuePair<string, object?>("direction", "input"));
         _llmTokensTotal.Add(outputTokens, new KeyValuePair<string, object?>("direction", "output"));
         _llmCostUsdTotal.Add((double)estimatedCostUsd);
+    }
+
+    /// <inheritdoc />
+    public void RecordDocumentIngestion(string outcome, TimeSpan duration)
+    {
+        _documentIngestionsTotal.Add(1, new KeyValuePair<string, object?>("outcome", outcome));
+        _documentIngestionDurationSeconds.Record(duration.TotalSeconds, new KeyValuePair<string, object?>("outcome", outcome));
+    }
+
+    /// <inheritdoc />
+    public void RecordWorkerLatency(string worker, TimeSpan duration) =>
+        _workerDurationSeconds.Record(duration.TotalSeconds, new KeyValuePair<string, object?>("worker", worker));
+
+    /// <inheritdoc />
+    public void RecordRoutingDecision(string fromNode, string toNode) =>
+        _routingDecisionsTotal.Add(
+            1,
+            new KeyValuePair<string, object?>("from", fromNode),
+            new KeyValuePair<string, object?>("to", toNode));
+
+    /// <inheritdoc />
+    public void RecordEvidenceRetrieval(bool hit, int resultCount, TimeSpan duration)
+    {
+        var outcome = new KeyValuePair<string, object?>("outcome", hit ? "hit" : "miss");
+        _evidenceRetrievalsTotal.Add(1, outcome);
+        _evidenceRetrievalDurationSeconds.Record(duration.TotalSeconds);
+        _evidenceRetrievalResults.Record(resultCount);
     }
 
     /// <inheritdoc />

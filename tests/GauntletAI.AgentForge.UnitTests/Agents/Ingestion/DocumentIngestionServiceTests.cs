@@ -5,6 +5,7 @@ using GauntletAI.AgentForge.Data;
 using GauntletAI.AgentForge.Data.Entities;
 using GauntletAI.AgentForge.Documents;
 using GauntletAI.AgentForge.Llm;
+using GauntletAI.AgentForge.Observability;
 using Microsoft.Extensions.Logging;
 
 namespace GauntletAI.AgentForge.UnitTests.Agents.Ingestion;
@@ -21,6 +22,7 @@ public sealed class DocumentIngestionServiceTests
     private readonly IDocumentExtractor _extractor = A.Fake<IDocumentExtractor>();
     private readonly IDerivedFactStore _store = A.Fake<IDerivedFactStore>();
     private readonly IDerivedFactMapper _mapper = A.Fake<IDerivedFactMapper>();
+    private readonly IAgentForgeMetrics _metrics = A.Fake<IAgentForgeMetrics>();
 
     public DocumentIngestionServiceTests()
     {
@@ -34,7 +36,7 @@ public sealed class DocumentIngestionServiceTests
     }
 
     private DocumentIngestionService Service() =>
-        new(_extractor, _store, _mapper, TimeProvider.System, A.Fake<ILogger<DocumentIngestionService>>());
+        new(_extractor, _store, _mapper, _metrics, TimeProvider.System, A.Fake<ILogger<DocumentIngestionService>>());
 
     private static DerivedFact Fact() => new()
     {
@@ -72,6 +74,7 @@ public sealed class DocumentIngestionServiceTests
                 A<ClinicalDocumentType>._, A<ReadOnlyMemory<byte>>._, A<string>._, A<CancellationToken>._))
             .MustNotHaveHappened();
         A.CallTo(() => _store.AddAsync(A<IngestedDocument>._, A<CancellationToken>._)).MustNotHaveHappened();
+        A.CallTo(() => _metrics.RecordDocumentIngestion("already_ingested", A<TimeSpan>._)).MustHaveHappenedOnceExactly();
     }
 
     [Fact]
@@ -85,6 +88,7 @@ public sealed class DocumentIngestionServiceTests
 
         result.Status.Should().Be(DocumentIngestionStatus.ExtractionRejected);
         A.CallTo(() => _store.AddAsync(A<IngestedDocument>._, A<CancellationToken>._)).MustNotHaveHappened();
+        A.CallTo(() => _metrics.RecordDocumentIngestion("extraction_rejected", A<TimeSpan>._)).MustHaveHappenedOnceExactly();
     }
 
     [Fact]
@@ -105,5 +109,6 @@ public sealed class DocumentIngestionServiceTests
         persisted.OpenEmrDocumentReferenceId.Should().Be("dr-1");
         persisted.DerivedFacts.Should().HaveCount(2);
         A.CallTo(() => _mapper.Map(A<DocumentExtractionResult>._, "dr-1")).MustHaveHappenedOnceExactly();
+        A.CallTo(() => _metrics.RecordDocumentIngestion("ingested", A<TimeSpan>._)).MustHaveHappenedOnceExactly();
     }
 }

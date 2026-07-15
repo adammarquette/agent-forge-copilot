@@ -20,4 +20,20 @@ public interface IAgentForgeMetrics
 
     /// <summary>Records token/cost accounting for one LLM call.</summary>
     void RecordLlmUsage(int inputTokens, int outputTokens, decimal estimatedCostUsd);
+
+    // Week 2 (Multimodal Evidence Agent, W2_ARCHITECTURE.md §10 / FR-OBS-W2-1): the supervisor graph and the
+    // ingestion path were previously invisible to telemetry. These make document ingestion, per-worker
+    // latency, routing, and evidence-retrieval observable without any PHI in the emitted dimensions.
+
+    /// <summary>Records one document-ingestion attempt (pre-visit path), by outcome (ingested/already/rejected).</summary>
+    void RecordDocumentIngestion(string outcome, TimeSpan duration);
+
+    /// <summary>Records the wall-clock latency of one Week 2 graph worker (e.g. intake-extractor, evidence-retriever, answer-composer, critic).</summary>
+    void RecordWorkerLatency(string worker, TimeSpan duration);
+
+    /// <summary>Records one supervisor routing decision (a logged handoff), by originating and destination node.</summary>
+    void RecordRoutingDecision(string fromNode, string toNode);
+
+    /// <summary>Records one evidence-retrieval call: whether it hit (returned any snippets), how many, and how long it took.</summary>
+    void RecordEvidenceRetrieval(bool hit, int resultCount, TimeSpan duration);
 }
