@@ -253,6 +253,42 @@
           "legendFormat": "p95"
         }
       ]
+    },
+    {
+      "id": 17,
+      "title": "Rerank Latency (p50 / p95)",
+      "description": "agentforge.rerank.duration - wall-clock of one cross-encoder rerank call (Cohere rerank-v3.5). The added hop the hybrid retriever pays over sparse-only; watch it against the evidence-retrieval budget.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 41, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(agentforge_rerank_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(agentforge_rerank_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "title": "Retrieval Degradations by Stage",
+      "description": "agentforge.retrieval_degradations - a half or the reranker failed and was skipped, per second by stage (sparse / dense / rerank). Non-zero rerank means answers fell back to the fused order without cross-encoder reordering (see AgentForgeRetrievalDegradation alert).",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 8, "y": 41, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (stage) (rate(agentforge_retrieval_degradations_total[5m]))",
+          "legendFormat": "{{stage}}"
+        }
+      ]
     }
   ]
 }

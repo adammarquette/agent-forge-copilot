@@ -79,3 +79,23 @@ groups:
             On-call response: sample recent suppressed claims (SuppressedClaimPayload on the wire,
             or AccessAuditLog-adjacent logs) for a pattern; check whether CardiologyProfile's system
             prompt or the LLM model/version changed recently.
+
+      - alert: AgentForgeRetrievalDegradation
+        expr: sum(rate(agentforge_retrieval_degradations_total[10m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hybrid retrieval is degrading (a half or the reranker is being skipped)"
+          description: >
+            Meaning: the hybrid evidence retriever (W2_ARCHITECTURE.md §5) caught a failure in one
+            of its stages and continued without it - a `dense` or `sparse` stage means that half of
+            the candidate pool is missing; a `rerank` stage means answers are falling back to the
+            RRF-fused order without cross-encoder reordering (Cohere rerank-v3.5 unreachable, over
+            quota, or erroring). Answers still ship (degradation is deterministic, never a throw -
+            §10), so this is a quality signal, not an outage; sustained `rerank` degradation is also
+            the likeliest sign the Cohere trial key is exhausted.
+            On-call response: break down by the `stage` label. For `rerank`, check Cohere status and
+            the trial key's monthly call budget; for `dense`, check the embeddings provider and
+            pgvector/Postgres reachability; for `sparse`, check Postgres FTS. Confirm answers are
+            still grounded (evidence hit rate holding) before escalating.

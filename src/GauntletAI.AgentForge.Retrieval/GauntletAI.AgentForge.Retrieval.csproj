@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\GauntletAI.AgentForge.Agents\GauntletAI.AgentForge.Agents.csproj" />
     <ProjectReference Include="..\GauntletAI.AgentForge.Data\GauntletAI.AgentForge.Data.csproj" />
+    <ProjectReference Include="..\GauntletAI.AgentForge.Observability\GauntletAI.AgentForge.Observability.csproj" />
   </ItemGroup>
 
   <ItemGroup>

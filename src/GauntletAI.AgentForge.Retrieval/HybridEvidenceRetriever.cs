@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using GauntletAI.AgentForge.Agents;
+using GauntletAI.AgentForge.Observability;
 using Microsoft.Extensions.Logging;
 
 namespace GauntletAI.AgentForge.Retrieval;
@@ -20,15 +22,18 @@ public sealed class HybridEvidenceRetriever : IEvidenceRetriever
     private readonly ISparseRetriever _sparse;
     private readonly IDenseRetriever _dense;
     private readonly IReranker _reranker;
+    private readonly IAgentForgeMetrics _metrics;
     private readonly ILogger<HybridEvidenceRetriever> _logger;
 
     /// <summary>Creates the hybrid retriever over its two halves and the reranker.</summary>
     public HybridEvidenceRetriever(
-        ISparseRetriever sparse, IDenseRetriever dense, IReranker reranker, ILogger<HybridEvidenceRetriever> logger)
+        ISparseRetriever sparse, IDenseRetriever dense, IReranker reranker,
+        IAgentForgeMetrics metrics, ILogger<HybridEvidenceRetriever> logger)
     {
         _sparse = sparse;
         _dense = dense;
         _reranker = reranker;
+        _metrics = metrics;
         _logger = logger;
     }
 
@@ -70,7 +75,9 @@ public sealed class HybridEvidenceRetriever : IEvidenceRetriever
         try
         {
             var documents = candidates.Select(s => new RerankDocument(s.ChunkId, s.Text)).ToList();
+            var rerankStart = Stopwatch.GetTimestamp();
             var ranked = await _reranker.RerankAsync(query, documents, topK, cancellationToken).ConfigureAwait(false);
+            _metrics.RecordRerankLatency(Stopwatch.GetElapsedTime(rerankStart));
             if (ranked.Count == 0)
             {
                 return [.. candidates.Take(topK)];
@@ -88,6 +95,7 @@ public sealed class HybridEvidenceRetriever : IEvidenceRetriever
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             RetrievalLog.RerankDegraded(_logger, ex);
+            _metrics.RecordRetrievalDegradation("rerank");
             return [.. candidates.Take(topK)];
         }
     }
@@ -102,6 +110,7 @@ public sealed class HybridEvidenceRetriever : IEvidenceRetriever
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             RetrievalLog.HalfDegraded(_logger, half, ex);
+            _metrics.RecordRetrievalDegradation(half);
             return [];
         }
     }
