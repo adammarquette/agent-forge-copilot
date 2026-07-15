@@ -1,18 +1,22 @@
 using GauntletAI.AgentForge.Agents.Ingestion;
 using GauntletAI.AgentForge.Data.Entities;
-using GauntletAI.AgentForge.Integration.OpenEmr;
-using GauntletAI.AgentForge.Integration.OpenEmr.Auth;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Options;
 
 namespace GauntletAI.AgentForge.Api.Ingestion;
 
 /// <summary>
 /// The document-ingestion endpoint (W2_ARCHITECTURE.md §4). The front desk uploads through OpenEMR's own
-/// Documents workflow; the <c>oe-module-agentforge</c> upload hook then calls this endpoint with the
-/// document's content + its OpenEMR <c>DocumentReference</c> id, carrying the uploading user's access token
-/// as a bearer. This runs pre-visit, so the clinician's turn only reads ready facts. The token is introspected
-/// per call (transient — validated, never stored): the transient-token model, not a sidecar-held identity.
+/// Documents workflow; the <c>oe-module-agentforge</c> ingestion cron then calls this endpoint with the
+/// document's content + its OpenEMR <c>DocumentReference</c> id, pre-visit, so the clinician's turn only reads
+/// ready facts.
+/// <para>
+/// Trust model (W2-D17, single-environment): this route is reachable ONLY over the Railway private network -
+/// the reverse proxy front door does not route <c>/documents/ingest</c> (only <c>/agentforge/*</c> reaches the
+/// sidecar), and the sidecar has no public domain of its own. It carries no clinician authority (it derives
+/// facts, it makes no user-scoped FHIR call), so it authenticates by trusted origin rather than an OpenEMR
+/// token. A shared-secret header is the tracked hardening follow-up (defense-in-depth against in-project
+/// callers / accidental public exposure); intentionally out of scope for the MVP.
+/// </para>
 /// </summary>
 public static class IngestionEndpoints
 {
@@ -25,26 +29,8 @@ public static class IngestionEndpoints
 
     private static async Task<IResult> HandleIngestAsync(
         HttpContext httpContext,
-        IOpenEmrAuthClient authClient,
-        IOptions<OpenEmrOptions> openEmrOptions,
         IDocumentIngestionService ingestionService)
     {
-        // Authenticate the caller by introspecting the uploading user's bearer token - a valid, active token
-        // is the authority; no session, no stored credential. reference: documentation/W2_ARCHITECTURE.md §4
-        if (!TryReadBearerToken(httpContext, out var token))
-        {
-            return Results.Unauthorized();
-        }
-
-        var options = openEmrOptions.Value;
-        var introspection = await authClient
-            .IntrospectAsync(options.Site, token, options.ClientId, options.ClientSecret, httpContext.RequestAborted)
-            .ConfigureAwait(false);
-        if (!introspection.Active)
-        {
-            return Results.Unauthorized();
-        }
-
         var request = httpContext.Request;
         if (!request.HasFormContentType)
         {
@@ -90,20 +76,6 @@ public static class IngestionEndpoints
             DocumentIngestionStatus.Ingested or DocumentIngestionStatus.AlreadyIngested => Results.Ok(ToPayload(result)),
             _ => Results.UnprocessableEntity(ToPayload(result)),
         };
-    }
-
-    private static bool TryReadBearerToken(HttpContext httpContext, out string token)
-    {
-        token = string.Empty;
-        var header = httpContext.Request.Headers.Authorization.ToString();
-        const string prefix = "Bearer ";
-        if (string.IsNullOrEmpty(header) || !header.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        token = header[prefix.Length..].Trim();
-        return token.Length > 0;
     }
 
     private static bool TryParseDocType(string value, out ClinicalDocumentType documentType)
