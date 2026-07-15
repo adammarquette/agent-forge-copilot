@@ -27,6 +27,7 @@ This file adds the missing third leg: **doc / requirement / use-case → code pr
 | [`INTERFACE_CONTROL.md`](INTERFACE_CONTROL.md) | The OpenEMR external interface (FHIR R4 / OAuth2 / SMART) — the ICD | ICD sections A, B, … |
 | [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md) | Stack, dependencies, testing tiers, logging/security standards, solution layout (§9) | `§`-numbers |
 | [`AUDIT.md`](AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) | audit finding refs |
+| [`W2_AUDIT.md`](W2_AUDIT.md) | Week 2 implementation audit — per-requirement Met/Partial/Gap coverage, risks, prioritized recommendations vs the submission gates | audit finding refs |
 | [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | — |
 | [`CI-SETUP.md`](CI-SETUP.md) · [`RAILWAY.md`](RAILWAY.md) | CI pipeline and Railway (staging) deployment operations | — |
 | [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the deployed `staging` environment — services, public vs private exposure, flows, trust boundaries (mermaid) | — |
