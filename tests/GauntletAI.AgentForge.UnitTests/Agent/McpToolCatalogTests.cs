@@ -1,13 +1,18 @@
 using System.Text.Json.Nodes;
+using FakeItEasy;
 using FluentAssertions;
 using GauntletAI.AgentForge.Agent;
+using GauntletAI.AgentForge.Llm;
+using GauntletAI.AgentForge.Mcp;
+using GauntletAI.AgentForge.Observability;
+using GauntletAI.AgentForge.UnitTests.TestSupport;
 
 namespace GauntletAI.AgentForge.UnitTests.Agent;
 
 public sealed class McpToolCatalogTests
 {
     [Fact]
-    public void AllTools_Always_ContainsExactlyTheSixMcpToolsFromArchitecture()
+    public void AllTools_Always_ContainsEveryMcpToolAdvertisedToTheModel()
     {
         McpToolCatalog.AllTools.Select(t => t.Name).Should().BeEquivalentTo(
         [
@@ -17,7 +22,27 @@ public sealed class McpToolCatalogTests
             "get_vitals",
             "get_recent_encounters",
             "get_documents",
+            "get_document_facts",
+            "retrieve_evidence",
         ]);
+    }
+
+    [Fact]
+    public async Task EveryAdvertisedTool_IsDispatchable_NotJustDeclared()
+    {
+        // Guards the drift where a tool is advertised to the model but has no dispatcher case (every call
+        // returns "unknown tool"), and its mirror — a dispatcher case never advertised, so the model can't
+        // reach it (the get_document_facts omission this pair of guards was added to catch). reference: gitlab#117.
+        var dispatcher = new McpToolDispatcher(
+            A.Fake<IMcpToolServer>(), A.Fake<IAgentForgeMetrics>(), new CapturingLogger<McpToolDispatcher>());
+
+        foreach (var tool in McpToolCatalog.AllTools)
+        {
+            var result = await dispatcher.DispatchAsync(
+                "default", "1", new LlmToolCall("call", tool.Name, "{}"), CancellationToken.None);
+
+            result.ResultJson.Should().NotContain("Unknown tool", $"'{tool.Name}' is advertised but has no dispatcher case");
+        }
     }
 
     [Fact]

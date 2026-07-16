@@ -3,7 +3,7 @@ using GauntletAI.AgentForge.Llm;
 namespace GauntletAI.AgentForge.Agent;
 
 /// <summary>
-/// Describes the six MCP tools (ARCHITECTURE.md §8.1) to the model. Deliberately excludes
+/// Describes the MCP tools (ARCHITECTURE.md §8.1) to the model. Deliberately excludes
 /// patientId and site from every schema - which patient and which OpenEMR site is session-bound,
 /// resolved by the orchestrator from the authenticated launch context, never something the model
 /// fills in on a tool call. This is the schema-level half of FR-CHAT-3's patient-scoping
@@ -102,6 +102,32 @@ public static class McpToolCatalog
                   "description": "Case-insensitive substring filter on document type, e.g. 'echo'. Omit for all document types."
                 }
               }
+            }
+            """),
+
+        new LlmToolDefinition(
+            "get_document_facts",
+            "Facts the co-pilot already extracted from the patient's ingested documents (e.g. an uploaded " +
+            "lab-report PDF), each citable as [Document/<id>] so the clinician can open the source document " +
+            "at the exact region. Prefer citing these for a document-sourced value rather than restating it " +
+            "as a directly-recorded fact.",
+            """{"type":"object","properties":{}}"""),
+
+        new LlmToolDefinition(
+            "retrieve_evidence",
+            "Search the clinical-guideline corpus for grounded snippets relevant to a question or claim, each " +
+            "citable as [Guideline/<id>]. Use it to ground a recommendation in guidance rather than asserting " +
+            "it unsupported; query is required.",
+            """
+            {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "description": "The clinical question or claim to ground, e.g. 'target INR for atrial fibrillation on warfarin'."
+                }
+              },
+              "required": ["query"]
             }
             """),
     ];

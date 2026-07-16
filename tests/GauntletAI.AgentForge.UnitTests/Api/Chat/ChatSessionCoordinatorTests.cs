@@ -3,6 +3,8 @@ using FluentAssertions;
 using GauntletAI.AgentForge.Agent;
 using GauntletAI.AgentForge.Api.Chat;
 using GauntletAI.AgentForge.Api.Session;
+using GauntletAI.AgentForge.Data;
+using GauntletAI.AgentForge.Data.Entities;
 using GauntletAI.AgentForge.Integration.OpenEmr.Fhir;
 using GauntletAI.AgentForge.Integration.OpenEmr.Http;
 using GauntletAI.AgentForge.Llm;
@@ -20,6 +22,7 @@ public sealed class ChatSessionCoordinatorTests
     private readonly IScopedAccessTokenProvider _tokenProvider = A.Fake<IScopedAccessTokenProvider>();
     private readonly IScopedClinicianIdentityAccessor _clinicianIdentityAccessor = A.Fake<IScopedClinicianIdentityAccessor>();
     private readonly ICorrelationIdAccessor _correlationIdAccessor = A.Fake<ICorrelationIdAccessor>();
+    private readonly IDerivedFactStore _factStore = A.Fake<IDerivedFactStore>();
     private readonly CapturingLogger<ChatSessionCoordinator> _logger = new();
     private readonly ChatSessionCoordinator _sut;
     private readonly PatientSessionContext _session = new("token-abc", "default", "123", "dr-jones");
@@ -28,7 +31,7 @@ public sealed class ChatSessionCoordinatorTests
     {
         A.CallTo(() => _correlationIdAccessor.CorrelationId).Returns("corr-1");
         _sut = new ChatSessionCoordinator(
-            _orchestrator, _conversationStore, _outbox, _tokenProvider, _clinicianIdentityAccessor, _correlationIdAccessor, _logger);
+            _orchestrator, _conversationStore, _outbox, _tokenProvider, _clinicianIdentityAccessor, _correlationIdAccessor, _factStore, _logger);
     }
 
     [Fact]
@@ -220,5 +223,32 @@ public sealed class ChatSessionCoordinatorTests
         var result = _sut.Resume("session-1", 2);
 
         result.Should().BeSameAs(messages);
+    }
+
+    [Fact]
+    public async Task RequestBriefAsync_PatientHasIngestedDocumentFacts_IncludesTheirClickToSourceCitationsInThePayload()
+    {
+        // UC-6/FR-CITE-2: the brief surfaces facts ingested before the visit, and the client needs each
+        // fact's source-document id + region on the wire to open the PDF and highlight it.
+        A.CallTo(() => _orchestrator.StartBriefAsync("default", "123", A<CancellationToken>._))
+            .Returns(Task.FromResult(new AgentTurnResult("brief text", ConversationState.Start("default", "123"), [], [])));
+        var fact = new DerivedFact
+        {
+            Id = Guid.Parse("abcd1234-0000-0000-0000-000000000000"),
+            FactType = "lab.result",
+            PayloadJson = "{}",
+            Citation = new Citation { SourceId = "cite-1", QuoteOrValue = "Potassium 5.9 (H) mmol/L", PageOrSection = "2", BoundingBox = [0.1, 0.2, 0.3, 0.05] },
+            Document = new IngestedDocument { PatientId = "123", ContentHash = "hash-1", OpenEmrDocumentReferenceId = "docref-1" },
+        };
+        A.CallTo(() => _factStore.GetByPatientAsync("123", A<CancellationToken>._))
+            .Returns(Task.FromResult<IReadOnlyList<DerivedFact>>([fact]));
+        string? capturedPayload = null;
+        A.CallTo(() => _outbox.Append("session-1", "brief", A<string>._))
+            .Invokes((string _, string _, string payload) => capturedPayload = payload)
+            .Returns(new ChatMessage(1, "brief", "{}"));
+
+        await _sut.RequestBriefAsync("session-1", _session, CancellationToken.None);
+
+        capturedPayload.Should().Contain("DocumentCitations").And.Contain("docref-1").And.Contain("abcd1234");
     }
 }
