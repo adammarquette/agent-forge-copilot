@@ -206,4 +206,29 @@ public sealed class McpToolDispatcherTests
 
         A.CallTo(() => _toolServer.GetPatientSummaryAsync(A<GetPatientSummaryRequest>._, cts.Token)).MustHaveHappenedOnceExactly();
     }
+
+    [Fact]
+    public async Task DispatchAsync_GetDocumentFacts_DelegatesToTheDocumentFactsToolWithTheSessionPatientId()
+    {
+        var tool = A.Fake<IDocumentFactsTool>();
+        A.CallTo(() => tool.GetAsync("1", A<CancellationToken>._))
+            .Returns(Task.FromResult(new DocumentFactsResult(
+                [new DocumentFactRecord("Document", "abc12345", "lab.result", "Potassium 5.9", "docref-9", "1")])));
+        var sut = new McpToolDispatcher(_toolServer, _metrics, _logger, tool);
+
+        var result = await sut.DispatchAsync("default", "1", new LlmToolCall("call_df", "get_document_facts", "{}"), CancellationToken.None);
+
+        result.IsError.Should().BeFalse();
+        result.ResultJson.Should().Contain("Document").And.Contain("docref-9");
+        A.CallTo(() => tool.GetAsync("1", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task DispatchAsync_GetDocumentFactsWithNoToolWired_ReturnsAnEmptyResultRatherThanThrowing()
+    {
+        var result = await _sut.DispatchAsync("default", "1", new LlmToolCall("call_df2", "get_document_facts", "{}"), CancellationToken.None);
+
+        result.IsError.Should().BeFalse();
+        result.ResultJson.Should().Contain("Facts");
+    }
 }

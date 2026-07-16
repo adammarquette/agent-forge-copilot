@@ -20,7 +20,10 @@ namespace GauntletAI.AgentForge.Agent;
 /// react to, not a crash (NFR-REL-1 - one tool failing degrades one step, not the whole turn).
 /// </summary>
 public sealed class McpToolDispatcher(
-    IMcpToolServer toolServer, IAgentForgeMetrics metrics, ILogger<McpToolDispatcher> logger) : IMcpToolDispatcher
+    IMcpToolServer toolServer,
+    IAgentForgeMetrics metrics,
+    ILogger<McpToolDispatcher> logger,
+    IDocumentFactsTool? documentFactsTool = null) : IMcpToolDispatcher
 {
     private static readonly JsonSerializerOptions ArgumentsJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly JsonSerializerOptions ResultJsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -108,6 +111,7 @@ public sealed class McpToolDispatcher(
             "get_vitals" => ExecuteGetVitalsAsync(site, patientId, call.ArgumentsJson, cancellationToken),
             "get_recent_encounters" => ExecuteGetRecentEncountersAsync(site, patientId, call.ArgumentsJson, cancellationToken),
             "get_documents" => ExecuteGetDocumentsAsync(site, patientId, call.ArgumentsJson, cancellationToken),
+            "get_document_facts" => ExecuteGetDocumentFactsAsync(patientId, cancellationToken),
             _ => throw new McpToolContractException(call.ToolName, [$"Unknown tool '{call.ToolName}'."]),
         };
 
@@ -172,6 +176,19 @@ public sealed class McpToolDispatcher(
         var result = await toolServer.GetDocumentsAsync(
             new GetDocumentsRequest { Site = site, PatientId = patientId, DocumentType = args?.DocumentType }, cancellationToken)
             .ConfigureAwait(false);
+        return Serialize(result);
+    }
+
+    private async Task<string> ExecuteGetDocumentFactsAsync(string patientId, CancellationToken cancellationToken)
+    {
+        if (documentFactsTool is null)
+        {
+            // No document store wired (e.g. a FHIR-only test host): honest empty, not a throw.
+            McpToolDispatcherLog.DocumentFactsToolUnavailable(logger);
+            return Serialize(new DocumentFactsResult([]));
+        }
+
+        var result = await documentFactsTool.GetAsync(patientId, cancellationToken).ConfigureAwait(false);
         return Serialize(result);
     }
 

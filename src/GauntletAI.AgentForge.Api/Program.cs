@@ -183,6 +183,7 @@ builder.Services.AddScoped<IMcpToolServer>(sp => new AuditingMcpToolServer(
     sp.GetRequiredService<ICorrelationIdAccessor>(),
     sp.GetRequiredService<ILogger<AuditingMcpToolServer>>()));
 
+builder.Services.AddScoped<IDocumentFactsTool, DocumentFactsTool>();
 builder.Services.AddScoped<IMcpToolDispatcher, McpToolDispatcher>();
 builder.Services.AddScoped<ILlmProvider, AnthropicLlmProvider>();
 

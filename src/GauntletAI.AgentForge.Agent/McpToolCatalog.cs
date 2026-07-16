@@ -3,7 +3,7 @@ using GauntletAI.AgentForge.Llm;
 namespace GauntletAI.AgentForge.Agent;
 
 /// <summary>
-/// Describes the six MCP tools (ARCHITECTURE.md §8.1) to the model. Deliberately excludes
+/// Describes the MCP tools (ARCHITECTURE.md §8.1) to the model. Deliberately excludes
 /// patientId and site from every schema - which patient and which OpenEMR site is session-bound,
 /// resolved by the orchestrator from the authenticated launch context, never something the model
 /// fills in on a tool call. This is the schema-level half of FR-CHAT-3's patient-scoping
