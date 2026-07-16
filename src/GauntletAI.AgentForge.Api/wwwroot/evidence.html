@@ -29,13 +29,16 @@
     .cites { list-style:none; margin:0; padding:0; }
     .cite { border:1px solid var(--line); border-radius:6px; padding:8px 10px; margin-bottom:8px; cursor:pointer; }
     .cite:hover { border-color:var(--accent); }
+    .cite.active { border-color:var(--accent); background:rgba(76,154,255,.08); }
     .cite .field { font-weight:600; }
     .cite .meta { color:var(--muted); font-size:12px; }
     .cite .nobbox { color:#e0a458; }
     .page { position:relative; display:inline-block; margin:0 auto 14px; box-shadow:0 0 0 1px var(--line); }
     .page canvas { display:block; max-width:100%; height:auto; }
-    .box { position:absolute; border:1px solid rgba(76,154,255,.5); background:rgba(76,154,255,.07); pointer-events:none; transition:background .2s, border-color .2s; }
-    .box.flash { border-color:rgba(255,210,63,.9); background:rgba(255,210,63,.22); }
+    /* Invisible by default so the document reads clean; a row lights up only when its fact is clicked. */
+    .box { position:absolute; border:1px solid transparent; background:transparent; pointer-events:none; transition:background .25s, border-color .25s; }
+    .box.active { border-color:rgba(76,154,255,.55); background:rgba(76,154,255,.09); }
+    .box.flash { border-color:rgba(255,210,63,.95); background:rgba(255,210,63,.26); }
     .pagewrap { text-align:center; }
     .hint { color:var(--muted); font-size:12px; }
   </style>
@@ -161,19 +164,25 @@
           `<div class="field">${escape(c.field)}: ${escape(c.value)}</div>` +
           `<div class="meta">page ${c.page}${pageLevel ? ' · <span class="nobbox">page-level (no region)</span>' : ''}` +
           (c.quote ? ` · “${escape(c.quote)}”` : '') + '</div>';
-        li.addEventListener('click', () => locate(c, wrappers));
+        li.addEventListener('click', () => {
+          for (const el of list.querySelectorAll('.cite.active')) el.classList.remove('active');
+          li.classList.add('active');
+          locate(c, wrappers);
+        });
         list.appendChild(li);
       }
     }
 
     function locate(c, wrappers) {
+      // Only one row highlighted at a time: clear the previous selection so the doc never accumulates bands.
+      for (const b of pageBoxes.values()) b.classList.remove('active', 'flash');
       const wrap = wrappers[c.page];
       if (!wrap) return;
       wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
       const box = pageBoxes.get(c.factId);
       if (box) {
-        box.classList.add('flash');
-        setTimeout(() => box.classList.remove('flash'), 1400);
+        box.classList.add('active', 'flash');
+        setTimeout(() => box.classList.remove('flash'), 1100); // amber pulse settles to the subtle active band
       }
     }
 
