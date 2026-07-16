@@ -26,4 +26,12 @@ public sealed class CardiologyProfileTests
 
         normalized.Should().Contain(requiredPhrase, becauseReason);
     }
+
+    [Fact]
+    public void SystemPrompt_Always_DirectsTheBriefToSurfaceIngestedDocumentFacts()
+    {
+        // The brief must surface findings that are only in an uploaded document, not just the structured
+        // record - so the prompt must keep directing get_document_facts. reference: gitlab#123.
+        CardiologyProfile.SystemPrompt.Should().Contain("get_document_facts");
+    }
 }
