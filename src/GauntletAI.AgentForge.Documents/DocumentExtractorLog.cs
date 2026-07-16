@@ -15,4 +15,9 @@ internal static partial class DocumentExtractorLog
         Level = LogLevel.Warning,
         Message = "Extraction failed schema validation for {DocumentType}")]
     public static partial void SchemaValidationFailed(ILogger logger, ClinicalDocumentType documentType, Exception exception);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "PDF word geometry unreadable (scan / encrypted / malformed); citation boxes fall back to the model estimate")]
+    public static partial void PdfWordsUnreadable(ILogger logger, Exception exception);
 }

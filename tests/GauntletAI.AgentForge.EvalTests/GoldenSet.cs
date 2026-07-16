@@ -41,7 +41,10 @@ internal static class GoldenSet
         GoldenCase testCase)
     {
         var logger = new CapturingLogger<DocumentExtractor>();
-        var extractor = new DocumentExtractor(new StubLlmProvider(testCase.StubModelResponse), logger);
+        var extractor = new DocumentExtractor(
+            new StubLlmProvider(testCase.StubModelResponse),
+            new PdfPigWordReader(new CapturingLogger<PdfPigWordReader>()),
+            logger);
         byte[] syntheticBytes = [0];
         var result = await extractor.ExtractAsync(
             ParseDocType(testCase.DocType), syntheticBytes, testCase.MediaType, CancellationToken.None);
