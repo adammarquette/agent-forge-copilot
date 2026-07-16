@@ -83,8 +83,11 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
 
         // Load facts ingested for this patient BEFORE this turn (the pre-visit E2 path): the brief must
         // surface these, not only a document attached this turn (UC-6). Read-only; empty when none on file.
-        var priorFacts = ProjectDerivedFacts(
-            await _factStore.GetByPatientAsync(request.PatientId, cancellationToken));
+        var storedFacts = await _factStore.GetByPatientAsync(request.PatientId, cancellationToken);
+        var priorFacts = ProjectDerivedFacts(storedFacts);
+        // Surface persisted facts as fetchable click-to-source citations (each carries its OpenEMR
+        // DocumentReference id, so the client renders the source PDF from OpenEMR) alongside any in-turn ones (#109).
+        documentCitations = [.. documentCitations, .. DerivedFactCitationProjector.Project(storedFacts)];
         if (priorFacts.Count > 0)
         {
             Route(handoffs, SupervisorNode, "answer-composer",

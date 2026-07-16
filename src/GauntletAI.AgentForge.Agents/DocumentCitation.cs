@@ -12,5 +12,6 @@ namespace GauntletAI.AgentForge.Agents;
 /// <param name="Page">1-based source page the fact was read from.</param>
 /// <param name="BoundingBox">Normalized <c>[x, y, w, h]</c> region; null when absent (page-level fallback).</param>
 /// <param name="Quote">Verbatim supporting text from the document.</param>
+/// <param name="SourceDocumentId">OpenEMR <c>DocumentReference</c> id to fetch the source PDF from for the production overlay (gitlab#109); null for a document attached in-turn, where the client already holds the bytes it uploaded.</param>
 public sealed record DocumentCitation(
-    string FactId, string Field, string Value, int Page, double[]? BoundingBox, string? Quote);
+    string FactId, string Field, string Value, int Page, double[]? BoundingBox, string? Quote, string? SourceDocumentId = null);

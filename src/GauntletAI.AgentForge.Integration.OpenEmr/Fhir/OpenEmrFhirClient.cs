@@ -85,6 +85,20 @@ public sealed class OpenEmrFhirClient(IOpenEmrFhirApi api) : IOpenEmrFhirClient
         return DocumentReferenceMapper.MapBundle(json);
     }
 
+    /// <summary>Downloads one document's bytes from FHIR Binary; null when the document isn't found (gitlab#109).</summary>
+    public async Task<BinaryDocument?> GetBinaryAsync(string site, string documentId, CancellationToken cancellationToken)
+    {
+        using var response = await api.GetBinaryAsync(site, documentId, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+        return new BinaryDocument(bytes, contentType);
+    }
+
     /// <summary>Fetches appointments for <paramref name="dateFilter"/> across every provider.</summary>
     public async Task<IReadOnlyList<AppointmentRecord>> GetAppointmentsAsync(
         string site, string dateFilter, CancellationToken cancellationToken)
