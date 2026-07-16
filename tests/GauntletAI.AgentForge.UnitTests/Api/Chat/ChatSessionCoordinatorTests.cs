@@ -31,7 +31,7 @@ public sealed class ChatSessionCoordinatorTests
     {
         A.CallTo(() => _correlationIdAccessor.CorrelationId).Returns("corr-1");
         _sut = new ChatSessionCoordinator(
-            _orchestrator, _conversationStore, _outbox, _tokenProvider, _clinicianIdentityAccessor, _correlationIdAccessor, _factStore, _logger);
+            _orchestrator, _conversationStore, _outbox, _tokenProvider, _clinicianIdentityAccessor, _correlationIdAccessor, _logger, _factStore);
     }
 
     [Fact]
@@ -250,5 +250,25 @@ public sealed class ChatSessionCoordinatorTests
         await _sut.RequestBriefAsync("session-1", _session, CancellationToken.None);
 
         capturedPayload.Should().Contain("DocumentCitations").And.Contain("docref-1").And.Contain("abcd1234");
+    }
+
+    [Fact]
+    public async Task RequestBriefAsync_NoDocumentStoreWired_StillProducesABriefWithEmptyDocumentCitations()
+    {
+        // Week 2 is optional (Program.cs gates the store on a configured database); the Week 1 chat must still
+        // boot and run without it. Guards the DI regression where the coordinator required IDerivedFactStore
+        // and broke the no-database (integration/Week-1) host. reference: gitlab#121.
+        var sut = new ChatSessionCoordinator(
+            _orchestrator, _conversationStore, _outbox, _tokenProvider, _clinicianIdentityAccessor, _correlationIdAccessor, _logger);
+        A.CallTo(() => _orchestrator.StartBriefAsync("default", "123", A<CancellationToken>._))
+            .Returns(Task.FromResult(new AgentTurnResult("brief text", ConversationState.Start("default", "123"), [], [])));
+        string? capturedPayload = null;
+        A.CallTo(() => _outbox.Append("session-1", "brief", A<string>._))
+            .Invokes((string _, string _, string payload) => capturedPayload = payload)
+            .Returns(new ChatMessage(1, "brief", "{}"));
+
+        await sut.RequestBriefAsync("session-1", _session, CancellationToken.None);
+
+        capturedPayload.Should().Contain("brief text").And.Contain("\"DocumentCitations\":[]");
     }
 }
