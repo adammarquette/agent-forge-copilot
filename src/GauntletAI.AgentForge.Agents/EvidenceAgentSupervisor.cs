@@ -54,6 +54,7 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
     {
         var handoffs = new List<HandoffEvent>();
         string? factsJson = null;
+        IReadOnlyList<DocumentCitation> documentCitations = [];
 
         // 1. intake-extractor - only when a document is attached this turn.
         if (request.Document is { } document)
@@ -67,6 +68,7 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
             if (extraction.Succeeded)
             {
                 factsJson = extraction.CanonicalJson;
+                documentCitations = DocumentCitationExtractor.Extract(factsJson, document.DocumentType);
             }
             else
             {
@@ -118,6 +120,7 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
             SuppressedClaims = verification.SuppressedClaims,
             Handoffs = handoffs,
             ExtractedFactsJson = factsJson,
+            DocumentCitations = documentCitations,
             Evidence = evidence,
         };
     }
