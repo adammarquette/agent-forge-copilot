@@ -14,8 +14,15 @@ namespace GauntletAI.AgentForge.UnitTests.Documents;
 public sealed class DocumentExtractorTests
 {
     private readonly ILlmProvider _llm = A.Fake<ILlmProvider>();
+    private readonly IPdfWordReader _pdfReader = A.Fake<IPdfWordReader>();
 
-    private DocumentExtractor CreateSut() => new(_llm, NullLogger<DocumentExtractor>.Instance);
+    private DocumentExtractor CreateSut()
+    {
+        // Default: no PDF geometry, so citation boxes are left as the model gave them. Tests that exercise
+        // box resolution override this after construction (last FakeItEasy config wins).
+        A.CallTo(() => _pdfReader.ReadWords(A<ReadOnlyMemory<byte>>._)).Returns((IReadOnlyList<PdfWord>)[]);
+        return new(_llm, _pdfReader, NullLogger<DocumentExtractor>.Instance);
+    }
 
     private void SetupModelReturns(string content) =>
         A.CallTo(() => _llm.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
@@ -50,6 +57,30 @@ public sealed class DocumentExtractorTests
         result.Succeeded.Should().BeFalse();
         result.CanonicalJson.Should().BeNull();
         result.RejectionReason.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task ExtractAsync_WhenPdfWordsLocateTheQuote_ReplacesTheEstimateWithTheExactBox()
+    {
+        var sut = CreateSut();
+        A.CallTo(() => _pdfReader.ReadWords(A<ReadOnlyMemory<byte>>._)).Returns((IReadOnlyList<PdfWord>)
+        [
+            new(1, "INR", 0.10, 0.20, 0.06, 0.03),
+            new(1, "2.5", 0.20, 0.20, 0.05, 0.03),
+        ]);
+        SetupModelReturns(
+            """
+            {"tests":[{"test_name":"INR","value":"2.5","unit":null,"reference_range":null,
+            "collection_date":null,"abnormal_flag":null,
+            "citation":{"page":1,"quote":"INR 2.5","bounding_box":null}}]}
+            """);
+
+        var result = await sut.ExtractAsync(
+            ClinicalDocumentType.LabPdf, new byte[] { 1, 2, 3 }, "application/pdf", CancellationToken.None);
+
+        result.Succeeded.Should().BeTrue();
+        // The model's null box is replaced by the union of the located words (top-left corner at 0.10, 0.20).
+        result.CanonicalJson.Should().NotContain("\"bounding_box\":null").And.Contain("\"bounding_box\":[0.1,0.2,");
     }
 
     [Fact]

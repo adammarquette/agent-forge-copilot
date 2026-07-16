@@ -49,7 +49,10 @@ foreach (var testCase in cases.OrderBy(c => c.Id, StringComparer.Ordinal))
 {
     var docType = ParseDocType(testCase.DocType);
     var logger = new CapturingLogger<DocumentExtractor>();
-    var extractor = new DocumentExtractor(new StubLlmProvider(testCase.StubModelResponse), logger);
+    var extractor = new DocumentExtractor(
+        new StubLlmProvider(testCase.StubModelResponse),
+        new PdfPigWordReader(new CapturingLogger<PdfPigWordReader>()),
+        logger);
 
     var result = await extractor.ExtractAsync(docType, syntheticBytes, testCase.MediaType, CancellationToken.None);
     var scores = RubricEvaluator.Evaluate(testCase, result, logger.Messages);
