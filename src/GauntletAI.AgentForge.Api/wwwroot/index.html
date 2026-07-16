@@ -387,9 +387,12 @@
         var item = document.createElement('div'); item.className = 'src-item';
         var badge = document.createElement('span'); badge.className = 'src-badge doc'; badge.textContent = 'Source document'; item.appendChild(badge);
         var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'src-open';
-        var fields = [];
-        for (var k = 0; k < facts.length && fields.length < 3; k++) { var f = pick(facts[k], 'Field'); if (f) fields.push(f); }
-        btn.textContent = (fields.join(', ') || 'Open document') + (facts.length > 3 ? (' +' + (facts.length - 3) + ' more') : '');
+        var summaries = [];
+        for (var k = 0; k < facts.length && summaries.length < 3; k++) {
+          var v = pick(facts[k], 'Value');
+          if (v) { summaries.push(String(v).split(/\s+/).slice(0, 2).join(' ')); }
+        }
+        btn.textContent = (summaries.join(', ') || 'Open document') + (facts.length > 3 ? (' +' + (facts.length - 3) + ' more') : '');
         btn.addEventListener('click', function () { if (window.AgentForgeOverlay) window.AgentForgeOverlay.open(normalized); });
         item.appendChild(btn);
         return item;
