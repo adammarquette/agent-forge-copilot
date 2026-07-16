@@ -27,13 +27,14 @@ public sealed class ChatSessionCoordinator(
     IDerivedFactStore? factStore = null)
 {
     /// <summary>Starts the pre-visit brief for <paramref name="session"/> and returns the message appended to the outbox.</summary>
-    public async Task<ChatMessage> RequestBriefAsync(string sessionId, PatientSessionContext session, CancellationToken cancellationToken)
+    public async Task<ChatMessage> RequestBriefAsync(
+        string sessionId, PatientSessionContext session, CancellationToken cancellationToken, IProgress<string>? progress = null)
     {
         tokenProvider.AccessToken = session.AccessToken;
         clinicianIdentityAccessor.ClinicianIdentity = session.ClinicianIdentity;
 
         using var scope = BeginCorrelationScope();
-        var result = await orchestrator.StartBriefAsync(session.Site, session.PatientId, cancellationToken).ConfigureAwait(false);
+        var result = await orchestrator.StartBriefAsync(session.Site, session.PatientId, cancellationToken, progress).ConfigureAwait(false);
 
         conversationStore.Save(sessionId, result.State);
         var payload = ToPayload(result, await LoadDocumentCitationsAsync(session.PatientId, cancellationToken).ConfigureAwait(false));
@@ -45,14 +46,15 @@ public sealed class ChatSessionCoordinator(
     /// state if one exists, or starting fresh (scoped to the same patient) if not.
     /// </summary>
     public async Task<ChatMessage> AskFollowUpAsync(
-        string sessionId, PatientSessionContext session, string question, CancellationToken cancellationToken)
+        string sessionId, PatientSessionContext session, string question, CancellationToken cancellationToken,
+        IProgress<string>? progress = null)
     {
         tokenProvider.AccessToken = session.AccessToken;
         clinicianIdentityAccessor.ClinicianIdentity = session.ClinicianIdentity;
 
         using var scope = BeginCorrelationScope();
         var state = conversationStore.TryGet(sessionId) ?? ConversationState.Start(session.Site, session.PatientId);
-        var result = await orchestrator.AskFollowUpAsync(state, question, cancellationToken).ConfigureAwait(false);
+        var result = await orchestrator.AskFollowUpAsync(state, question, cancellationToken, progress).ConfigureAwait(false);
 
         conversationStore.Save(sessionId, result.State);
         var payload = ToPayload(result, await LoadDocumentCitationsAsync(session.PatientId, cancellationToken).ConfigureAwait(false));
