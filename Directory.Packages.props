@@ -81,6 +81,11 @@
     <PackageVersion Include="Pgvector" Version="0.3.2" />
     <PackageVersion Include="Pgvector.EntityFrameworkCore" Version="0.3.0" />
 
+    <!-- Digital-PDF word geometry for pixel-accurate click-to-source citation boxes (FR-CITE-2, gitlab#110):
+         reads the actual glyph rectangles so a cited value's region is exact, not a VLM estimate. Read-only
+         PDF parsing; UglyToad.PdfPig is Apache-2.0. -->
+    <PackageVersion Include="PdfPig" Version="0.1.15" />
+
     <!--
       Security pin: Microsoft.EntityFrameworkCore.Design's MSBuild/Roslyn tooling pulls
       System.Security.Cryptography.Xml 9.0.0, which has a high-severity CVE (NU1903). Pin up to the patched

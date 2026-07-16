@@ -10,6 +10,7 @@ public static class DocumentsServiceCollectionExtensions
     /// <returns>The same <paramref name="services"/> for chaining.</returns>
     public static IServiceCollection AddAgentForgeDocuments(this IServiceCollection services)
     {
+        services.AddSingleton<IPdfWordReader, PdfPigWordReader>();
         services.AddScoped<IDocumentExtractor, DocumentExtractor>();
         return services;
     }

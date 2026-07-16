@@ -17,14 +17,17 @@ public sealed class DocumentExtractor : IDocumentExtractor
     private const string PdfMediaType = "application/pdf";
 
     private readonly ILlmProvider _llm;
+    private readonly IPdfWordReader _pdfReader;
     private readonly ILogger<DocumentExtractor> _logger;
 
     /// <summary>Creates the extractor.</summary>
     /// <param name="llm">The model provider (must support image/document content).</param>
+    /// <param name="pdfReader">Reads PDF word geometry to make citation boxes exact (gitlab#110).</param>
     /// <param name="logger">Logger (PHI-free).</param>
-    public DocumentExtractor(ILlmProvider llm, ILogger<DocumentExtractor> logger)
+    public DocumentExtractor(ILlmProvider llm, IPdfWordReader pdfReader, ILogger<DocumentExtractor> logger)
     {
         _llm = llm;
+        _pdfReader = pdfReader;
         _logger = logger;
     }
 
@@ -55,16 +58,25 @@ public sealed class DocumentExtractor : IDocumentExtractor
             return DocumentExtractionResult.Rejected(documentType, "Model returned no JSON object.", response.Usage);
         }
 
+        // Exact citation geometry from the PDF's own glyph rectangles (gitlab#110): overrides the model's
+        // estimated boxes where the quote is found. Empty for non-PDF or scanned/unreadable input, in which
+        // case the model's estimate (or null) stands.
+        var words = mediaType.Equals(PdfMediaType, StringComparison.OrdinalIgnoreCase)
+            ? _pdfReader.ReadWords(content)
+            : [];
+
         try
         {
             // Deserialize against the strict, source-generated schema. Missing required members throw
-            // (the schema-is-the-gate mechanism); re-serialize the typed value as the canonical payload.
+            // (the schema-is-the-gate mechanism); resolve exact boxes, then re-serialize the canonical payload.
             var canonicalJson = documentType switch
             {
                 ClinicalDocumentType.LabPdf =>
-                    Canonicalize(json, DocumentExtractionJsonContext.Default.LabExtraction),
+                    Serialize(ResolveLabBoxes(Deserialize(json, DocumentExtractionJsonContext.Default.LabExtraction), words),
+                        DocumentExtractionJsonContext.Default.LabExtraction),
                 ClinicalDocumentType.IntakeForm =>
-                    Canonicalize(json, DocumentExtractionJsonContext.Default.IntakeExtraction),
+                    Serialize(ResolveIntakeBoxes(Deserialize(json, DocumentExtractionJsonContext.Default.IntakeExtraction), words),
+                        DocumentExtractionJsonContext.Default.IntakeExtraction),
                 _ => throw new ArgumentOutOfRangeException(nameof(documentType), documentType, "Unknown document type."),
             };
 
@@ -78,11 +90,31 @@ public sealed class DocumentExtractor : IDocumentExtractor
         }
     }
 
-    private static string Canonicalize<T>(string json, JsonTypeInfo<T> typeInfo)
+    private static T Deserialize<T>(string json, JsonTypeInfo<T> typeInfo) =>
+        JsonSerializer.Deserialize(json, typeInfo) ?? throw new JsonException("Payload deserialized to null.");
+
+    private static string Serialize<T>(T value, JsonTypeInfo<T> typeInfo) => JsonSerializer.Serialize(value, typeInfo);
+
+    private static LabExtraction ResolveLabBoxes(LabExtraction extraction, IReadOnlyList<PdfWord> words) =>
+        words.Count == 0
+            ? extraction
+            : extraction with { Tests = [.. extraction.Tests.Select(t => t with { Citation = ResolveCitation(t.Citation, words) })] };
+
+    private static IntakeExtraction ResolveIntakeBoxes(IntakeExtraction extraction, IReadOnlyList<PdfWord> words) =>
+        words.Count == 0
+            ? extraction
+            : extraction with
+            {
+                CurrentMedications = [.. extraction.CurrentMedications.Select(m => m with { Citation = ResolveCitation(m.Citation, words) })],
+                Citation = ResolveCitation(extraction.Citation, words),
+            };
+
+    // Replace the model's estimated box with the exact one from the PDF when the quote is located; otherwise
+    // keep what the model gave (an estimate, or null -> page-level).
+    private static ExtractionCitation ResolveCitation(ExtractionCitation citation, IReadOnlyList<PdfWord> words)
     {
-        var value = JsonSerializer.Deserialize(json, typeInfo)
-            ?? throw new JsonException("Payload deserialized to null.");
-        return JsonSerializer.Serialize(value, typeInfo);
+        var box = CitationBoundingBoxResolver.Resolve(words, citation.Page, citation.Quote);
+        return box is null ? citation : citation with { BoundingBox = box };
     }
 
     /// <summary>Isolates the outermost JSON object from model text, tolerating stray prose or code fences.</summary>
