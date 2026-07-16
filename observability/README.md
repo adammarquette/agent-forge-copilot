@@ -1,9 +1,11 @@
-# Observability stack (Epic 9)
+# Observability stack (Epic 9 + Epic 107)
 
-Self-hosted Prometheus + Grafana, scraping the sidecar's own OpenTelemetry `/metrics` endpoint
-(`Program.cs`). ARCHITECTURE.md §11 / ENGINEERING_STANDARDS.md §7 keep the sidecar itself
-provider-agnostic - this folder is the one place a specific backend is chosen, and it's optional
-infra: the app boots and serves traffic without it (see `ObservabilityHealthCheck`).
+Self-hosted **Prometheus + Loki + Grafana**. Prometheus scrapes the sidecar's own OpenTelemetry
+`/metrics` endpoint; Loki (Epic 107) ingests the sidecar's **logs** over OpenTelemetry's OTLP/HTTP
+exporter; Grafana reads from both (`Program.cs`). ARCHITECTURE.md §11 / ENGINEERING_STANDARDS.md §7
+keep the sidecar itself provider-agnostic - this folder is the one place specific backends are chosen,
+and it's optional infra: the app boots and serves traffic without any of it (see
+`ObservabilityHealthCheck`; the log exporter is fail-open - unset endpoint means console-only logging).
 
 ## Run it
 
@@ -21,6 +23,11 @@ docker compose -f observability/docker-compose.yml up
   verification pass/fail rate, LLM tokens/cost, and a raw Polly (resilience/retry) panel.
 - Prometheus: <http://localhost:9090> - scrapes `host.docker.internal:5113/metrics` every 15s
   (`prometheus/prometheus.yml`) and evaluates `alerts/agentforge-alerts.yml`.
+- Loki: <http://localhost:3100> - query logs from **Grafana → Explore → Loki**, e.g.
+  `{service_name="agentforge-api"}`. The sidecar pushes here automatically in Development
+  (`appsettings.Development.json` sets `Observability:LokiOtlpEndpoint` to
+  `http://localhost:3100/otlp/v1/logs`); if Loki isn't running, the sidecar just logs to console
+  (fail-open). Config in `loki/loki-config.yaml`.
 
 Pointing at a deployed instance (e.g. Railway) instead of local `dotnet run`: edit the `targets`
 list in `prometheus/prometheus.yml`.
@@ -38,8 +45,15 @@ alongside the sidecar, so the panels are viewable without running anything local
   domain). Built from `prometheus/Dockerfile` (bakes `prometheus/prometheus.staging.yml`, which scrapes
   `agent-forge-api-staging.railway.internal:8080/metrics` over the project's private network, and binds
   `[::]` because Railway private networking is IPv6-only).
+- **`agentforge-loki`** — **private only** (`agentforge-loki.railway.internal:3100`, no public domain; it
+  has no auth of its own). Built from `loki/Dockerfile` (shares `loki/loki-config.yaml` with local compose;
+  the image overrides the HTTP bind to `[::]` via a CLI flag, same IPv6-only reason as Prometheus). The
+  sidecar pushes logs here via `Observability__LokiOtlpEndpoint` (set on the API service in
+  `deploy.yml`); Grafana's `grafana/staging/loki-datasource.yml` overrides the Loki datasource to this
+  private address. **One-time operator step:** attach a Railway volume at `/loki` so ingested logs survive
+  restarts (like the sidecar's `/keys` volume) - not config-as-code.
 
-Both build via Railway's `RAILWAY_DOCKERFILE_PATH` with the context at the repo root (same mechanism as
+All three build via Railway's `RAILWAY_DOCKERFILE_PATH` with the context at the repo root (same mechanism as
 `reverse-proxy/`), and deploy from CI (`.gitlab/ci/deploy.yml`) using `RAILWAY_TOKEN_STAGING`. Grafana admin
 credentials come from the `GF_SECURITY_ADMIN_*` Railway variables — never baked into the image.
 
