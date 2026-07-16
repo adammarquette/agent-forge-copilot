@@ -1,6 +1,8 @@
 using System.Text.Json;
 using GauntletAI.AgentForge.Agent;
+using GauntletAI.AgentForge.Agents;
 using GauntletAI.AgentForge.Api.Session;
+using GauntletAI.AgentForge.Data;
 using GauntletAI.AgentForge.Integration.OpenEmr.Http;
 using GauntletAI.AgentForge.Verification;
 using Microsoft.Extensions.Logging;
@@ -21,6 +23,7 @@ public sealed class ChatSessionCoordinator(
     IScopedAccessTokenProvider tokenProvider,
     IScopedClinicianIdentityAccessor clinicianIdentityAccessor,
     ICorrelationIdAccessor correlationIdAccessor,
+    IDerivedFactStore factStore,
     ILogger<ChatSessionCoordinator> logger)
 {
     /// <summary>Starts the pre-visit brief for <paramref name="session"/> and returns the message appended to the outbox.</summary>
@@ -33,7 +36,8 @@ public sealed class ChatSessionCoordinator(
         var result = await orchestrator.StartBriefAsync(session.Site, session.PatientId, cancellationToken).ConfigureAwait(false);
 
         conversationStore.Save(sessionId, result.State);
-        return outbox.Append(sessionId, "brief", JsonSerializer.Serialize(ToPayload(result)));
+        var payload = ToPayload(result, await LoadDocumentCitationsAsync(session.PatientId, cancellationToken).ConfigureAwait(false));
+        return outbox.Append(sessionId, "brief", JsonSerializer.Serialize(payload));
     }
 
     /// <summary>
@@ -51,7 +55,8 @@ public sealed class ChatSessionCoordinator(
         var result = await orchestrator.AskFollowUpAsync(state, question, cancellationToken).ConfigureAwait(false);
 
         conversationStore.Save(sessionId, result.State);
-        return outbox.Append(sessionId, "answer", JsonSerializer.Serialize(ToPayload(result)));
+        var payload = ToPayload(result, await LoadDocumentCitationsAsync(session.PatientId, cancellationToken).ConfigureAwait(false));
+        return outbox.Append(sessionId, "answer", JsonSerializer.Serialize(payload));
     }
 
     /// <summary>
@@ -67,9 +72,16 @@ public sealed class ChatSessionCoordinator(
     public IReadOnlyList<ChatMessage> Resume(string sessionId, long lastSeenSequence) =>
         outbox.GetSince(sessionId, lastSeenSequence);
 
-    private static ChatAnswerPayload ToPayload(AgentTurnResult result) => new(
+    // The pre-visit brief must surface facts ingested before the visit (UC-6), and the client needs each
+    // fact's source-document id + region to open the PDF and highlight it (FR-CITE-2). Read-only; empty when none.
+    private async Task<IReadOnlyList<DocumentCitation>> LoadDocumentCitationsAsync(string patientId, CancellationToken cancellationToken) =>
+        DerivedFactCitationProjector.Project(
+            await factStore.GetByPatientAsync(patientId, cancellationToken).ConfigureAwait(false));
+
+    private static ChatAnswerPayload ToPayload(AgentTurnResult result, IReadOnlyList<DocumentCitation> documentCitations) => new(
         result.Answer,
         [.. result.SafetyFlags.Select(f => new SafetyFlagPayload(f.RuleId, f.Description, [.. f.Sources.Select(s => s.Citation)]))],
         [.. result.SuppressedClaims.Select(c => new SuppressedClaimPayload(c.Line, c.Reason))],
+        documentCitations,
         result.IsDeterministicFallback);
 }
