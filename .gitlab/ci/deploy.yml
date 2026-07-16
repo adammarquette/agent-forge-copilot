@@ -73,6 +73,10 @@ deploy:
     - railway variable set "Bff__PublicBaseUrl=$PROXY/agentforge" --service agent-forge-api-staging
     - railway variable set "Bff__PathBase=/agentforge" --service agent-forge-api-staging
     - railway variable set "DataProtection__KeyRingPath=/keys" --service agent-forge-api-staging
+    # Ship sidecar logs to the private Loki service (Epic 107, gitlab#107) over the internal network, so
+    # they are searchable in Grafana. Non-secret; re-asserted every deploy (self-heal). Fail-open: if the
+    # agentforge-loki service isn't up yet, the endpoint is unreachable and the sidecar logs to console only.
+    - railway variable set "Observability__LokiOtlpEndpoint=http://agentforge-loki.railway.internal:3100/otlp/v1/logs" --service agent-forge-api-staging
     - railway variable set "OpenEmr__ClientId=$OpenEmr__ClientId" --service agent-forge-api-staging
     - railway variable set "OpenEmr__ClientSecret=$OpenEmr__ClientSecret" --service agent-forge-api-staging
     - railway variable set "OPenEmrAgenda__ClientId=$OPenEmrAgenda__ClientId" --service agent-forge-api-staging
@@ -216,3 +220,46 @@ grafana-deploy:
     - if [ -n "$GF_ADMIN_PASSWORD" ]; then railway variable set "GF_SECURITY_ADMIN_PASSWORD=$GF_ADMIN_PASSWORD" --service "$RAILWAY_SERVICE_GRAFANA"; fi
     - railway variable set "GF_AUTH_ANONYMOUS_ENABLED=false" --service "$RAILWAY_SERVICE_GRAFANA"
     - railway up --service "$RAILWAY_SERVICE_GRAFANA" --ci
+
+# -----------------------------------------------------------------------------
+# DEPLOY (observability) — Loki, the log-aggregation half of the stack (Epic 107,
+# gitlab#107). Same `railway up` + RAILWAY_DOCKERFILE_PATH mechanism as the
+# Prometheus/Grafana jobs above; reuses RAILWAY_TOKEN_STAGING.
+#
+# The `agentforge-loki` service must already exist on Railway before this runs —
+# `railway up` deploys TO a service, it does not create one (same "Service not
+# found" gotcha the other observability jobs hit). Manual + allow_failure for the
+# same reason they are: standing up sibling infra is an operator decision.
+#
+# Loki stays PRIVATE (no public domain): it has no auth of its own
+# (auth_enabled: false) and binds [::]:3100 (Railway private networking is
+# IPv6-only, set via the Dockerfile CMD flag). Grafana queries it over the
+# internal network; the sidecar pushes to it over OTLP (Observability__LokiOtlpEndpoint,
+# set on the API deploy job above).
+#
+# ONE-TIME operator step (not config-as-code, like the sidecar's /keys volume):
+# attach a Railway volume mounted at /loki so ingested logs survive restarts.
+# Without it Loki still runs, but its filesystem store is ephemeral.
+# -----------------------------------------------------------------------------
+
+loki-deploy:
+  stage: deploy
+  image:
+    name: ghcr.io/railwayapp/cli:latest
+    entrypoint: [""]
+  interruptible: false
+  variables:
+    GIT_DEPTH: "1"
+    RAILWAY_SERVICE_LOKI: "agentforge-loki"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+      allow_failure: true
+  environment:
+    name: observability-loki
+  before_script:
+    - railway --version
+  script:
+    - export RAILWAY_TOKEN="$RAILWAY_TOKEN_STAGING"
+    - railway variable set "RAILWAY_DOCKERFILE_PATH=/observability/loki/Dockerfile" --service "$RAILWAY_SERVICE_LOKI"
+    - railway up --service "$RAILWAY_SERVICE_LOKI" --ci

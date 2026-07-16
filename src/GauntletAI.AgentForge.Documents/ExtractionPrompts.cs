@@ -22,6 +22,12 @@ internal static class ExtractionPrompts
         - Return ONLY the JSON object. No markdown, no code fences, no commentary.
         - Every fact MUST include a "citation" whose "quote" is text copied VERBATIM from the document that
           shows the value, and whose "page" is the 1-based page it appears on.
+        - Each "citation" MUST also include a "bounding_box": [x, y, width, height] locating where the "quote"
+          appears on that page. Coordinates are normalized to the page: (0,0) is the top-left corner and
+          (1,1) is the bottom-right, so every number is between 0 and 1 and width/height are fractions of the
+          page size. Enclose the quoted text as tightly as you reasonably can; give your best visual estimate
+          of its position. Locating printed text is not inventing data. Use null for "bounding_box" ONLY if you
+          genuinely cannot see where the quote sits on the page.
         - Use null for any field that is not present. NEVER invent, infer, or normalize a value that is not
           printed. If you cannot read a value, omit that item rather than guessing.
         """;

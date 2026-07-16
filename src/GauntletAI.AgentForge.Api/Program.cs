@@ -27,6 +27,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -271,7 +272,26 @@ builder.Logging.AddOpenTelemetry(options =>
 {
     options.IncludeScopes = true;
     options.IncludeFormattedMessage = true;
+    // Same service label the metrics/traces resource uses, so Loki tags these logs `service_name=agentforge-api`.
+    options.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("agentforge-api"));
     options.AddConsoleExporter();
+
+    // Optional: also ship logs to a self-hosted Loki via its native OTLP/HTTP endpoint (Epic 107), so
+    // sidecar logs are searchable in Grafana next to the metrics dashboards. Read from configuration
+    // directly (DI isn't built yet here), matching bffPathBase below. Fail open: unset -> console only;
+    // a wrong/unreachable endpoint never blocks the app (the exporter batches and drops on failure).
+    // reference: gitlab#107, documentation/DEPLOYMENT_TOPOLOGY.md
+    var lokiOtlpEndpoint = builder.Configuration
+        .GetSection(ObservabilityOptions.SectionName)[nameof(ObservabilityOptions.LokiOtlpEndpoint)];
+    if (!string.IsNullOrWhiteSpace(lokiOtlpEndpoint))
+    {
+        options.AddOtlpExporter(otlp =>
+        {
+            // Full /otlp/v1/logs path is used as-is (HttpProtobuf does not append the signal path).
+            otlp.Endpoint = new Uri(lokiOtlpEndpoint);
+            otlp.Protocol = OtlpExportProtocol.HttpProtobuf;
+        });
+    }
 });
 
 // Read directly from configuration (not IOptions<BffOptions>) - this runs before
