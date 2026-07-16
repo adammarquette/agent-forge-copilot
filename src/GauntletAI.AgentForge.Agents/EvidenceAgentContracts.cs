@@ -46,6 +46,9 @@ public sealed record EvidenceAgentResult
     /// <summary>The extracted-facts JSON used this turn; null if no document was extracted.</summary>
     public string? ExtractedFactsJson { get; init; }
 
+    /// <summary>Structured click-to-source citations (page + bbox + quote) for facts derived from a document attached this turn (FR-CITE-2); empty when none.</summary>
+    public IReadOnlyList<DocumentCitation> DocumentCitations { get; init; } = [];
+
     /// <summary>The guideline evidence retrieved this turn.</summary>
     public required IReadOnlyList<EvidenceSnippet> Evidence { get; init; }
 }

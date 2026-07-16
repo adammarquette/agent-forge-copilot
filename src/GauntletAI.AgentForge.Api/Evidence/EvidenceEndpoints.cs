@@ -1,4 +1,5 @@
 using GauntletAI.AgentForge.Agents;
+using GauntletAI.AgentForge.Api.Session;
 using GauntletAI.AgentForge.Data.Entities;
 using Microsoft.AspNetCore.Http;
 
@@ -7,8 +8,10 @@ namespace GauntletAI.AgentForge.Api.Evidence;
 /// <summary>
 /// The Week 2 multimodal-evidence endpoint: upload a clinical document + ask a question, run the
 /// supervisor/worker graph, and return a grounded, verified answer with its handoff trace and evidence
-/// (W2_ARCHITECTURE.md §6). Stateless and OpenEMR-independent — it extracts from the uploaded document and
-/// retrieves from the guideline corpus, so it needs no SMART session.
+/// (W2_ARCHITECTURE.md §6). It extracts from the uploaded document and retrieves from the guideline corpus,
+/// so it makes no user-scoped FHIR call — but it still consumes LLM + retrieval quota, so it is gated by the
+/// BFF session like the rest of the launched app (401 without a launch), not left open. This is what removes
+/// its earlier outlier status (a public, unauthenticated endpoint). reference: agent-forge-copilot#96, #105.
 /// </summary>
 public static class EvidenceEndpoints
 {
@@ -21,6 +24,14 @@ public static class EvidenceEndpoints
 
     private static async Task<IResult> HandleAskAsync(HttpContext httpContext, IEvidenceAgentSupervisor supervisor)
     {
+        // Gate on the BFF session, same as /agenda and /patient: the endpoint burns LLM + retrieval quota, so
+        // access requires a launch even though the flow itself makes no user-scoped FHIR call (#96, #105).
+        await httpContext.Session.LoadAsync(httpContext.RequestAborted).ConfigureAwait(false);
+        if (httpContext.Session.TryGetPatientSession() is null)
+        {
+            return Results.Unauthorized();
+        }
+
         var request = httpContext.Request;
         if (!request.HasFormContentType)
         {
@@ -82,5 +93,6 @@ public static class EvidenceEndpoints
         [.. result.Evidence.Select(e => new EvidencePayload(e.DocumentId, e.Section, e.ChunkId, e.Text, e.Score))],
         result.SafetyFlags.Count,
         result.SuppressedClaims.Count,
-        result.ExtractedFactsJson);
+        result.ExtractedFactsJson,
+        result.DocumentCitations);
 }
