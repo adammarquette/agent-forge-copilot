@@ -52,15 +52,39 @@ public sealed class AgentOrchestrator(
         "again with a complete, plain-text answer, citing each clinical fact with its " +
         "[ResourceType/Id] source exactly as instructed.";
 
+    // Human-readable status for each tool, shown while the turn runs (gitlab#126). Perceived-latency only -
+    // never the answer, which is verified before delivery.
+    private static readonly Dictionary<string, string> ToolStatusLabels = new(StringComparer.Ordinal)
+    {
+        ["get_patient_summary"] = "the chart",
+        ["get_interval_changes"] = "what changed since the last visit",
+        ["get_labs"] = "labs",
+        ["get_vitals"] = "vitals",
+        ["get_recent_encounters"] = "recent visits",
+        ["get_documents"] = "documents",
+        ["get_document_facts"] = "the uploaded lab report",
+        ["retrieve_evidence"] = "the guidelines",
+    };
+
+    private static string DescribeToolBatch(IReadOnlyList<LlmToolCall> toolCalls)
+    {
+        var labels = toolCalls
+            .Select(call => ToolStatusLabels.TryGetValue(call.ToolName, out var label) ? label : call.ToolName)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return labels.Length == 0 ? "Retrieving the record…" : "Reading " + string.Join(", ", labels) + "…";
+    }
+
     /// <summary>Starts a new session for a patient and generates the initial pre-visit brief (UC-1).</summary>
-    public Task<AgentTurnResult> StartBriefAsync(string site, string patientId, CancellationToken cancellationToken)
+    public Task<AgentTurnResult> StartBriefAsync(
+        string site, string patientId, CancellationToken cancellationToken, IProgress<string>? progress = null)
     {
         var state = ConversationState.Start(site, patientId) with
         {
             Messages = [LlmMessage.FromText(LlmRole.User, BriefRequestPrompt)],
         };
 
-        return RunTurnAsync(state, cancellationToken);
+        return RunTurnAsync(state, cancellationToken, progress);
     }
 
     /// <summary>Starts a new session for a patient and generates a short Daily Agenda summary (UC-6).</summary>
@@ -76,19 +100,20 @@ public sealed class AgentOrchestrator(
 
     /// <summary>Asks a follow-up question within an existing session, maintaining context (UC-2).</summary>
     public Task<AgentTurnResult> AskFollowUpAsync(
-        ConversationState state, string question, CancellationToken cancellationToken)
+        ConversationState state, string question, CancellationToken cancellationToken, IProgress<string>? progress = null)
     {
         var updated = state with { Messages = [.. state.Messages, LlmMessage.FromText(LlmRole.User, question)] };
-        return RunTurnAsync(updated, cancellationToken);
+        return RunTurnAsync(updated, cancellationToken, progress);
     }
 
-    private async Task<AgentTurnResult> RunTurnAsync(ConversationState state, CancellationToken cancellationToken)
+    private async Task<AgentTurnResult> RunTurnAsync(
+        ConversationState state, CancellationToken cancellationToken, IProgress<string>? progress = null)
     {
         using var activity = AgentForgeActivitySource.Instance.StartActivity("agent.turn");
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var result = await RunTurnCoreAsync(state, cancellationToken).ConfigureAwait(false);
+            var result = await RunTurnCoreAsync(state, progress, cancellationToken).ConfigureAwait(false);
             metrics.RecordAgentTurn(succeeded: true, stopwatch.Elapsed);
             return result;
         }
@@ -100,8 +125,10 @@ public sealed class AgentOrchestrator(
         }
     }
 
-    private async Task<AgentTurnResult> RunTurnCoreAsync(ConversationState state, CancellationToken cancellationToken)
+    private async Task<AgentTurnResult> RunTurnCoreAsync(
+        ConversationState state, IProgress<string>? progress, CancellationToken cancellationToken)
     {
+        progress?.Report("Reviewing this patient's chart…");
         var messages = state.Messages;
         List<string> toolResultJsonThisTurn = [];
 
@@ -120,6 +147,11 @@ public sealed class AgentOrchestrator(
 
         for (var round = 0; round < MaxToolCallRounds; round++)
         {
+            if (round > 0)
+            {
+                progress?.Report("Composing the answer…");
+            }
+
             using var llmActivity = AgentForgeActivitySource.Instance.StartActivity("llm.complete");
             var request = new LlmRequest(CardiologyProfile.SystemPrompt, messages, McpToolCatalog.AllTools);
 
@@ -186,6 +218,8 @@ public sealed class AgentOrchestrator(
             }
 
             messages = [.. messages, new LlmMessage(LlmRole.Assistant, BuildAssistantContent(response))];
+
+            progress?.Report(DescribeToolBatch(response.ToolCalls));
 
             LlmToolResultContent[] toolResults;
             try

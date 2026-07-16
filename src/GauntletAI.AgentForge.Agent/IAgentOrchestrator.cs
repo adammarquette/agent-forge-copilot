@@ -7,11 +7,17 @@ namespace GauntletAI.AgentForge.Agent;
 /// </summary>
 public interface IAgentOrchestrator
 {
-    /// <summary>Starts a new session for a patient and generates the initial pre-visit brief (UC-1).</summary>
-    Task<AgentTurnResult> StartBriefAsync(string site, string patientId, CancellationToken cancellationToken);
+    /// <summary>
+    /// Starts a new session for a patient and generates the initial pre-visit brief (UC-1).
+    /// <paramref name="progress"/> receives human-readable tool-call status ("reading the chart…") for the
+    /// UI to show while the verified answer is assembled - perceived-latency only, never unverified content.
+    /// </summary>
+    Task<AgentTurnResult> StartBriefAsync(
+        string site, string patientId, CancellationToken cancellationToken, IProgress<string>? progress = null);
 
     /// <summary>Asks a follow-up question within an existing session, maintaining context (UC-2).</summary>
-    Task<AgentTurnResult> AskFollowUpAsync(ConversationState state, string question, CancellationToken cancellationToken);
+    Task<AgentTurnResult> AskFollowUpAsync(
+        ConversationState state, string question, CancellationToken cancellationToken, IProgress<string>? progress = null);
 
     /// <summary>
     /// Starts a new session for a patient and generates a short, list-friendly summary for the

@@ -57,6 +57,8 @@
     .think { display: inline-flex; gap: 5px; align-items: center; color: var(--muted); }
     .think .d { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite both; }
     .think .d:nth-child(2){ animation-delay:.2s } .think .d:nth-child(3){ animation-delay:.4s }
+    .think .think-status { font-size: 13px; }
+    .think .think-status:empty { display: none; }
     @keyframes blink { 0%,80%,100%{opacity:.25} 40%{opacity:1} }
     form.composer { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); background: var(--surface); }
     textarea { flex: 1; resize: none; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
@@ -291,10 +293,13 @@
         var m = document.createElement('div'); m.className = 'msg bot'; m.id = 'thinking';
         var b = document.createElement('div'); b.className = 'bubble';
         var t = document.createElement('div'); t.className = 'think';
-        t.innerHTML = '<span class="d"></span><span class="d"></span><span class="d"></span>';
+        t.innerHTML = '<span class="think-status" id="think-status"></span><span class="d"></span><span class="d"></span><span class="d"></span>';
         b.appendChild(t); m.appendChild(b); el('scroll').appendChild(m); scrollDown();
       }
       function clearThinking() { var t = el('thinking'); if (t) t.remove(); }
+      // Interim tool-call status from the server (ChatStatus) — perceived-latency only; the verified answer
+      // still arrives as a normal ChatMessage that clears this bubble.
+      function updateThinking(status) { var s = el('think-status'); if (s) s.textContent = status || ''; }
 
       // Replace inline source tokens like [MedicationRequest/abc-123] or [Lab/INR] with sequential [1], [2], …
       // and return the ordered source list for a "Sources" key. Repeated sources reuse their first number; the
@@ -504,6 +509,7 @@
           .build();
 
         conn.on('ChatMessage', handleMessage);
+        conn.on('ChatStatus', function (status) { updateThinking(status); });
         conn.onreconnecting(function () { setStatus('wait', 'reconnecting…'); el('send').disabled = true; });
         conn.onreconnected(function () {
           setStatus('on', 'connected');

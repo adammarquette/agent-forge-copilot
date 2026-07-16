@@ -167,12 +167,22 @@ flowchart LR
 |---|---|---|
 | Custom module | PHP module in fork (`oe-module-agentforge`) | Add in-EHR launch entry points (patient-chart button + Daily Agenda tab); perform SMART EHR launch (top-level tab by default, modal iframe when same-site). Presentation only; the chat SPA is served by the sidecar BFF, not embedded here. |
 | Backend-for-Frontend | .NET 10 | Hold OAuth tokens server-side; host chat SPA; bridge browser ↔ orchestrator; enforce session. |
-| Agent orchestrator | .NET 10 (LLM SDK, e.g. Semantic Kernel / Microsoft.Extensions.AI) | Run the **multi-turn** loop: plan + chain tool calls, maintain conversation context, assemble the cited brief, enforce citation discipline. |
+| Agent orchestrator | .NET 10 (bespoke `AgentOrchestrator` — a hand-written tool-call loop over `ILlmProvider`; **no agent framework**) | Run the **multi-turn** loop: plan + chain tool calls, maintain conversation context, assemble the cited brief, enforce citation discipline. |
 | MCP tool server | .NET 10 | Expose read-only, narrowly-scoped FHIR tools; enforce minimum-necessary; emit audit + provenance. |
 | Verification layer | .NET 10 | (1) resolve every claim to a tool result; (2) run cardiology domain-constraint rules; block/flag failures. |
 | Cardiology profile | Config/prompt assets | System prompt + output template + tool/lookback scope for the interval-change brief. |
 | Observability | .NET 10 + OTel | Correlation IDs, traces, token/cost, dashboards, alerts, `/health` + `/ready`. |
 | Model provider | ILlmProvider (one impl in v1) | Inference only; interchangeable behind the interface. |
+
+> **Why bespoke, not Semantic Kernel / Microsoft.Extensions.AI.** The product's value is *deterministic
+> grounding*: every claim is resolved to a tool result and suppressed if uncited (the verification layer), and
+> patient-scoping/authorization is enforced **below the model** — not by prompt text. That is easiest to
+> guarantee with full control of the tool-call loop (per-round verification, deterministic degradation, a
+> bounded repair attempt, turn deadlines) rather than through a framework's abstractions. `ILlmProvider` +
+> `Refit`/Polly already give the provider seam and resilience a framework would otherwise supply.
+> `Microsoft.Extensions.AI` (the emerging standard abstraction, which Semantic Kernel now builds on) is a
+> reasonable *future* refactor for the `ILlmProvider` seam and tool-invocation/telemetry middleware, if the
+> hand-rolled plumbing ever outweighs the control.
 
 ---
 

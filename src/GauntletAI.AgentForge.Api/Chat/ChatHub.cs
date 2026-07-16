@@ -50,7 +50,8 @@ public sealed class ChatHub(ChatSessionCoordinator coordinator, ILogger<ChatHub>
     public async Task RequestBrief()
     {
         var (sessionId, session) = GetAuthenticatedSessionOrThrow();
-        var message = await coordinator.RequestBriefAsync(sessionId, session, Context.ConnectionAborted).ConfigureAwait(false);
+        var message = await coordinator.RequestBriefAsync(
+            sessionId, session, Context.ConnectionAborted, CreateStatusProgress()).ConfigureAwait(false);
         await DeliverAsync(message).ConfigureAwait(false);
     }
 
@@ -58,8 +59,20 @@ public sealed class ChatHub(ChatSessionCoordinator coordinator, ILogger<ChatHub>
     public async Task AskFollowUp(string question)
     {
         var (sessionId, session) = GetAuthenticatedSessionOrThrow();
-        var message = await coordinator.AskFollowUpAsync(sessionId, session, question, Context.ConnectionAborted).ConfigureAwait(false);
+        var message = await coordinator.AskFollowUpAsync(
+            sessionId, session, question, Context.ConnectionAborted, CreateStatusProgress()).ConfigureAwait(false);
         await DeliverAsync(message).ConfigureAwait(false);
+    }
+
+    // Streams the orchestrator's tool-call status to the caller as interim "ChatStatus" messages while the
+    // (verified) answer is assembled - perceived-latency only, never unverified content. Fire-and-forget: a
+    // dropped status is harmless, since the answer + Resume outbox remain the durable delivery path.
+    // reference: gitlab#126.
+    private Progress<string> CreateStatusProgress()
+    {
+        var caller = Clients.Caller;
+        var connectionAborted = Context.ConnectionAborted;
+        return new Progress<string>(status => _ = caller.SendAsync("ChatStatus", status, connectionAborted));
     }
 
     /// <summary>
