@@ -34,8 +34,8 @@
     .cite .nobbox { color:#e0a458; }
     .page { position:relative; display:inline-block; margin:0 auto 14px; box-shadow:0 0 0 1px var(--line); }
     .page canvas { display:block; max-width:100%; height:auto; }
-    .box { position:absolute; border:2px solid var(--accent); background:rgba(76,154,255,.15); pointer-events:none; transition:background .2s, border-color .2s; }
-    .box.flash { border-color:var(--hi); background:rgba(255,210,63,.35); }
+    .box { position:absolute; border:1px solid rgba(76,154,255,.5); background:rgba(76,154,255,.07); pointer-events:none; transition:background .2s, border-color .2s; }
+    .box.flash { border-color:rgba(255,210,63,.9); background:rgba(255,210,63,.22); }
     .pagewrap { text-align:center; }
     .hint { color:var(--muted); font-size:12px; }
   </style>
@@ -131,12 +131,15 @@
       for (const c of citations) {
         const wrap = wrappers[c.page];
         if (!wrap || !Array.isArray(c.boundingBox) || c.boundingBox.length !== 4) continue;
-        const [x, y, w, h] = c.boundingBox;
+        // Full-width row band: the VLM localizes the row vertically far better than it pins the value's
+        // column, so use only its y/height and span the full page width. Reads cleanly for a lab table and
+        // sidesteps the horizontal jitter.
+        const [, y, , h] = c.boundingBox;
         const box = document.createElement('div');
         box.className = 'box';
-        box.style.left = (x * 100) + '%';
+        box.style.left = '0';
         box.style.top = (y * 100) + '%';
-        box.style.width = (w * 100) + '%';
+        box.style.width = '100%';
         box.style.height = (h * 100) + '%';
         wrap.appendChild(box);
         pageBoxes.set(c.factId, box);
