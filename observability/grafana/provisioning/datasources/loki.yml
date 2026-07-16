@@ -1,0 +1,10 @@
+# Local-compose Loki datasource (Epic 107): Grafana reads sidecar logs from the Loki container.
+# The staging image replaces this url with the private Railway address (../staging/loki-datasource.yml).
+apiVersion: 1
+datasources:
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false

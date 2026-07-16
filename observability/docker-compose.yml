@@ -1,12 +1,15 @@
 # Self-hosted observability stack (Epic 9 - ARCHITECTURE.md §11): Prometheus scrapes the sidecar's
-# /metrics endpoint (OpenTelemetry's Prometheus exporter, wired in Program.cs); Grafana reads from
-# Prometheus and is pre-provisioned with the AgentForge dashboard and alert rules below. This
-# compose file stands up the observability *backend* only - run the sidecar itself separately
-# (`dotnet run` from src/GauntletAI.AgentForge.Api, or its own container).
+# /metrics endpoint (OpenTelemetry's Prometheus exporter, wired in Program.cs); Loki ingests the
+# sidecar's logs over OTLP (Epic 107); Grafana reads from both and is pre-provisioned with the
+# AgentForge dashboard, alert rules, and datasources below. This compose file stands up the
+# observability *backend* only - run the sidecar itself separately (`dotnet run` from
+# src/GauntletAI.AgentForge.Api, or its own container). To ship logs here, the sidecar needs
+# Observability__LokiOtlpEndpoint=http://localhost:3100/otlp/v1/logs (set in appsettings.Development.json).
 #
 # Usage: docker compose -f observability/docker-compose.yml up
 #   Grafana:    http://localhost:3000  (admin/admin - change on first login)
 #   Prometheus: http://localhost:9090
+#   Loki:       http://localhost:3100  (query via Grafana Explore -> Loki)
 
 services:
   prometheus:
@@ -23,11 +26,21 @@ services:
       # also works on Linux.
       - "host.docker.internal:host-gateway"
 
+  loki:
+    image: grafana/loki:3.3.0
+    container_name: agentforge-loki
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+    ports:
+      - "3100:3100"
+
   grafana:
     image: grafana/grafana:11.4.0
     container_name: agentforge-grafana
     depends_on:
       - prometheus
+      - loki
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
