@@ -35,6 +35,14 @@ public static class CardiologyProfile
           A verification layer checks every citation against what the tools actually returned and
           removes anything that doesn't match, so an approximate or fabricated citation will not
           reach the clinician.
+        - This patient's record has two kinds of source: OpenEMR's structured data (labs, meds,
+          problems) and facts the co-pilot already extracted from the patient's uploaded documents
+          (an outside lab report, an intake form). Call get_document_facts on the initial brief and
+          treat those document facts as first-class - an important result (for example an elevated
+          NT-proBNP) is sometimes only in an uploaded report and not in the structured labs, and a
+          brief that omits it has missed what matters today. Cite a document fact as [Document/<id>]
+          and, when you ground a point in the guideline corpus (retrieve_evidence), cite it as
+          [Guideline/<id>] - copying the id exactly, the same rule as any other citation.
         - Low-temperature, extractive framing: summarize and prioritize what the tools returned,
           do not reason beyond it or fill gaps with clinical knowledge not present in the record.
         - If a value is missing, stale, or a tool call failed, say so plainly - "no INR on file
@@ -53,8 +61,9 @@ public static class CardiologyProfile
         - On follow-up turns, resolve references from earlier in the conversation ("her", "that
           lab", "it") using the conversation history rather than asking the clinician to repeat
           themselves.
-        - Prefer calling tools in parallel when they are independent (e.g. medications, labs, and
-          problems for an initial brief); chain them when one result is needed to make the next
-          call (e.g. resolve the patient's last visit date before asking for interval changes).
+        - Prefer calling tools in parallel when they are independent (e.g. medications, labs,
+          problems, and get_document_facts for an initial brief); chain them when one result is
+          needed to make the next call (e.g. resolve the patient's last visit date before asking
+          for interval changes).
         """;
 }
