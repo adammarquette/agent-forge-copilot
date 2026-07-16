@@ -82,5 +82,6 @@ public static class EvidenceEndpoints
         [.. result.Evidence.Select(e => new EvidencePayload(e.DocumentId, e.Section, e.ChunkId, e.Text, e.Score))],
         result.SafetyFlags.Count,
         result.SuppressedClaims.Count,
-        result.ExtractedFactsJson);
+        result.ExtractedFactsJson,
+        result.DocumentCitations);
 }

@@ -1,3 +1,5 @@
+using GauntletAI.AgentForge.Agents;
+
 namespace GauntletAI.AgentForge.Api.Evidence;
 
 /// <summary>Response for <c>POST /evidence/ask</c>: the verified answer plus the inspectable trace.</summary>
@@ -7,13 +9,15 @@ namespace GauntletAI.AgentForge.Api.Evidence;
 /// <param name="SafetyFlagCount">Number of cardiology domain-constraint flags the critic surfaced.</param>
 /// <param name="SuppressedClaimCount">Number of claims the critic suppressed for failing attribution.</param>
 /// <param name="ExtractedFacts">The extracted-facts JSON used this turn; null if no document was extracted.</param>
+/// <param name="Citations">Structured click-to-source citations (page + bbox + quote) for document-derived facts this turn; empty when none.</param>
 public sealed record EvidenceResponsePayload(
     string Answer,
     IReadOnlyList<HandoffPayload> Handoffs,
     IReadOnlyList<EvidencePayload> Evidence,
     int SafetyFlagCount,
     int SuppressedClaimCount,
-    string? ExtractedFacts);
+    string? ExtractedFacts,
+    IReadOnlyList<DocumentCitation> Citations);
 
 /// <summary>One handoff in the graph's routing trace.</summary>
 public sealed record HandoffPayload(string From, string To, string Reason);
