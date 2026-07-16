@@ -28,6 +28,7 @@ public sealed class ChatHubTests : IDisposable
             A.Fake<IScopedAccessTokenProvider>(),
             A.Fake<IScopedClinicianIdentityAccessor>(),
             A.Fake<ICorrelationIdAccessor>(),
+            A.Fake<GauntletAI.AgentForge.Data.IDerivedFactStore>(),
             A.Fake<ILogger<ChatSessionCoordinator>>());
 
         _sut = new ChatHub(coordinator, A.Fake<ILogger<ChatHub>>());
