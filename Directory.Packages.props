@@ -49,6 +49,9 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Process" Version="1.16.0-rc.1" />
     <PackageVersion Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.16.0-beta.1" />
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.16.0" />
+    <!-- OTLP/HTTP log exporter -> self-hosted Loki (Epic 107, gitlab#107). Optional/fail-open, wired
+         only when Observability:LokiOtlpEndpoint is set; keeps the sidecar backend-agnostic (§7). -->
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
 
     <!-- Automates the real browser SMART login/consent step for QA token minting (GitLab issue
          #30) - removes the manual "open this URL, log in, paste back the redirect" step from
