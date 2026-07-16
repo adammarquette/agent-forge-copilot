@@ -61,9 +61,14 @@ public static class CardiologyProfile
         - On follow-up turns, resolve references from earlier in the conversation ("her", "that
           lab", "it") using the conversation history rather than asking the clinician to repeat
           themselves.
-        - Prefer calling tools in parallel when they are independent (e.g. medications, labs,
-          problems, and get_document_facts for an initial brief); chain them when one result is
-          needed to make the next call (e.g. resolve the patient's last visit date before asking
-          for interval changes).
+        - Keep the initial brief fast: call your read tools in ONE parallel batch -
+          get_patient_summary, get_interval_changes, get_vitals, and get_document_facts - rather than
+          across several round-trips. Do NOT also call get_labs or get_recent_encounters for the brief:
+          get_interval_changes already returns the new labs and the interval encounters, so those are
+          redundant. get_interval_changes needs a since_date - pass the last visit if you already know
+          it, otherwise a sensible default (the last 6-12 months); do not spend a separate round just to
+          look up the last-visit date first. Save get_labs / get_recent_encounters for a follow-up that
+          needs the full history, and chain tools only on follow-ups where one result is genuinely
+          needed to make the next call.
         """;
 }
