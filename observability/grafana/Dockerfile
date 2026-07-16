@@ -11,6 +11,7 @@ FROM grafana/grafana:11.4.0
 
 COPY observability/grafana/dashboards /var/lib/grafana/dashboards
 COPY observability/grafana/provisioning /etc/grafana/provisioning
-# Replace the local-compose datasource (http://prometheus:9090) with the private
-# staging Prometheus address. Staging-only; local compose is untouched.
+# Replace the local-compose datasources (http://prometheus:9090, http://loki:3100) with the private
+# staging addresses. Staging-only; local compose is untouched.
 COPY observability/grafana/staging/datasource.yml /etc/grafana/provisioning/datasources/prometheus.yml
+COPY observability/grafana/staging/loki-datasource.yml /etc/grafana/provisioning/datasources/loki.yml

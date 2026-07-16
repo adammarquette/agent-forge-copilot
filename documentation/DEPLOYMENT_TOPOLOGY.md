@@ -37,6 +37,7 @@ flowchart TB
             sidecar["<b>agent-forge-api-staging</b><br/>.NET 10 sidecar / BFF · :8080<br/>NO public domain (gitlab#92)<br/>volume /keys (DataProtection)"]
             oemr["<b>openemr</b><br/>OpenEMR v8 fork · Apache :80<br/>oe-module-agentforge"]
             prom["<b>agentforge-prometheus</b><br/>Prometheus · binds [::]:9090<br/>private only (no domain)"]
+            loki["<b>agentforge-loki</b><br/>Loki · binds [::]:3100<br/>private only · volume /loki"]
             pg[("<b>Postgres</b><br/>pgvector data tier")]
             mysql[("<b>MySQL-gDNR</b><br/>OpenEMR database")]
         end
@@ -68,7 +69,9 @@ flowchart TB
 
     %% observability
     prom -->|"scrape :8080/metrics (15s)"| sidecar
+    sidecar -->|"push logs (OTLP/HTTP :3100)"| loki
     grafana -->|"PromQL query :9090"| prom
+    grafana -->|"LogQL query :3100"| loki
 ```
 
 ---
@@ -81,7 +84,8 @@ flowchart TB
 | `agent-forge-api-staging` | .NET 10 sidecar / BFF (agent, verification, MCP tools, SignalR) | root `Dockerfile` | 8080 | ❌ **private** (domain deleted, gitlab#92) | vol `/keys` |
 | `openemr` | OpenEMR v8 fork (PHP/Apache, `SWARM_MODE`) + `oe-module-agentforge` | fork repo | 80 | ✅ `openemr-staging-25fc.up.railway.app` (QA/admin) | vol |
 | `agentforge-prometheus` | Metrics scrape + alert-rule evaluation | `observability/prometheus/Dockerfile` | `[::]:9090` | ❌ **private** | (ephemeral) |
-| `agentforge-grafana` | Dashboards (the AgentForge panels) | `observability/grafana/Dockerfile` | 3000 | ✅ `agentforge-grafana-staging.up.railway.app` (login-gated) | — |
+| `agentforge-loki` | Log aggregation (sidecar logs via OTLP) | `observability/loki/Dockerfile` | `[::]:3100` | ❌ **private** | vol `/loki` |
+| `agentforge-grafana` | Dashboards + log explore (the AgentForge panels) | `observability/grafana/Dockerfile` | 3000 | ✅ `agentforge-grafana-staging.up.railway.app` (login-gated) | — |
 | `Postgres` | Week 2 data tier: pgvector guideline corpus, `DerivedFactStore`, ingestion jobs | Railway Postgres | 5432 | ❌ **private** | vol |
 | `MySQL-gDNR` | OpenEMR's application database | Railway MySQL | 3306 | ❌ **private** | vol |
 
@@ -98,8 +102,12 @@ flowchart TB
 - **Private network is IPv6-only.** Railway's internal DNS (`*.railway.internal`) resolves over IPv6, which is
   why Prometheus binds `[::]` (a default `0.0.0.0` bind would be unreachable by Grafana). The reverse proxy
   resolves its upstreams at request time (`resolver` + variable `proxy_pass`) so it follows replica changes.
-- **Prometheus is fully private** — it has no auth of its own, so it must never front the internet. Grafana is
-  the single, login-gated observability surface; it queries Prometheus over the private network.
+- **Prometheus and Loki are fully private** — neither has auth of its own, so they must never front the
+  internet. Grafana is the single, login-gated observability surface; it queries both over the private network.
+- **Loki holds logs, so the no-PHI rule is load-bearing here.** Only the sidecar pushes to it, and the sidecar
+  logs are correlation-scoped and PHI-free by construction (ENGINEERING_STANDARDS.md §7). OpenEMR's own logs
+  are deliberately **not** shipped to Loki yet (gitlab#108) - that path needs a scrubbing decision first, since
+  EHR application logs are where identifiers can leak.
 
 ## 4. Notable flows
 
@@ -115,8 +123,9 @@ flowchart TB
   + persists derived facts (citing the OpenEMR `DocumentReference`) into Postgres. OpenEMR stays authoritative
   for the source document — no write-back (W2-D3).
 - **Observability:** Prometheus scrapes `agent-forge-api-staging.railway.internal:8080/metrics` every 15s and
-  evaluates the alert rules; Grafana reads Prometheus via PromQL. Metrics are operational only — **no PHI**
-  (NFR-SEC-W2-1).
+  evaluates the alert rules; the sidecar pushes structured logs to `agentforge-loki.railway.internal:3100` over
+  OTLP/HTTP (`Observability__LokiOtlpEndpoint`, fail-open); Grafana reads Prometheus via PromQL and Loki via
+  LogQL. Metrics and logs are operational only — **no PHI** (NFR-SEC-W2-1). reference: gitlab#107
 
 ## 5. Data stores & external dependencies
 
@@ -140,5 +149,8 @@ flowchart TB
 ---
 
 *Reflects the `staging` environment as of 2026-07-15. Service names/domains verified against Railway's live
-service list. Related: gitlab#57 (observability), gitlab#62 (reverse proxy), gitlab#92 (sidecar domain removal),
-W2-D17 (private-origin ingestion).*
+service list, **except `agentforge-loki`** (gitlab#107): its config, image, CI job, and sidecar wiring are in
+the repo, but the Railway service itself has not been created yet - `loki-deploy` is manual and needs the
+service + a `/loki` volume stood up by an operator first. Related: gitlab#57 (observability), gitlab#107 (Loki
+log aggregation), gitlab#108 (OpenEMR logs -> Loki, backlogged), gitlab#62 (reverse proxy), gitlab#92 (sidecar
+domain removal), W2-D17 (private-origin ingestion).*

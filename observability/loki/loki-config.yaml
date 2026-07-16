@@ -1,0 +1,46 @@
+# Single-binary Loki for the AgentForge observability stack (Epic 107, gitlab#107). Ingests the
+# sidecar's logs over its native OTLP/HTTP endpoint (/otlp/v1/logs, on by default in Loki 3.x) and
+# serves them to Grafana. Filesystem storage, in-memory ring - one instance, no clustering.
+#
+# Local compose uses this as-is (default 0.0.0.0 bind). The staging image (Dockerfile) overrides the
+# HTTP bind to [::] via a CLI flag because Railway private networking is IPv6-only - same reason the
+# Prometheus staging image binds [::]:9090. reference: documentation/DEPLOYMENT_TOPOLOGY.md
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: info
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-04-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # OTLP resource/scope attributes (e.g. service_name) land as structured metadata.
+  allow_structured_metadata: true
+  # Synthetic/demo data only, single environment - keep a bounded window, no PHI ever.
+  retention_period: 168h
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
