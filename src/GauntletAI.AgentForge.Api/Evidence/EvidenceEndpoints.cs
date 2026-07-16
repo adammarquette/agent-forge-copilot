@@ -1,6 +1,7 @@
 using GauntletAI.AgentForge.Agents;
 using GauntletAI.AgentForge.Api.Session;
 using GauntletAI.AgentForge.Data.Entities;
+using GauntletAI.AgentForge.Integration.OpenEmr.Fhir;
 using Microsoft.AspNetCore.Http;
 
 namespace GauntletAI.AgentForge.Api.Evidence;
@@ -15,11 +16,36 @@ namespace GauntletAI.AgentForge.Api.Evidence;
 /// </summary>
 public static class EvidenceEndpoints
 {
-    /// <summary>Maps <c>POST /evidence/ask</c> — the multimodal evidence flow.</summary>
+    /// <summary>Maps the Week 2 evidence endpoints: <c>POST /evidence/ask</c> and the source-document fetch.</summary>
     public static IEndpointRouteBuilder MapEvidenceEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/evidence/ask", HandleAskAsync).DisableAntiforgery();
+        endpoints.MapGet("/evidence/document/{documentId}", HandleGetDocumentAsync);
         return endpoints;
+    }
+
+    /// <summary>
+    /// <c>GET /evidence/document/{documentId}</c> — streams a source document's bytes for the click-to-source
+    /// overlay's production path (FR-CITE-2, gitlab#109). Session-gated like the rest of the app; the fetch
+    /// runs as the launched clinician, and OpenEMR scopes FHIR <c>Binary</c> to that patient, so a session can
+    /// only read its own patient's documents (authorization below the model, not in this handler).
+    /// </summary>
+    private static async Task<IResult> HandleGetDocumentAsync(
+        HttpContext httpContext, string documentId,
+        IOpenEmrFhirClient fhirClient, IScopedAccessTokenProvider tokenProvider)
+    {
+        await httpContext.Session.LoadAsync(httpContext.RequestAborted).ConfigureAwait(false);
+        if (httpContext.Session.TryGetPatientSession() is not { } session)
+        {
+            return Results.Unauthorized();
+        }
+
+        // Set the AsyncLocal token once; the FHIR client's auth handler reads it back for the Binary call.
+        tokenProvider.AccessToken = session.AccessToken;
+        var document = await fhirClient.GetBinaryAsync(session.Site, documentId, httpContext.RequestAborted).ConfigureAwait(false);
+        return document is null
+            ? Results.NotFound()
+            : Results.File(document.Content, document.ContentType);
     }
 
     private static async Task<IResult> HandleAskAsync(HttpContext httpContext, IEvidenceAgentSupervisor supervisor)
