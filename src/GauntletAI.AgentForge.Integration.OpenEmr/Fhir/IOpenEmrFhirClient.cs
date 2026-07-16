@@ -46,6 +46,9 @@ public interface IOpenEmrFhirClient
     Task<IReadOnlyList<ClinicalDocumentRecord>> GetDocumentReferencesAsync(
         string site, string patientId, CancellationToken cancellationToken);
 
+    /// <summary>Downloads one document's bytes + media type from FHIR <c>Binary</c>; null if not found (gitlab#109).</summary>
+    Task<BinaryDocument?> GetBinaryAsync(string site, string documentId, CancellationToken cancellationToken);
+
     /// <summary>
     /// Fetches appointments for <paramref name="dateFilter"/> across every provider - the
     /// deliberate exception to this client's usual per-patient scoping (ARCHITECTURE.md §19). The

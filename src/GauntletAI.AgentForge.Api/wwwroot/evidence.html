@@ -61,8 +61,8 @@
     <div class="left">
       <form id="ask">
         <div>
-          <label for="file">Source document (PDF)</label>
-          <input id="file" type="file" accept="application/pdf" required />
+          <label for="file">Source document (PDF) — optional; omit to query the patient's already-ingested facts</label>
+          <input id="file" type="file" accept="application/pdf" />
         </div>
         <div>
           <label for="docType">Document type</label>
@@ -96,7 +96,12 @@
 
     const $ = (id) => document.getElementById(id);
     const statusEl = $('status');
-    const pageBoxes = new Map(); // factId -> overlay element (for click-to-flash)
+    // The viewer holds one source document at a time — the uploaded file (demo) or a fetched OpenEMR
+    // document (production, #109) — and citations light up on demand.
+    let uploadedBuffer = null;   // in-turn uploaded PDF bytes (demo path)
+    let currentDocKey = null;    // which document is rendered ('__uploaded__' or a DocumentReference id)
+    let currentWrappers = [];    // per-page wrappers for the currently rendered document
+    let activeBox = null;        // the one highlighted band
 
     function setStatus(msg, isErr = false) {
       statusEl.textContent = msg;
@@ -126,33 +131,25 @@
       return wrappers;
     }
 
-    // Draw one overlay box on its page from the normalized [x, y, w, h] (origin top-left). Percentage units
-    // so the box tracks the canvas even when CSS scales it down to fit. Page-level (no bbox) draws nothing
-    // but still lets the citation scroll to its page.
-    function drawBoxes(wrappers, citations) {
-      pageBoxes.clear();
-      for (const c of citations) {
-        const wrap = wrappers[c.page];
-        if (!wrap || !Array.isArray(c.boundingBox) || c.boundingBox.length !== 4) continue;
-        // Full-width row band at the cited row's exact vertical position (PdfPig glyph rects), padded a little
-        // above/below so the band isn't tight against the text. Padding scales with the text height, so it
-        // stays proportional across document types. Full width reads cleanly across a table.
-        const [, yRaw, , hRaw] = c.boundingBox;
-        const pad = hRaw * 0.4;
-        const y = Math.max(0, yRaw - pad);
-        const h = Math.min(1 - y, hRaw + pad * 2);
-        const box = document.createElement('div');
-        box.className = 'box';
-        box.style.left = '0';
-        box.style.top = (y * 100) + '%';
-        box.style.width = '100%';
-        box.style.height = (h * 100) + '%';
-        wrap.appendChild(box);
-        pageBoxes.set(c.factId, box);
-      }
+    // Draw one full-width row band at the citation's exact vertical position (from PdfPig glyph rects),
+    // padded a little above/below so it isn't tight on the text. Padding scales with text height; percentage
+    // units track the canvas at any scale. Returns the box element.
+    function drawBox(wrap, boundingBox) {
+      const [, yRaw, , hRaw] = boundingBox;
+      const pad = hRaw * 0.4;
+      const y = Math.max(0, yRaw - pad);
+      const h = Math.min(1 - y, hRaw + pad * 2);
+      const box = document.createElement('div');
+      box.className = 'box';
+      box.style.left = '0';
+      box.style.top = (y * 100) + '%';
+      box.style.width = '100%';
+      box.style.height = (h * 100) + '%';
+      wrap.appendChild(box);
+      return box;
     }
 
-    function renderCitations(citations, wrappers) {
+    function renderCitations(citations) {
       const list = $('cites');
       list.innerHTML = '';
       if (!citations.length) {
@@ -170,22 +167,46 @@
         li.addEventListener('click', () => {
           for (const el of list.querySelectorAll('.cite.active')) el.classList.remove('active');
           li.classList.add('active');
-          locate(c, wrappers);
+          locate(c);
         });
         list.appendChild(li);
       }
     }
 
-    function locate(c, wrappers) {
-      // Only one row highlighted at a time: clear the previous selection so the doc never accumulates bands.
-      for (const b of pageBoxes.values()) b.classList.remove('active', 'flash');
+    // Put the citation's source document in the viewer: the uploaded file (demo) or a fetched OpenEMR
+    // document (production, #109). Re-renders only when switching documents.
+    async function ensureDocRendered(c) {
+      const key = c.sourceDocumentId || '__uploaded__';
+      if (key === currentDocKey && currentWrappers.length) return currentWrappers;
+      let buffer;
+      if (c.sourceDocumentId) {
+        setStatus('Loading source document…');
+        const resp = await fetch('evidence/document/' + encodeURIComponent(c.sourceDocumentId));
+        if (!resp.ok) { setStatus('Could not load the source document (' + resp.status + ').', true); return null; }
+        buffer = await resp.arrayBuffer();
+        setStatus('');
+      } else {
+        if (!uploadedBuffer) return null;
+        buffer = uploadedBuffer.slice(0);
+      }
+      currentWrappers = await renderPdf(buffer);
+      currentDocKey = key;
+      activeBox = null; // the previous render's DOM (and its box) was cleared
+      return currentWrappers;
+    }
+
+    async function locate(c) {
+      const wrappers = await ensureDocRendered(c);
+      if (!wrappers) return;
+      if (activeBox) { activeBox.classList.remove('active', 'flash'); activeBox = null; }
       const wrap = wrappers[c.page];
       if (!wrap) return;
       wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const box = pageBoxes.get(c.factId);
-      if (box) {
+      if (Array.isArray(c.boundingBox) && c.boundingBox.length === 4) {
+        const box = drawBox(wrap, c.boundingBox);
         box.classList.add('active', 'flash');
         setTimeout(() => box.classList.remove('flash'), 1100); // amber pulse settles to the subtle active band
+        activeBox = box;
       }
     }
 
@@ -196,19 +217,23 @@
     $('ask').addEventListener('submit', async (e) => {
       e.preventDefault();
       const file = $('file').files[0];
-      if (!file) return;
       $('submit').disabled = true;
-      setStatus('Reading document…');
+      // Reset the viewer for a fresh turn.
+      uploadedBuffer = null; currentDocKey = null; currentWrappers = []; activeBox = null;
+      $('viewer').innerHTML = '';
       try {
-        const buffer = await file.arrayBuffer();
-        // pdf.js detaches the buffer it renders, so hand each consumer its own copy.
-        const wrappers = await renderPdf(buffer.slice(0));
+        if (file) {
+          setStatus('Reading document…');
+          uploadedBuffer = await file.arrayBuffer();
+          // pdf.js detaches the buffer it renders, so hand it its own copy.
+          currentWrappers = await renderPdf(uploadedBuffer.slice(0));
+          currentDocKey = '__uploaded__';
+        }
 
         setStatus('Running the evidence agent…');
         const form = new FormData();
         form.append('question', $('question').value);
-        form.append('docType', $('docType').value);
-        form.append('file', file);
+        if (file) { form.append('docType', $('docType').value); form.append('file', file); }
 
         const res = await fetch('evidence/ask', { method: 'POST', body: form });
         if (res.status === 401) {
@@ -222,9 +247,9 @@
         const data = await res.json();
         $('answerWrap').hidden = false;
         $('answer').textContent = data.answer || '(no answer)';
-        drawBoxes(wrappers, data.citations || []);
-        renderCitations(data.citations || [], wrappers);
-        setStatus(`Done — ${(data.citations || []).length} citation(s).`);
+        renderCitations(data.citations || []);
+        const n = (data.citations || []).length;
+        setStatus(n ? `Done — ${n} citation(s). Click one to see its source region.` : 'Done — no document-derived citations this turn.');
       } catch (err) {
         setStatus('Error: ' + (err?.message || err), true);
       } finally {

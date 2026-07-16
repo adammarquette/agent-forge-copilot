@@ -76,6 +76,15 @@ public interface IOpenEmrFhirApi
         string site, [AliasAs("patient")] string patientId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Downloads one document's bytes from FHIR <c>Binary</c> — the attachment a <c>DocumentReference</c>
+    /// points at (gitlab#109). Patient-scoped: the fork serves this to a patient request with no extra ACL.
+    /// Returns the raw <see cref="HttpResponseMessage"/> (not JSON) so the caller reads bytes + media type and
+    /// treats a non-success status as "not found".
+    /// </summary>
+    [Get("/apis/{site}/fhir/Binary/{id}")]
+    Task<HttpResponseMessage> GetBinaryAsync(string site, string id, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Searches Appointment by <paramref name="dateFilter"/> only - the deliberate exception to
     /// this interface's "every search is patient-scoped" rule (ARCHITECTURE.md §19). Confirmed
     /// against the fork's <c>FhirAppointmentService::loadSearchParameters()</c>: no
