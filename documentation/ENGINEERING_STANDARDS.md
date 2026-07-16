@@ -149,6 +149,11 @@ Prefer `Microsoft.Extensions.Http.Resilience` (the Polly-v8-based standard) for 
 - **Correlation ID** flows as a logging scope on every request and every downstream call (FR-OBS-1).
 - **OpenTelemetry** for traces/metrics (latency, tool counts, tokens/cost, verification pass/fail) feeding the
   dashboard (FR-OBS-2/3).
+- **Logs also go through OpenTelemetry.** The OTel logging provider is wired with a console exporter always,
+  plus an **OTLP/HTTP exporter to a self-hosted Loki** when `Observability:LokiOtlpEndpoint` is set (Epic 107).
+  This keeps the provider-agnostic posture — Loki is one *optional, fail-open* backend choice, not a hard
+  dependency: unset endpoint ⇒ console-only, and an unreachable endpoint never blocks the request path. Logs
+  are searchable in Grafana next to the metrics. reference: `documentation/DEPLOYMENT_TOPOLOGY.md`, gitlab#107
 - **Sample provider configs** (host-side; the sidecar itself stays provider-agnostic):
   - *Serilog:* `builder.Host.UseSerilog((ctx, cfg) => cfg.ReadFrom.Configuration(ctx.Configuration)
     .Enrich.FromLogContext().WriteTo.Console(new CompactJsonFormatter()));`

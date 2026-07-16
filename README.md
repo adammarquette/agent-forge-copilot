@@ -48,9 +48,11 @@ Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issu
 
 ### Observability dashboard (Grafana)
 
-The Prometheus + Grafana stack (Epic 9, issue #57) is deployed on staging alongside the sidecar. Grafana
-requires a login (anonymous access is disabled); Prometheus is private (no public URL). Metrics are
-**operational only — no PHI** (see `NFR-SEC-W2-1`).
+The Prometheus + Grafana stack (Epic 9, issue #57) is deployed on staging alongside the sidecar, with a
+**Loki** log backend added by Epic 107 (issue #107). Grafana requires a login (anonymous access is disabled);
+Prometheus and Loki are both private (no public URL). Sidecar **logs** are searchable in **Grafana → Explore →
+Loki** (`{service_name="agentforge-api"}`); OpenEMR's own logs are not shipped yet (backlog #108). Metrics and
+logs are **operational only — no PHI** (see `NFR-SEC-W2-1`).
 
 **[agentforge-grafana-staging.up.railway.app](https://agentforge-grafana-staging.up.railway.app/)**
 
@@ -62,8 +64,9 @@ requires a login (anonymous access is disabled); Prometheus is private (no publi
 > dashboard (same posture as the OpenEMR logins above), published here purely so a reviewer can open the demo.
 > A production deployment **must** replace them: set a strong, unique `GF_SECURITY_ADMIN_PASSWORD` (and rotate
 > `GF_SECURITY_ADMIN_USER`) on the `agentforge-grafana` service, keep the value out of source, and remove this
-> table. The real value lives in that Railway variable, not here. Prometheus stays reachable only over the
-> project's private network (`agentforge-prometheus.railway.internal:9090`).
+> table. The real value lives in that Railway variable, not here. Prometheus and Loki stay reachable only over
+> the project's private network (`agentforge-prometheus.railway.internal:9090`,
+> `agentforge-loki.railway.internal:3100`).
 
 ### Front-door surface (what's reachable, and how it's protected)
 

@@ -75,7 +75,7 @@ Read `USERS.md` §4/§5 for the *why*; this is the jump from a use case to the p
 - **`FR-CHAT-1..4`** conversational, streaming, patient-scoped, multi-turn
 - **`FR-DATA-1..4`** read-only FHIR, minimum-necessary scoping
 - **`FR-VERIF-0..4`** two-layer verification (source attribution + cardiology constraints)
-- **`FR-OBS-1..4`** observability (traces, metrics, audit)
+- **`FR-OBS-1..4`** observability (traces, metrics, logs, audit) — logs aggregated in a self-hosted Loki (Epic 107)
 - **`FR-EVAL-1..4`** evaluation suite
 - **`NFR-*`** `CONTRACT-1`, `PERF-1..4`, `REL-1/2`, `SCALE-1`, `SEC-1/2`, `TRACE-1`, `HEALTH-1`
 

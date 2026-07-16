@@ -352,6 +352,17 @@ on `openemr`, kept in sync so a re-setup recreates the same credentials).
    above.
 6. Set real `Llm__InputPricePerMillionTokensUsd`/`Output…` so
    `agentforge_llm_cost_usd_total` stops reading 0 — not yet done.
+7. **Loki log backend (Epic 107, gitlab#107) — not yet provisioned.** The
+   config, image, `loki-deploy` CI job, Grafana datasource, and the sidecar's
+   `Observability__LokiOtlpEndpoint` (set by the `deploy` job) are all in the
+   repo, but the Railway service does not exist yet. To stand it up: create a
+   service named **`agentforge-loki`** in the `staging` environment, attach a
+   volume mounted at **`/loki`** (so ingested logs survive restarts, like the
+   sidecar's `/keys`), then run the manual **`loki-deploy`** job. It stays
+   private (no domain, no auth of its own) and binds `[::]:3100`. Until it
+   exists, the sidecar's OTLP endpoint just points at an unreachable host and
+   logging degrades to console-only (fail-open) — no harm. OpenEMR log
+   ingestion is a separate backlog item (gitlab#108).
 
 ## Rollback
 
