@@ -41,6 +41,9 @@
     .msg.user .bubble { background: var(--user-bg); color: var(--user-text); border-bottom-right-radius: 4px; }
     .msg.bot .bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
     .answer { white-space: pre-wrap; word-wrap: break-word; }
+    .cite-key { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+    .cite-key .h { font-weight: 600; margin-bottom: 4px; color: var(--text); }
+    .cite-key .item { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; line-height: 1.7; word-break: break-all; }
     .banner { border-radius: 8px; padding: 8px 11px; font-size: 13px; margin-bottom: 8px; }
     .banner.fallback { background: var(--warn-bg); color: var(--warn-text); }
     .flags { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
@@ -179,6 +182,18 @@
       }
       function clearThinking() { var t = el('thinking'); if (t) t.remove(); }
 
+      // Replace inline source tokens like [MedicationRequest/abc-123] or [Lab/INR] with sequential [1], [2], …
+      // and return the ordered source list for a "Sources" key. Repeated sources reuse their first number; the
+      // underlying citation contract in the answer text is unchanged, this is display-only.
+      function numberCitations(text) {
+        var order = [], index = {};
+        var out = String(text).replace(/\[([A-Za-z][\w.-]*\/[^\]]+)\]/g, function (_m, inner) {
+          if (!Object.prototype.hasOwnProperty.call(index, inner)) { index[inner] = order.length + 1; order.push(inner); }
+          return '[' + index[inner] + ']';
+        });
+        return { text: out, sources: order };
+      }
+
       function renderAnswer(payload) {
         var m = document.createElement('div'); m.className = 'msg bot';
         var b = document.createElement('div'); b.className = 'bubble';
@@ -190,8 +205,19 @@
         }
 
         var ans = document.createElement('div'); ans.className = 'answer';
-        ans.textContent = pick(payload, 'Answer') || '';
+        var numbered = numberCitations(pick(payload, 'Answer') || '');
+        ans.textContent = numbered.text;
         b.appendChild(ans);
+        if (numbered.sources.length) {
+          var keyEl = document.createElement('div'); keyEl.className = 'cite-key';
+          var kh = document.createElement('div'); kh.className = 'h'; kh.textContent = 'Sources'; keyEl.appendChild(kh);
+          numbered.sources.forEach(function (src, i) {
+            var item = document.createElement('div'); item.className = 'item';
+            item.textContent = '[' + (i + 1) + '] ' + src;
+            keyEl.appendChild(item);
+          });
+          b.appendChild(keyEl);
+        }
 
         var flags = pick(payload, 'SafetyFlags') || [];
         if (flags.length) {
