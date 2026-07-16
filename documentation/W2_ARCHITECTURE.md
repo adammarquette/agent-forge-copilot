@@ -585,6 +585,70 @@ automated tier). Every test names the failure mode it guards (Week 1 §8 rule).
 
 ---
 
+## Appendix A — OpenEMR ↔ Sidecar Interaction Catalog
+
+Every place the sidecar and the OpenEMR fork touch, in one list. The per-flow rationale lives in §3 / §4 /
+§7 and the physical network (public front door vs. Railway private network) in
+`DEPLOYMENT_TOPOLOGY.md`; this appendix is the consolidated boundary view — direction, transport, auth, and
+what crosses — so a future agent can see the whole contact surface without reassembling it from four
+sections. The through-line is Week 1's rule, still intact: **the sidecar reads from OpenEMR and writes
+nothing to it** (W2-D3). OpenEMR is authoritative for the source document; the sidecar is authoritative for
+the derived facts, which only *cite* back.
+
+| # | Flow | Direction | Transport & auth | Trigger | Crosses | Status / ref |
+|---|---|---|---|---|---|---|
+| **A** | SMART launch + FHIR read (Week 1 base) | browser → sidecar (launch); sidecar → OpenEMR (FHIR read) | Public front door; SMART OAuth authorize/token, **transient** clinician token (never reaches browser, W2-D10/D11) | Clinician opens the copilot from the `oe-module-agentforge` launcher (`launch.php` / `agenda-launch.php` / `patient-launch.php`) | Patient / Observation (labs, vitals) / Condition / MedicationRequest / DocumentReference / Binary | Live (§6; `ARCHITECTURE.md`) |
+| **B** | Document ingestion push | OpenEMR (module cron) → sidecar | **Private network only** (`railway.internal`); **trusted-origin** auth, no token — proxy 404s `/agentforge/documents/*` (W2-D17) | `oe-module-agentforge` Background Service cron scans a `documents.id` watermark, forwards each new doc | `POST /documents/ingest` `{ content, documentReferenceId, patientId, docType, mediaType }` | Live (§3, §4; fork agent-forge#44) |
+| **C** | Source-document fetch for the overlay | sidecar → OpenEMR (FHIR read) | Public front door; **transient** clinician token (same custody as A) | Clinician clicks a cited derived fact in the chat SPA | `GET /fhir/DocumentReference/{id}` → `Binary` (source PDF / page image), rendered with the stored bbox | **Planned** (§7, FR-CITE-2; gitlab#96) — depends on B's persisted citation + Appendix A.2 durability |
+| **D** | Source-document write-back | *(none)* | — | — | — | **Intentionally absent** (W2-D3 revised / W2-D15). Documented so it is not re-introduced: the sidecar never POSTs documents or derived Observations to OpenEMR |
+
+```mermaid
+flowchart LR
+    subgraph OE["OpenEMR fork (authority for source documents)"]
+        UI["Clinician / front-desk browser"]
+        DOCS["Documents store<br/>persistent volume at /…/openemr/sites"]
+        AUTH["SMART OAuth + FHIR server"]
+        CRON["oe-module-agentforge<br/>Background Service cron"]
+    end
+    subgraph SC["Sidecar — agent-forge-copilot"]
+        API["/agentforge endpoints"]
+        STORE["DerivedFactStore + guideline corpus<br/>(Postgres / pgvector)"]
+    end
+
+    UI -->|"A · SMART launch (browser redirect)"| API
+    API -->|"A · OAuth authorize + token"| AUTH
+    API -->|"A · FHIR read: Patient / labs / meds /<br/>DocumentReference / Binary · transient token"| AUTH
+    DOCS -.->|"B · new-document watermark scan"| CRON
+    CRON -->|"B · POST /documents/ingest · private net,<br/>trusted origin, no token"| API
+    API -->|"C · GET DocumentReference → Binary<br/>overlay source · transient token (gitlab#96)"| AUTH
+    API -->|persists derived facts| STORE
+```
+
+### A.2 Document persistence (why the overlay's `Binary` fetch is durable)
+
+Flow **C** only works if the natively-uploaded source document still exists when the clinician clicks the
+citation — potentially many deploys after ingestion. On the staging OpenEMR service that holds, because a
+**Railway persistent volume is mounted at `/var/www/localhost/htdocs/openemr/sites`** (volume
+`a3573754-58bd-4813-ba59-915d868ba34d`), and `sites/default/documents` lives under it — so uploaded files
+**survive redeploys**, not just their MySQL metadata rows.
+
+```mermaid
+flowchart LR
+    U["Front desk uploads via<br/>OpenEMR Documents"] --> V["Railway persistent volume<br/>mounted at /…/openemr/sites"]
+    V --> P["sites/default/documents<br/>survives redeploys"]
+    P --> B["DocumentReference → Binary stays fetchable"]
+    B --> O["Click-to-source overlay can render the page<br/>(§7, agent-forge#40 → unblocked)"]
+```
+
+This supersedes the original premise of fork **agent-forge#40** ("the documents directory has no persistent
+volume and is wiped on every redeploy"): a `sites`-level volume has since been attached, so document
+durability is already solved. A *second* volume mounted directly at `sites/default/documents` would nest a
+volume inside a volume and is **not** wanted; #40 should be updated to reflect that persistence is in place
+and reduced to its remaining piece (seeding a synthetic echo `DocumentReference`), which the existing volume
+now unblocks. reference: agent-forge#40
+
+---
+
 *Draft v0.1 — Week 2 Architecture Defense deliverable. Companion to `ARCHITECTURE.md` (Week 1). Opens with
 a ~1-page summary per the Stage 5 hard gate. Fork claims confirmed against the `agent-forge` route tables;
 `[CONFIRM]` items await recon or an implementation choice, per this project's "confirm, don't guess"
