@@ -84,6 +84,7 @@
       text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; min-width: 0; word-break: break-word; }
     button.src-open:hover { opacity: .8; }
     .src-note { flex: none; color: var(--muted); font-size: 11px; }
+    .src-subhead { font-size: 11px; font-weight: 600; color: var(--text); margin: 8px 0 2px; }
     #docOverlay { position: fixed; inset: 0; background: rgba(8,14,20,.55); display: flex; align-items: center;
       justify-content: center; padding: 20px; z-index: 50; }
     #docOverlay .sheet { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
@@ -214,11 +215,15 @@
           if (activeBox) { activeBox.classList.remove('active', 'flash'); activeBox = null; }
           var wrap = rendered.wrappers[c.page || 1];
           if (!wrap) return;
-          wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
           if (Array.isArray(c.boundingBox) && c.boundingBox.length === 4) {
             var box = drawBox(wrap, c.boundingBox); box.classList.add('active', 'flash');
             setTimeout(function () { box.classList.remove('flash'); }, 1100);
             activeBox = box;
+            // Scroll only the viewer (never the window/chat behind the modal) to center the region.
+            var br = box.getBoundingClientRect(), vr = viewer.getBoundingClientRect();
+            viewer.scrollTop += (br.top - vr.top) - (viewer.clientHeight / 2) + (br.height / 2);
+          } else {
+            viewer.scrollTop = 0; // page-level (no region): open at the top of the document
           }
         } catch (err) {
           viewer.innerHTML = '<p class="vhint">Error rendering document: ' + ((err && err.message) || err) + '</p>';
@@ -348,6 +353,48 @@
         return item;
       }
 
+      // Surface the patient's on-file source documents (from the payload) that the answer didn't cite inline,
+      // grouped by document, so an ingested lab report is always discoverable even when the brief cited the
+      // structured record instead of the document. reference: gitlab#122.
+      function appendOnFileDocuments(keyEl, sources, docCitations) {
+        if (!docCitations.length) return;
+        var citedSlugs = {};
+        sources.forEach(function (src) {
+          if (src.indexOf('Document/') === 0) citedSlugs[src.slice('Document/'.length)] = true;
+        });
+        var citedDocs = {};
+        docCitations.forEach(function (dc) {
+          if (citedSlugs[String(pick(dc, 'FactId'))]) { var s = pick(dc, 'SourceDocumentId'); if (s) citedDocs[s] = true; }
+        });
+        var order = [], byDoc = {};
+        docCitations.forEach(function (dc) {
+          var sid = pick(dc, 'SourceDocumentId');
+          if (!sid || citedDocs[sid]) return;
+          if (!byDoc[sid]) { byDoc[sid] = []; order.push(sid); }
+          byDoc[sid].push(dc);
+        });
+        if (!order.length) return;
+        var sub = document.createElement('div'); sub.className = 'src-subhead'; sub.textContent = 'Source documents on file'; keyEl.appendChild(sub);
+        order.forEach(function (sid) { keyEl.appendChild(renderOnFileDoc(byDoc[sid])); });
+      }
+
+      function renderOnFileDoc(facts) {
+        var first = facts[0];
+        var normalized = {
+          sourceDocumentId: pick(first, 'SourceDocumentId'), field: pick(first, 'Field'),
+          value: pick(first, 'Value'), page: pick(first, 'Page'), boundingBox: pick(first, 'BoundingBox'),
+        };
+        var item = document.createElement('div'); item.className = 'src-item';
+        var badge = document.createElement('span'); badge.className = 'src-badge doc'; badge.textContent = 'Source document'; item.appendChild(badge);
+        var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'src-open';
+        var fields = [];
+        for (var k = 0; k < facts.length && fields.length < 3; k++) { var f = pick(facts[k], 'Field'); if (f) fields.push(f); }
+        btn.textContent = (fields.join(', ') || 'Open document') + (facts.length > 3 ? (' +' + (facts.length - 3) + ' more') : '');
+        btn.addEventListener('click', function () { if (window.AgentForgeOverlay) window.AgentForgeOverlay.open(normalized); });
+        item.appendChild(btn);
+        return item;
+      }
+
       function renderAnswer(payload) {
         var m = document.createElement('div'); m.className = 'msg bot';
         var b = document.createElement('div'); b.className = 'bubble';
@@ -362,13 +409,14 @@
         var numbered = numberCitations(pick(payload, 'Answer') || '');
         ans.textContent = numbered.text;
         b.appendChild(ans);
-        if (numbered.sources.length) {
-          var docCitations = pick(payload, 'DocumentCitations') || [];
+        var docCitations = pick(payload, 'DocumentCitations') || [];
+        if (numbered.sources.length || docCitations.length) {
           var keyEl = document.createElement('div'); keyEl.className = 'cite-key';
           var kh = document.createElement('div'); kh.className = 'h'; kh.textContent = 'Sources'; keyEl.appendChild(kh);
           numbered.sources.forEach(function (src, i) {
             keyEl.appendChild(renderSource(i + 1, src, docCitations));
           });
+          appendOnFileDocuments(keyEl, numbered.sources, docCitations);
           b.appendChild(keyEl);
         }
 
