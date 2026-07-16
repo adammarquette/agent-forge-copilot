@@ -5,6 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\GauntletAI.AgentForge.Agents\GauntletAI.AgentForge.Agents.csproj" />
     <ProjectReference Include="..\GauntletAI.AgentForge.Data\GauntletAI.AgentForge.Data.csproj" />
     <ProjectReference Include="..\GauntletAI.AgentForge.Llm\GauntletAI.AgentForge.Llm.csproj" />
     <ProjectReference Include="..\GauntletAI.AgentForge.Mcp\GauntletAI.AgentForge.Mcp.csproj" />

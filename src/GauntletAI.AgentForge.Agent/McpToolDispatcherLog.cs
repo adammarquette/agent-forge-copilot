@@ -15,4 +15,9 @@ internal static partial class McpToolDispatcherLog
         Level = LogLevel.Warning,
         Message = "get_document_facts was called but no document-facts source is wired; returning no facts")]
     public static partial void DocumentFactsToolUnavailable(ILogger logger);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "retrieve_evidence was called but no evidence retriever is wired; returning no snippets")]
+    public static partial void EvidenceToolUnavailable(ILogger logger);
 }

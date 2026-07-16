@@ -104,5 +104,31 @@ public static class McpToolCatalog
               }
             }
             """),
+
+        new LlmToolDefinition(
+            "get_document_facts",
+            "Facts the co-pilot already extracted from the patient's ingested documents (e.g. an uploaded " +
+            "lab-report PDF), each citable as [Document/<id>] so the clinician can open the source document " +
+            "at the exact region. Prefer citing these for a document-sourced value rather than restating it " +
+            "as a directly-recorded fact.",
+            """{"type":"object","properties":{}}"""),
+
+        new LlmToolDefinition(
+            "retrieve_evidence",
+            "Search the clinical-guideline corpus for grounded snippets relevant to a question or claim, each " +
+            "citable as [Guideline/<id>]. Use it to ground a recommendation in guidance rather than asserting " +
+            "it unsupported; query is required.",
+            """
+            {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "description": "The clinical question or claim to ground, e.g. 'target INR for atrial fibrillation on warfarin'."
+                }
+              },
+              "required": ["query"]
+            }
+            """),
     ];
 }

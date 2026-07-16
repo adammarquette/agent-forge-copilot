@@ -184,6 +184,7 @@ builder.Services.AddScoped<IMcpToolServer>(sp => new AuditingMcpToolServer(
     sp.GetRequiredService<ILogger<AuditingMcpToolServer>>()));
 
 builder.Services.AddScoped<IDocumentFactsTool, DocumentFactsTool>();
+builder.Services.AddScoped<IEvidenceTool, EvidenceTool>();
 builder.Services.AddScoped<IMcpToolDispatcher, McpToolDispatcher>();
 builder.Services.AddScoped<ILlmProvider, AnthropicLlmProvider>();
 
