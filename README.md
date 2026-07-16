@@ -68,15 +68,15 @@ requires a login (anonymous access is disabled); Prometheus is private (no publi
 ### Front-door surface (what's reachable, and how it's protected)
 
 The sidecar is a browser-facing SMART app, so its launch and session routes are reachable through the
-public front door and secured by **auth**, not by hiding them. Two paths that need no browser access are
-blocked at the proxy instead:
+public front door and secured by **auth**, not by hiding them. Only the document-ingestion path — which has
+no browser caller — is blocked at the proxy:
 
 | Path | Public? | How it's protected |
 |---|---|---|
 | `/agentforge/launch`, `/callback` (+ agenda variants) | Yes | SMART OAuth flow (state / `aud` / token exchange) — the browser must reach these for the embedded launch |
 | `/agentforge/agenda`, `/patient` | Yes | `401` — BFF session cookie required |
+| `/agentforge/evidence/ask` | Yes | `401` — BFF session cookie required, **same gate as `/agenda`/`/patient`**. It burns LLM + retrieval quota, so it authenticates for access even though its flow makes no user-scoped FHIR call. The click-to-source overlay (`evidence.html`, FR-CITE-2 / #96) calls it from within the launched app. This replaced an earlier proxy-layer `404` (#105) — gating it in the sidecar removed the reason it was ever an unauthenticated outlier. |
 | `/agentforge/documents/*` | **No — `404`** | Private-network only; ingestion authenticates by trusted origin (W2-D17) |
-| `/agentforge/evidence/ask` | **No — `404`** | Private-network only (issue #105). Stateless Week 2 endpoint with no browser client — the OpenEMR module only launches the app, it never calls this — so it stays off the public front door and can't burn LLM/Cohere quota from the internet. Reachable over `agent-forge-api-staging.railway.internal:8080` for demos/tests run inside the private network. |
 
 ---
 

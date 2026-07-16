@@ -360,7 +360,11 @@ if (!app.Environment.IsProduction())
 
 app.UseSession();
 app.UseDefaultFiles();
-app.UseStaticFiles();
+// Serve .mjs as a JS MIME so browsers execute the vendored pdf.js ES modules (evidence.html); the default
+// provider doesn't reliably map it, and a module served as octet-stream is rejected outright.
+var staticContentTypes = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+staticContentTypes.Mappings[".mjs"] = "text/javascript";
+app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = staticContentTypes });
 
 app.MapLaunchEndpoints();
 app.MapAgendaLaunchEndpoints();

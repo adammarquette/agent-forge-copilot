@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgentForge — Evidence & Click-to-Source</title>
+  <style>
+    :root { --bg:#0f1720; --panel:#17212b; --line:#2a3a49; --fg:#e6edf3; --muted:#9fb0c0; --accent:#4c9aff; --hi:#ffd23f; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:14px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:12px 16px; border-bottom:1px solid var(--line); }
+    header h1 { font-size:16px; margin:0; }
+    header p { margin:2px 0 0; color:var(--muted); font-size:12px; }
+    .wrap { display:grid; grid-template-columns: 420px 1fr; gap:0; height:calc(100vh - 54px); }
+    .left { border-right:1px solid var(--line); padding:16px; overflow:auto; }
+    .right { overflow:auto; background:#0b1219; padding:16px; }
+    form { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+    label { font-size:12px; color:var(--muted); }
+    input, textarea, select, button { font:inherit; color:var(--fg); background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:8px; }
+    textarea { resize:vertical; min-height:60px; }
+    button { background:var(--accent); color:#03101f; border:none; font-weight:600; cursor:pointer; }
+    button:disabled { opacity:.5; cursor:default; }
+    .status { font-size:12px; color:var(--muted); min-height:16px; }
+    .status.err { color:#ff6b6b; }
+    .answer { white-space:pre-wrap; background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:12px; margin-bottom:16px; }
+    .cites { list-style:none; margin:0; padding:0; }
+    .cite { border:1px solid var(--line); border-radius:6px; padding:8px 10px; margin-bottom:8px; cursor:pointer; }
+    .cite:hover { border-color:var(--accent); }
+    .cite .field { font-weight:600; }
+    .cite .meta { color:var(--muted); font-size:12px; }
+    .cite .nobbox { color:#e0a458; }
+    .page { position:relative; display:inline-block; margin:0 auto 14px; box-shadow:0 0 0 1px var(--line); }
+    .page canvas { display:block; max-width:100%; height:auto; }
+    .box { position:absolute; border:2px solid var(--accent); background:rgba(76,154,255,.15); pointer-events:none; transition:background .2s, border-color .2s; }
+    .box.flash { border-color:var(--hi); background:rgba(255,210,63,.35); }
+    .pagewrap { text-align:center; }
+    .hint { color:var(--muted); font-size:12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AgentForge — Evidence &amp; Click-to-Source</h1>
+    <p>Upload a lab PDF, ask a question, then click a cited fact to highlight where it was read from (FR-CITE-2).</p>
+  </header>
+  <div class="wrap">
+    <div class="left">
+      <form id="ask">
+        <div>
+          <label for="file">Source document (PDF)</label>
+          <input id="file" type="file" accept="application/pdf" required />
+        </div>
+        <div>
+          <label for="docType">Document type</label>
+          <select id="docType">
+            <option value="lab_pdf">Lab report (lab_pdf)</option>
+            <option value="intake_form">Intake form (intake_form)</option>
+          </select>
+        </div>
+        <div>
+          <label for="question">Question</label>
+          <textarea id="question" required placeholder="e.g. Is this patient's INR therapeutic?"></textarea>
+        </div>
+        <button id="submit" type="submit">Ask</button>
+        <div id="status" class="status"></div>
+      </form>
+      <div id="answerWrap" hidden>
+        <label>Answer</label>
+        <div id="answer" class="answer"></div>
+        <label>Citations <span class="hint">(click to locate on the page)</span></label>
+        <ul id="cites" class="cites"></ul>
+      </div>
+    </div>
+    <div class="right">
+      <div id="viewer" class="pagewrap"><p class="hint">The rendered document appears here after you ask.</p></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as pdfjsLib from './lib/pdfjs/pdf.min.mjs';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdfjs/pdf.worker.min.mjs';
+
+    const $ = (id) => document.getElementById(id);
+    const statusEl = $('status');
+    const pageBoxes = new Map(); // factId -> overlay element (for click-to-flash)
+
+    function setStatus(msg, isErr = false) {
+      statusEl.textContent = msg;
+      statusEl.classList.toggle('err', isErr);
+    }
+
+    // Render the PDF and return a per-page wrapper element so overlays can be positioned over each page.
+    async function renderPdf(buffer) {
+      const viewer = $('viewer');
+      viewer.innerHTML = '';
+      const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+      const wrappers = [];
+      for (let n = 1; n <= pdf.numPages; n++) {
+        const page = await pdf.getPage(n);
+        const viewport = page.getViewport({ scale: 1.5 });
+        const wrap = document.createElement('div');
+        wrap.className = 'page';
+        wrap.dataset.page = String(n);
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        wrap.appendChild(canvas);
+        viewer.appendChild(wrap);
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        wrappers[n] = wrap;
+      }
+      return wrappers;
+    }
+
+    // Draw one overlay box on its page from the normalized [x, y, w, h] (origin top-left). Percentage units
+    // so the box tracks the canvas even when CSS scales it down to fit. Page-level (no bbox) draws nothing
+    // but still lets the citation scroll to its page.
+    function drawBoxes(wrappers, citations) {
+      pageBoxes.clear();
+      for (const c of citations) {
+        const wrap = wrappers[c.page];
+        if (!wrap || !Array.isArray(c.boundingBox) || c.boundingBox.length !== 4) continue;
+        const [x, y, w, h] = c.boundingBox;
+        const box = document.createElement('div');
+        box.className = 'box';
+        box.style.left = (x * 100) + '%';
+        box.style.top = (y * 100) + '%';
+        box.style.width = (w * 100) + '%';
+        box.style.height = (h * 100) + '%';
+        wrap.appendChild(box);
+        pageBoxes.set(c.factId, box);
+      }
+    }
+
+    function renderCitations(citations, wrappers) {
+      const list = $('cites');
+      list.innerHTML = '';
+      if (!citations.length) {
+        list.innerHTML = '<li class="hint">No document-derived citations this turn.</li>';
+        return;
+      }
+      for (const c of citations) {
+        const li = document.createElement('li');
+        li.className = 'cite';
+        const pageLevel = !Array.isArray(c.boundingBox) || c.boundingBox.length !== 4;
+        li.innerHTML =
+          `<div class="field">${escape(c.field)}: ${escape(c.value)}</div>` +
+          `<div class="meta">page ${c.page}${pageLevel ? ' · <span class="nobbox">page-level (no region)</span>' : ''}` +
+          (c.quote ? ` · “${escape(c.quote)}”` : '') + '</div>';
+        li.addEventListener('click', () => locate(c, wrappers));
+        list.appendChild(li);
+      }
+    }
+
+    function locate(c, wrappers) {
+      const wrap = wrappers[c.page];
+      if (!wrap) return;
+      wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const box = pageBoxes.get(c.factId);
+      if (box) {
+        box.classList.add('flash');
+        setTimeout(() => box.classList.remove('flash'), 1400);
+      }
+    }
+
+    function escape(s) {
+      return String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[ch]));
+    }
+
+    $('ask').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const file = $('file').files[0];
+      if (!file) return;
+      $('submit').disabled = true;
+      setStatus('Reading document…');
+      try {
+        const buffer = await file.arrayBuffer();
+        // pdf.js detaches the buffer it renders, so hand each consumer its own copy.
+        const wrappers = await renderPdf(buffer.slice(0));
+
+        setStatus('Running the evidence agent…');
+        const form = new FormData();
+        form.append('question', $('question').value);
+        form.append('docType', $('docType').value);
+        form.append('file', file);
+
+        const res = await fetch('evidence/ask', { method: 'POST', body: form });
+        if (res.status === 401) {
+          setStatus('Not authenticated — launch AgentForge from OpenEMR first, then reload this page.', true);
+          return;
+        }
+        if (!res.ok) {
+          setStatus(`Request failed (${res.status}): ${await res.text()}`, true);
+          return;
+        }
+        const data = await res.json();
+        $('answerWrap').hidden = false;
+        $('answer').textContent = data.answer || '(no answer)';
+        drawBoxes(wrappers, data.citations || []);
+        renderCitations(data.citations || [], wrappers);
+        setStatus(`Done — ${(data.citations || []).length} citation(s).`);
+      } catch (err) {
+        setStatus('Error: ' + (err?.message || err), true);
+      } finally {
+        $('submit').disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
