@@ -23,8 +23,8 @@ public sealed class ChatSessionCoordinator(
     IScopedAccessTokenProvider tokenProvider,
     IScopedClinicianIdentityAccessor clinicianIdentityAccessor,
     ICorrelationIdAccessor correlationIdAccessor,
-    IDerivedFactStore factStore,
-    ILogger<ChatSessionCoordinator> logger)
+    ILogger<ChatSessionCoordinator> logger,
+    IDerivedFactStore? factStore = null)
 {
     /// <summary>Starts the pre-visit brief for <paramref name="session"/> and returns the message appended to the outbox.</summary>
     public async Task<ChatMessage> RequestBriefAsync(string sessionId, PatientSessionContext session, CancellationToken cancellationToken)
@@ -73,10 +73,19 @@ public sealed class ChatSessionCoordinator(
         outbox.GetSince(sessionId, lastSeenSequence);
 
     // The pre-visit brief must surface facts ingested before the visit (UC-6), and the client needs each
-    // fact's source-document id + region to open the PDF and highlight it (FR-CITE-2). Read-only; empty when none.
-    private async Task<IReadOnlyList<DocumentCitation>> LoadDocumentCitationsAsync(string patientId, CancellationToken cancellationToken) =>
-        DerivedFactCitationProjector.Project(
+    // fact's source-document id + region to open the PDF and highlight it (FR-CITE-2). Read-only; empty when
+    // none. Week 2 is optional (Program.cs gates the store on a configured database): with no store wired the
+    // Week 1 chat still runs, just without click-to-source document citations.
+    private async Task<IReadOnlyList<DocumentCitation>> LoadDocumentCitationsAsync(string patientId, CancellationToken cancellationToken)
+    {
+        if (factStore is null)
+        {
+            return [];
+        }
+
+        return DerivedFactCitationProjector.Project(
             await factStore.GetByPatientAsync(patientId, cancellationToken).ConfigureAwait(false));
+    }
 
     private static ChatAnswerPayload ToPayload(AgentTurnResult result, IReadOnlyList<DocumentCitation> documentCitations) => new(
         result.Answer,
