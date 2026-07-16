@@ -309,6 +309,10 @@ sequenceDiagram
 - **Correlation ID** minted at BFF ingress, propagated to every tool call, LLM call, log line, and both audit
   trails — full reconstruction from logs (FR-OBS-1).
 - **Traces/metrics** via OpenTelemetry: step order, per-step latency, tool failures, tokens + cost (FR-OBS-2).
+- **Logs** shipped to a self-hosted **Loki** over OpenTelemetry's OTLP/HTTP exporter when configured (Epic 107,
+  gitlab#107): the correlation-ID reconstruction of FR-OBS-1 becomes queryable in Grafana (`{service_name=
+  "agentforge-api"}`) next to the metrics. Optional/fail-open and backend-agnostic (`ENGINEERING_STANDARDS.md`
+  §7); no PHI (NFR-SEC-W2-1). Only the sidecar ships logs — OpenEMR's own logs are deferred (gitlab#108).
 - **Dashboard**: request count, error rate, p50/p95 latency, tool-call + retry counts, **verification
   pass/fail rate** (FR-OBS-3).
 - **≥3 alerts**: p95 latency, error rate, tool-failure rate — each with meaning + on-call response (FR-OBS-4).
