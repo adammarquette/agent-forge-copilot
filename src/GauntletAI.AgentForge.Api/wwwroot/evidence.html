@@ -134,10 +134,13 @@
       for (const c of citations) {
         const wrap = wrappers[c.page];
         if (!wrap || !Array.isArray(c.boundingBox) || c.boundingBox.length !== 4) continue;
-        // Full-width row band: the VLM localizes the row vertically far better than it pins the value's
-        // column, so use only its y/height and span the full page width. Reads cleanly for a lab table and
-        // sidesteps the horizontal jitter.
-        const [, y, , h] = c.boundingBox;
+        // Full-width row band at the cited row's exact vertical position (PdfPig glyph rects), padded a little
+        // above/below so the band isn't tight against the text. Padding scales with the text height, so it
+        // stays proportional across document types. Full width reads cleanly across a table.
+        const [, yRaw, , hRaw] = c.boundingBox;
+        const pad = hRaw * 0.4;
+        const y = Math.max(0, yRaw - pad);
+        const h = Math.min(1 - y, hRaw + pad * 2);
         const box = document.createElement('div');
         box.className = 'box';
         box.style.left = '0';
