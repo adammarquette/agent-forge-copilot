@@ -27,5 +27,7 @@ public sealed record DocumentFactsResult(IReadOnlyList<DocumentFactRecord> Facts
 /// <param name="Value">The asserted value or quoted snippet the fact carries.</param>
 /// <param name="SourceDocumentId">OpenEMR DocumentReference id the client fetches to open the source PDF.</param>
 /// <param name="Page">Source page/section, when known.</param>
+/// <param name="Confidence">Extraction grounding confidence in <c>[0,1]</c>; null when not recorded (gitlab#135).</param>
 public sealed record DocumentFactRecord(
-    string ResourceType, string Id, string FactType, string Value, string SourceDocumentId, string? Page);
+    string ResourceType, string Id, string FactType, string Value, string SourceDocumentId, string? Page,
+    double? Confidence = null);
