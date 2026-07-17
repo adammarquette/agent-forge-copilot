@@ -154,15 +154,22 @@ would be overwritten on the next deploy).
    the service at **1 replica** (the session store is in-process `AddDistributedMemoryCache` and the
    volume is single-writer). Without the persisted key ring, the session cookie can't be decrypted
    after a redeploy → "No pending SMART launch for this session".
-2. **OAuth clients** (DB-only today — they vanish if the OpenEMR DB is reseeded). Register via
-   `POST /oauth2/default/registration` against the **front door**, then in Admin → System → API
-   Clients **Enable** each and turn on **"Skip EHR Launch Authorization Flow"** (a `user/`-scope
-   agenda client registers *disabled*). The ids/secrets live in the GitLab CI variables
-   `OpenEmr__ClientId`/`OpenEmr__ClientSecret` (patient, redirect `/agentforge/callback`) and
-   `OPenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret` (roster, redirect
-   `/agentforge/agenda/callback`) — the `deploy` job already pushes all four to Railway every deploy,
-   so on a fresh environment you only update those CI variables with the newly-registered client's
-   values, no dashboard edits.
+2. **OAuth clients** (DB-only today — they vanish if the OpenEMR DB is reseeded). Register both SMART
+   clients with **`tools/RegisterSmartClients`** against the **front door** — it POSTs both
+   registrations with the correct scope lists, crucially including **`patient/Binary.read`** (patient).
+   Without that scope on the *registered* client, OpenEMR's `finalizeScopes` silently drops the Binary
+   scope the launch requests, the source-document fetch 401s, and click-to-source shows a misleading 404
+   (reference: gitlab#128). Run it and follow its printed output:
+   `dotnet run --project tools/RegisterSmartClients -- <frontDoorBaseUrl>`
+   It prints the new client ids/secrets, the CI variables to set, and the SQL to enable + skip the
+   per-launch prompt — run that `UPDATE oauth_clients SET is_enabled = 1,
+   skip_ehr_launch_authorization_flow = 1 WHERE client_id IN (…)` against OpenEMR MySQL (this replaces
+   the old Admin → System → API Clients "Enable each + Skip EHR Launch Authorization Flow" GUI step; the
+   agenda client registers *disabled*, so it especially needs it). The ids/secrets live in the GitLab CI
+   variables `OpenEmr__ClientId`/`OpenEmr__ClientSecret` (patient, redirect `/agentforge/callback`) and
+   `OPenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret` (roster, redirect `/agentforge/agenda/callback`)
+   — the `deploy` job already pushes all four to Railway every deploy, so on a fresh environment you only
+   update those CI variables with the tool's output, no dashboard edits.
 3. **OpenEMR globals** (Admin → Configuration → Connectors): `site_addr_oath` = the front door;
    **"OAuth2 EHR-Launch Authorization Flow Skip"** enabled (gates the per-client skip above).
 4. **OpenEMR AgentForge module settings** (the module's own `moduleConfig.php` page — *not* the
