@@ -65,7 +65,7 @@ flowchart TB
 
     %% openemr dependencies + ingestion
     oemr --> mysql
-    oemr -->|"upload hook → POST /documents/ingest<br/>(private-origin trust, W2-D17)"| sidecar
+    oemr -->|"module cron → POST /documents/ingest<br/>(private-origin trust, W2-D17)"| sidecar
 
     %% observability
     prom -->|"scrape :8080/metrics (15s)"| sidecar
@@ -119,7 +119,8 @@ flowchart TB
   OAuth **`aud`** check fails — so the sidecar calls the public proxy URL even though both live in the same
   project. (This is the one deliberately non-obvious edge in the diagram.)
 - **Document ingestion (Week 2):** the front desk uploads through OpenEMR's own Documents UI; the
-  `oe-module-agentforge` upload hook calls the sidecar's private `POST /documents/ingest`; the sidecar extracts
+  `oe-module-agentforge` Background Service cron (W2-D15; fork agent-forge#44) calls the sidecar's private
+  `POST /documents/ingest`; the sidecar extracts
   + persists derived facts (citing the OpenEMR `DocumentReference`) into Postgres. OpenEMR stays authoritative
   for the source document — no write-back (W2-D3).
 - **Observability:** Prometheus scrapes `agent-forge-api-staging.railway.internal:8080/metrics` every 15s and
@@ -148,9 +149,9 @@ flowchart TB
 
 ---
 
-*Reflects the `staging` environment as of 2026-07-15. Service names/domains verified against Railway's live
-service list, **except `agentforge-loki`** (gitlab#107): its config, image, CI job, and sidecar wiring are in
-the repo, but the Railway service itself has not been created yet - `loki-deploy` is manual and needs the
-service + a `/loki` volume stood up by an operator first. Related: gitlab#57 (observability), gitlab#107 (Loki
+*Reflects the `staging` environment as of 2026-07-17. Service names/domains verified against Railway's live
+service list. `agentforge-loki` (gitlab#107, closed) is now **deployed** — its config, image, CI job, and
+sidecar wiring landed and the Railway service + `/loki` volume are stood up, so sidecar logs are searchable in
+Grafana → Loki. Related: gitlab#57 (observability), gitlab#107 (Loki
 log aggregation), gitlab#108 (OpenEMR logs -> Loki, backlogged), gitlab#62 (reverse proxy), gitlab#92 (sidecar
 domain removal), W2-D17 (private-origin ingestion).*
