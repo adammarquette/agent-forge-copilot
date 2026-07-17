@@ -19,8 +19,16 @@
 # (masked, protected). The token selects project + environment; --service picks
 # the target service. Railway builds the repo's Dockerfile server-side.
 #
-# `railway up --ci` streams build logs and exits non-zero on build/deploy
-# failure, so a red job means the deploy did not go out.
+# `railway up --ci` streams build logs and exits non-zero on a real build/deploy
+# failure. It has ONE false-positive: when the build-log STREAM itself drops
+# mid-deploy the CLI prints "Failed to stream build logs" and exits 1 even though
+# Railway keeps building and the deploy succeeds - so every promotion showed a red
+# `deploy` job that wasn't a real failure, and skipped the downstream smoke test
+# (gitlab#127). The script below captures the CLI output and treats only that one
+# log-stream error as non-fatal, re-raising every other failure so a genuine build
+# error still fails the job. The re-enabled post-deploy-smoke-test (verify.yml,
+# needs:[deploy]) is the backstop that catches a deploy which built but doesn't
+# actually serve /health + /ready.
 #
 # Secrets live in exactly one place - GitLab CI/CD variables - and flow to
 # Railway from here, not the other way around. `Llm__ApiKey` used to be set
@@ -102,7 +110,23 @@ deploy:
         railway variable set "OpenEmrAgenda__Scopes__$i=$s" --service agent-forge-api-staging
         i=$((i+1))
       done
-    - railway up --service agent-forge-api-staging --ci
+    # Tolerate ONLY the build-log stream drop (gitlab#127); re-raise any other non-zero exit so a real
+    # build/deploy failure still fails the job. A genuine failure surfaces as a different error and exit,
+    # and post-deploy-smoke-test (verify.yml) catches a deploy that built but doesn't serve traffic.
+    - |
+      set +e
+      up_out=$(railway up --service agent-forge-api-staging --ci 2>&1)
+      up_code=$?
+      set -e
+      printf '%s\n' "$up_out"
+      if [ "$up_code" -ne 0 ]; then
+        if printf '%s\n' "$up_out" | grep -q "Failed to stream build logs"; then
+          echo "deploy: railway up exited $up_code only because the build-log stream dropped; the build continues on Railway and the deploy proceeds. Not failing the job on this cosmetic error (reference: gitlab#127). post-deploy-smoke-test will verify the live service."
+        else
+          echo "deploy: railway up failed with a real error (exit $up_code)." >&2
+          exit "$up_code"
+        fi
+      fi
 
 # -----------------------------------------------------------------------------
 # DEPLOY (reverse-proxy) — Railway deployment of reverse-proxy/'s nginx front
