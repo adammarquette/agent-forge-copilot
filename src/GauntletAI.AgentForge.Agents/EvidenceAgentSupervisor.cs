@@ -165,6 +165,10 @@ public sealed class EvidenceAgentSupervisor : IEvidenceAgentSupervisor
             new LlmRequest(EvidenceComposerPrompt.System, [LlmMessage.FromText(LlmRole.User, userContent)]),
             cancellationToken);
 
+        // Meter the composer's LLM call, the same way the Week-1 orchestrator does - the evidence graph
+        // bypasses AgentOrchestrator, so without this the Week 2 flow's tokens/cost never reach the metrics.
+        _metrics.RecordLlmUsage(response.Usage.InputTokens, response.Usage.OutputTokens, response.Usage.EstimatedCostUsd);
+
         return response.Content;
     }
 

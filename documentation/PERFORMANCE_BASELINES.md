@@ -117,3 +117,107 @@ baseline should be re-run once issue #41 is fully resolved to get the true stead
   measures per-turn cost/latency, not multi-turn conversation growth.
 - **Real spend.** As PRD.md anticipates, this run spent real money (~$6.99, see above) and made real calls
   against the real OpenEMR development instance.
+
+---
+
+# Week 2 — Multimodal Evidence flow (`POST /evidence/ask`)
+
+Week 2 cost/latency baseline for the multimodal-evidence graph (saga #71, epic E8 #86; FR-OBS-W2-3,
+NFR-PERF-W2). Traces to `W2_ARCHITECTURE.md` §6 and the Week 2 deliverables (cost + latency report, baselines
+vs Week 1).
+
+**Run date:** 2026-07-17. **Target:** the live `staging` deployment (`agent-forge-api-staging`, Railway
+project `lucid-clarity`), reached through the same-origin reverse-proxy front door under the `/agentforge`
+PathBase (`reverse-proxy/nginx.conf.template`, issue #62) — the sidecar's own public domain is retired, so
+`https://agent-forge-reverse-proxy-staging.up.railway.app/agentforge` is the only external entry. `/ready`
+was 200 (dependencies healthy) at run time. **Flow:** `POST /evidence/ask` — the stateless supervisor→worker
+graph (intake-extractor / evidence-retriever / answer-composer / critic), question-only (no document upload),
+so the hybrid-RAG guideline path runs but vision extraction does not. **Question:** a fixed guideline query
+(ACC/AHA LDL targets in high ASCVD risk). **Harness:** `tools/LoadTestChat` with `LoadTest__Question` set,
+which POSTs multipart `question` with a pooled real session cookie; 3 real sessions (Playwright `/launch`
+bootstrap) multiplexed across the concurrency. Nothing mocked — real LLM + retrieval + rerank spend.
+
+> **Why `/evidence/ask` and not a chat turn.** An earlier attempt drove the Week-1 chat hub (`AskFollowUp`).
+> It is **stateful** — it resumes per-session conversation state — so repeating one question returned cached
+> short replies (a contaminated p50 ~3.8s), and under concurrent multiplexing the pooled sessions would race
+> on shared conversation state. `/evidence/ask` is **stateless** (a fresh graph run per request), which both
+> fixes the contamination and is the canonical "Week 2 core flow" a grader runs (#86).
+
+## Results (client-side round-trip, NFR-PERF-4 shape)
+
+| Concurrency | Total calls | Errors | Error rate | p50 | p95 | p99 | Throughput |
+|---|---|---|---|---|---|---|---|
+| 10 | 54 | 0 | 0.00% | 10,704 ms | 14,938 ms | 15,202 ms | ~0.9 turns/s |
+| 50 | 356 | 0 | 0.00% | 7,523 ms | 12,862 ms | 20,206 ms | ~5.9 turns/s |
+
+**0% errors at both levels.** Throughput scales ~linearly (0.9 → 5.9 turns/s for 10 → 50 workers), consistent
+with an I/O-bound service with headroom (matches the Week 1 CPU/memory finding — not re-measured here). p50 is
+*lower* at 50 than at 10 because the concurrency-10 phase ran first, cold; the tail (p99) grows under load as
+expected.
+
+## Baseline vs Week 1
+
+Both are one full agent turn, client-timed, against real dependencies — Week 1 is a SignalR `RequestBrief`,
+Week 2 is an HTTP `POST /evidence/ask` (different transport, same "one turn" unit).
+
+| Metric | Week 1 brief | Week 2 evidence | Δ |
+|---|---|---|---|
+| p50 @ 10 | 16,210 ms | 10,704 ms | **−34%** |
+| p95 @ 10 | 20,765 ms | 14,938 ms | −28% |
+| p50 @ 50 | 17,876 ms | 7,523 ms | **−58%** |
+| p95 @ 50 | 25,795 ms | 12,862 ms | −50% |
+
+The evidence turn is **faster** than the pre-visit brief. Expected: the brief fans out several FHIR tool
+calls plus synthesis (~1.4 LLM round-trips/turn), while a question-only evidence turn is one guideline
+retrieval + one compose + a deterministic critic.
+
+## Bottleneck decomposition (per-worker, server-side)
+
+From `agentforge_worker_duration_seconds` and the retrieval/rerank histograms, delta over the run:
+
+| Stage | Avg per execution | Executions | Note |
+|---|---|---|---|
+| evidence-retriever (hybrid RAG) | **3.16 s** | 470 | dense+sparse+RRF; ~2.95 snippets/call; 100% hit rate |
+| answer-composer (LLM compose) | **4.51 s** | 411 | **dominant cost** — the single LLM call per turn |
+| critic (deterministic verify) | 0.16 ms | 411 | negligible — no LLM |
+| rerank (Cohere cross-encoder) | 141 ms | **20 / 470** | fired on only ~4% of retrievals — small corpus usually yields ≤ topK candidates, so rerank is skipped |
+
+Per completed turn the graph runs retriever → composer → critic sequentially (≈ 3.16 + 4.51 + ~0 ≈ 7.7 s),
+which accounts for essentially all of the client-observed p50; the rest is network + supervisor overhead.
+(Retriever executions, 470, exceed completed turns, 410, because in-flight requests at each 60 s cutoff
+completed retrieval but were cancelled before composing — they are not counted as client successes.)
+
+## Cost — **not obtainable from telemetry (instrumentation gap)**
+
+Across 410 completed turns and **411 answer-composer LLM calls**, `agentforge_llm_tokens_total` and
+`agentforge_llm_cost_usd_total` recorded a **zero delta**. The evidence graph's LLM usage is **not
+instrumented** for tokens/cost: `/evidence/ask` bypasses the `AgentOrchestrator` path where token/cost
+recording lives — the same evidence-path telemetry bypass `W2_AUDIT.md` flags for NFR-TRACE (per-encounter
+telemetry), now confirmed to extend to **cost**. So the "actual dollar figure" PRD.md asks for is **not
+measurable from metrics today** for this flow.
+
+Order-of-magnitude estimate only (pending instrumentation): the compose step sends the question + ~3
+guideline snippets (~1–3k input tokens) and returns a few hundred output tokens; at Claude Sonnet 5 rates
+($2/M in, $10/M out) that is roughly **$0.006–0.010 per turn**, i.e. **~$3** for this 410-turn run, plus
+negligible Cohere embed/rerank. Treat as an estimate, not a measurement.
+
+**Fixed in this change.** `EvidenceAgentSupervisor.ComposeAsync` now records the composer's usage via
+`IAgentForgeMetrics.RecordLlmUsage` (mirroring `AgentOrchestrator`), so `/evidence/ask` tokens and cost reach
+`agentforge_llm_tokens_total` / `_cost_usd_total`. The figures above are the **pre-instrumentation** run
+(metrics were blind to the evidence LLM call); the metered dollar figure replaces the estimate once this
+deploys to staging and a short pass is re-run. One smaller residual remains: the intake-extractor's
+`DocumentExtractor.CompleteAsync` — exercised only on document-upload turns, which this question-only run did
+not hit — is still unmetered.
+
+## Methodology notes
+
+- **Session pool, not per-connection login** (same constraint as Week 1): 3 real sessions bootstrapped via a
+  genuine `/launch` SMART login, multiplexed across the concurrency. For `/evidence/ask` the session is only
+  the auth anchor — the flow retrieves from the guideline corpus and makes no user-scoped FHIR call — so 3
+  sessions across 50 workers still exercises real server-side concurrency.
+- **Stateless flow**, so multiplexing many workers over few sessions is clean (no shared conversation state),
+  unlike the Week-1 hub.
+- **Real spend**, order ~\$3 (estimated — see the cost gap above). Question-only, so no vision-extraction cost;
+  a run with document upload (`file` + `docType`) would add the intake-extractor's multimodal call and cost.
+- **Not re-measured:** CPU/memory (Week 1 found the service I/O-bound with large headroom; nothing here
+  suggests otherwise) and a document-upload evidence turn.

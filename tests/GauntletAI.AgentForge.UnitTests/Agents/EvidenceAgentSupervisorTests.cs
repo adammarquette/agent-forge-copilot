@@ -224,4 +224,21 @@ public sealed class EvidenceAgentSupervisorTests
         // The stubbed retriever returns no snippets, so this turn is a retrieval miss (hit: false, 0 results).
         A.CallTo(() => _metrics.RecordEvidenceRetrieval(false, 0, A<TimeSpan>._)).MustHaveHappenedOnceExactly();
     }
+
+    [Fact]
+    public async Task RunAsync_RecordsComposerLlmUsage()
+    {
+        // Guards the Week 2 cost signal: the answer-composer's LLM call must be metered into
+        // agentforge_llm_tokens_total / _cost_usd_total, else the evidence flow's token/cost is invisible -
+        // /evidence/ask bypasses AgentOrchestrator, which is where the Week-1 path records it.
+        // reference: documentation/PERFORMANCE_BASELINES.md (Week 2 cost gap)
+        var sut = CreateSut();
+        A.CallTo(() => _llm.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .Returns(new LlmResponse("draft answer", [], LlmStopReason.EndTurn, new LlmUsage(137, 24, 0.0042m)));
+        var request = new EvidenceAgentRequest { PatientId = "p1", Question = "What do the guidelines say?" };
+
+        await sut.RunAsync(request, CancellationToken.None);
+
+        A.CallTo(() => _metrics.RecordLlmUsage(137, 24, 0.0042m)).MustHaveHappenedOnceExactly();
+    }
 }
