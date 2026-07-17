@@ -86,6 +86,10 @@
       text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; min-width: 0; word-break: break-word; }
     button.src-open:hover { opacity: .8; }
     .src-note { flex: none; color: var(--muted); font-size: 11px; }
+    .answer .cite-ref { border: 0; background: none; padding: 0; margin: 0; font: inherit; color: var(--accent); cursor: pointer; vertical-align: baseline; }
+    .answer .cite-ref:hover { text-decoration: underline; }
+    .src-item.cite-flash { animation: citeflash 1.1s ease; border-radius: 6px; }
+    @keyframes citeflash { 0%, 100% { background: transparent; } 25% { background: var(--accent-weak); } }
     .src-subhead { font-size: 11px; font-weight: 600; color: var(--text); margin: 8px 0 2px; }
     #docOverlay { position: fixed; inset: 0; background: rgba(8,14,20,.55); display: flex; align-items: center;
       justify-content: center; padding: 20px; z-index: 50; }
@@ -338,24 +342,26 @@
         else { badge.textContent = 'In the record'; }
         item.appendChild(badge);
 
+        var action;
         if (dc) {
           var normalized = {
             sourceDocumentId: pick(dc, 'SourceDocumentId'), field: pick(dc, 'Field'),
             value: pick(dc, 'Value'), page: pick(dc, 'Page'), boundingBox: pick(dc, 'BoundingBox'),
           };
+          action = function () { if (window.AgentForgeOverlay) window.AgentForgeOverlay.open(normalized); };
           var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'src-open';
           btn.textContent = (normalized.field ? normalized.field + ': ' : '') + (normalized.value || src);
-          btn.addEventListener('click', function () {
-            if (window.AgentForgeOverlay) window.AgentForgeOverlay.open(normalized);
-          });
+          btn.addEventListener('click', action);
           item.appendChild(btn);
         } else {
           var lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = src; item.appendChild(lbl);
           if (type !== 'Guideline') {
             var note = document.createElement('span'); note.className = 'src-note'; note.textContent = 'no document'; item.appendChild(note);
           }
+          // No document to open; clicking an inline [n] for this source just highlights the Sources entry.
+          action = function () { flashSource(item); };
         }
-        return item;
+        return { el: item, action: action };
       }
 
       // Surface the patient's on-file source documents (from the payload) that the answer didn't cite inline,
@@ -403,6 +409,34 @@
         return item;
       }
 
+      // Render the answer text with each inline [n] as a clickable citation ref wired to citeActions[n]
+      // (the same action as the Sources entry). Falls back to plain text for any number without an action.
+      // reference: gitlab#129.
+      function renderAnswerBody(container, text, citeActions) {
+        var re = /\[(\d+)\]/g, last = 0, m;
+        while ((m = re.exec(text)) !== null) {
+          if (m.index > last) container.appendChild(document.createTextNode(text.slice(last, m.index)));
+          var act = citeActions[parseInt(m[1], 10)];
+          if (act) {
+            var ref = document.createElement('button'); ref.type = 'button'; ref.className = 'cite-ref'; ref.textContent = m[0];
+            ref.addEventListener('click', act);
+            container.appendChild(ref);
+          } else {
+            container.appendChild(document.createTextNode(m[0]));
+          }
+          last = re.lastIndex;
+        }
+        if (last < text.length) container.appendChild(document.createTextNode(text.slice(last)));
+      }
+
+      // Scroll a Sources entry into view and briefly highlight it (used when an inline [n] has no openable doc).
+      function flashSource(item) {
+        if (!item) return;
+        item.scrollIntoView({ block: 'nearest' });
+        item.classList.add('cite-flash');
+        setTimeout(function () { item.classList.remove('cite-flash'); }, 1100);
+      }
+
       function renderAnswer(payload) {
         var m = document.createElement('div'); m.className = 'msg bot';
         var b = document.createElement('div'); b.className = 'bubble';
@@ -413,20 +447,26 @@
           b.appendChild(banner);
         }
 
-        var ans = document.createElement('div'); ans.className = 'answer';
         var numbered = numberCitations(pick(payload, 'Answer') || '');
-        ans.textContent = numbered.text;
-        b.appendChild(ans);
         var docCitations = pick(payload, 'DocumentCitations') || [];
+
+        // Build the Sources list first so each inline [n] can reuse that source's action.
+        var keyEl = null, citeActions = {};
         if (numbered.sources.length || docCitations.length) {
-          var keyEl = document.createElement('div'); keyEl.className = 'cite-key';
+          keyEl = document.createElement('div'); keyEl.className = 'cite-key';
           var kh = document.createElement('div'); kh.className = 'h'; kh.textContent = 'Sources'; keyEl.appendChild(kh);
           numbered.sources.forEach(function (src, i) {
-            keyEl.appendChild(renderSource(i + 1, src, docCitations));
+            var s = renderSource(i + 1, src, docCitations);
+            keyEl.appendChild(s.el);
+            citeActions[i + 1] = s.action;
           });
           appendOnFileDocuments(keyEl, numbered.sources, docCitations);
-          b.appendChild(keyEl);
         }
+
+        var ans = document.createElement('div'); ans.className = 'answer';
+        renderAnswerBody(ans, numbered.text, citeActions);
+        b.appendChild(ans);
+        if (keyEl) b.appendChild(keyEl);
 
         var flags = pick(payload, 'SafetyFlags') || [];
         if (flags.length) {
