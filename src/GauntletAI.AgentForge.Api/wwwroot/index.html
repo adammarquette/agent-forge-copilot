@@ -88,8 +88,6 @@
     .src-note { flex: none; color: var(--muted); font-size: 11px; }
     .answer .cite-ref { border: 0; background: none; padding: 0; margin: 0; font: inherit; color: var(--accent); cursor: pointer; vertical-align: baseline; }
     .answer .cite-ref:hover { text-decoration: underline; }
-    .src-item.cite-flash { animation: citeflash 1.1s ease; border-radius: 6px; }
-    @keyframes citeflash { 0%, 100% { background: transparent; } 25% { background: var(--accent-weak); } }
     .src-subhead { font-size: 11px; font-weight: 600; color: var(--text); margin: 8px 0 2px; }
     #docOverlay { position: fixed; inset: 0; background: rgba(8,14,20,.55); display: flex; align-items: center;
       justify-content: center; padding: 20px; z-index: 50; }
@@ -205,10 +203,16 @@
       wrap.appendChild(box); return box;
     }
 
+    // Turn a raw FactType (e.g. "lab.result") into a human heading ("Lab Result"). reference: gitlab#131.
+    function humanizeField(f) {
+      return String(f || '').split(/[._\- ]+/).filter(Boolean)
+        .map(function (w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+    }
+
     window.AgentForgeOverlay = {
       open: async function (c) {
         if (!c || !c.sourceDocumentId) return;
-        titleEl.textContent = (c.field ? c.field + ' — ' : '') + 'source document';
+        titleEl.textContent = (c.field ? humanizeField(c.field) + ' — ' : '') + 'source document';
         overlay.hidden = false;
         try {
           if (rendered.key !== c.sourceDocumentId || !rendered.wrappers.length) {
@@ -358,8 +362,8 @@
           if (type !== 'Guideline') {
             var note = document.createElement('span'); note.className = 'src-note'; note.textContent = 'no document'; item.appendChild(note);
           }
-          // No document to open; clicking an inline [n] for this source just highlights the Sources entry.
-          action = function () { flashSource(item); };
+          // No openable document: this source's inline [n] stays plain text, not a link (gitlab#131).
+          action = null;
         }
         return { el: item, action: action };
       }
@@ -429,15 +433,14 @@
         if (last < text.length) container.appendChild(document.createTextNode(text.slice(last)));
       }
 
-      // Scroll a Sources entry into view and briefly highlight it (used when an inline [n] has no openable doc).
-      function flashSource(item) {
-        if (!item) return;
-        item.scrollIntoView({ block: 'nearest' });
-        item.classList.add('cite-flash');
-        setTimeout(function () { item.classList.remove('cite-flash'); }, 1100);
+      // Scroll the thread so the top of message `m` sits at the top of the viewport (only the thread
+      // container scrolls, never the window behind the modal). Used to open the brief at its start. gitlab#131.
+      function scrollToTopOf(m) {
+        var s = el('scroll');
+        s.scrollTop += m.getBoundingClientRect().top - s.getBoundingClientRect().top - 8;
       }
 
-      function renderAnswer(payload) {
+      function renderAnswer(payload, atTop) {
         var m = document.createElement('div'); m.className = 'msg bot';
         var b = document.createElement('div'); b.className = 'bubble';
 
@@ -501,7 +504,10 @@
           det.appendChild(ul); b.appendChild(det);
         }
 
-        m.appendChild(b); el('scroll').appendChild(m); scrollDown();
+        m.appendChild(b); el('scroll').appendChild(m);
+        // The brief is auto-loaded and read top-down, so open it at its start; follow-up answers stick to the
+        // bottom where the conversation is. reference: gitlab#131.
+        if (atTop) { scrollToTopOf(m); } else { scrollDown(); }
       }
 
       function handleMessage(msg) {
@@ -510,7 +516,7 @@
         var payloadJson = pick(msg, 'PayloadJson');
         var payload; try { payload = JSON.parse(payloadJson); } catch (e) { payload = { Answer: String(payloadJson || '') }; }
         clearThinking();
-        renderAnswer(payload);
+        renderAnswer(payload, pick(msg, 'Kind') === 'brief');
         setBusy(false);
       }
 
