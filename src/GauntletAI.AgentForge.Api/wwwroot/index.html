@@ -222,7 +222,7 @@
             rendered.wrappers = await renderPdf(await resp.arrayBuffer());
             rendered.key = c.sourceDocumentId; activeBox = null;
           }
-          if (activeBox) { activeBox.classList.remove('active', 'flash'); activeBox = null; }
+          if (activeBox) { activeBox.remove(); activeBox = null; } // remove the element, not just its classes (gitlab#136)
           var wrap = rendered.wrappers[c.page || 1];
           if (!wrap) return;
           if (Array.isArray(c.boundingBox) && c.boundingBox.length === 4) {
@@ -393,23 +393,25 @@
         order.forEach(function (sid) { keyEl.appendChild(renderOnFileDoc(byDoc[sid])); });
       }
 
+      // Each on-file fact is its own clickable that opens ITS OWN box — the facts share a document but each
+      // has a distinct bounding box, so one summary button (facts[0]) would highlight the wrong row. gitlab#136.
       function renderOnFileDoc(facts) {
-        var first = facts[0];
-        var normalized = {
-          sourceDocumentId: pick(first, 'SourceDocumentId'), field: pick(first, 'Field'),
-          value: pick(first, 'Value'), page: pick(first, 'Page'), boundingBox: pick(first, 'BoundingBox'),
-        };
         var item = document.createElement('div'); item.className = 'src-item';
         var badge = document.createElement('span'); badge.className = 'src-badge doc'; badge.textContent = 'Source document'; item.appendChild(badge);
-        var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'src-open';
-        var summaries = [];
-        for (var k = 0; k < facts.length && summaries.length < 3; k++) {
-          var v = pick(facts[k], 'Value');
-          if (v) { summaries.push(String(v).split(/\s+/).slice(0, 2).join(' ')); }
-        }
-        btn.textContent = (summaries.join(', ') || 'Open document') + (facts.length > 3 ? (' +' + (facts.length - 3) + ' more') : '');
-        btn.addEventListener('click', function () { if (window.AgentForgeOverlay) window.AgentForgeOverlay.open(normalized); });
-        item.appendChild(btn);
+        var list = document.createElement('span'); list.className = 'onfile-facts';
+        facts.forEach(function (dc, i) {
+          if (i > 0) list.appendChild(document.createTextNode(', '));
+          var normalized = {
+            sourceDocumentId: pick(dc, 'SourceDocumentId'), field: pick(dc, 'Field'),
+            value: pick(dc, 'Value'), page: pick(dc, 'Page'), boundingBox: pick(dc, 'BoundingBox'),
+          };
+          var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'src-open';
+          var v = pick(dc, 'Value');
+          btn.textContent = v ? String(v).split(/\s+/).slice(0, 2).join(' ') : 'fact';
+          btn.addEventListener('click', function () { if (window.AgentForgeOverlay) window.AgentForgeOverlay.open(normalized); });
+          list.appendChild(btn);
+        });
+        item.appendChild(list);
         return item;
       }
 
