@@ -20,7 +20,11 @@ namespace GauntletAI.AgentForge.Agent;
 /// react to, not a crash (NFR-REL-1 - one tool failing degrades one step, not the whole turn).
 /// </summary>
 public sealed class McpToolDispatcher(
-    IMcpToolServer toolServer, IAgentForgeMetrics metrics, ILogger<McpToolDispatcher> logger) : IMcpToolDispatcher
+    IMcpToolServer toolServer,
+    IAgentForgeMetrics metrics,
+    ILogger<McpToolDispatcher> logger,
+    IDocumentFactsTool? documentFactsTool = null,
+    IEvidenceTool? evidenceTool = null) : IMcpToolDispatcher
 {
     private static readonly JsonSerializerOptions ArgumentsJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly JsonSerializerOptions ResultJsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -108,6 +112,8 @@ public sealed class McpToolDispatcher(
             "get_vitals" => ExecuteGetVitalsAsync(site, patientId, call.ArgumentsJson, cancellationToken),
             "get_recent_encounters" => ExecuteGetRecentEncountersAsync(site, patientId, call.ArgumentsJson, cancellationToken),
             "get_documents" => ExecuteGetDocumentsAsync(site, patientId, call.ArgumentsJson, cancellationToken),
+            "get_document_facts" => ExecuteGetDocumentFactsAsync(patientId, cancellationToken),
+            "retrieve_evidence" => ExecuteRetrieveEvidenceAsync(call.ArgumentsJson, cancellationToken),
             _ => throw new McpToolContractException(call.ToolName, [$"Unknown tool '{call.ToolName}'."]),
         };
 
@@ -175,6 +181,38 @@ public sealed class McpToolDispatcher(
         return Serialize(result);
     }
 
+    private async Task<string> ExecuteGetDocumentFactsAsync(string patientId, CancellationToken cancellationToken)
+    {
+        if (documentFactsTool is null)
+        {
+            // No document store wired (e.g. a FHIR-only test host): honest empty, not a throw.
+            McpToolDispatcherLog.DocumentFactsToolUnavailable(logger);
+            return Serialize(new DocumentFactsResult([]));
+        }
+
+        var result = await documentFactsTool.GetAsync(patientId, cancellationToken).ConfigureAwait(false);
+        return Serialize(result);
+    }
+
+    private async Task<string> ExecuteRetrieveEvidenceAsync(string argumentsJson, CancellationToken cancellationToken)
+    {
+        var query = ParseArguments<EvidenceArguments>(argumentsJson)?.Query;
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            throw new McpToolContractException("retrieve_evidence", ["query is required."]);
+        }
+
+        if (evidenceTool is null)
+        {
+            // No retriever wired (e.g. a FHIR-only test host): honest empty, not a throw.
+            McpToolDispatcherLog.EvidenceToolUnavailable(logger);
+            return Serialize(new EvidenceResult([]));
+        }
+
+        var result = await evidenceTool.GetAsync(query, cancellationToken).ConfigureAwait(false);
+        return Serialize(result);
+    }
+
     private static T? ParseArguments<T>(string argumentsJson)
     {
         if (string.IsNullOrWhiteSpace(argumentsJson) || argumentsJson.Trim() == "{}")
@@ -203,4 +241,6 @@ public sealed class McpToolDispatcher(
     private sealed record RecentEncountersArguments([property: JsonPropertyName("count")] int? Count);
 
     private sealed record DocumentsArguments([property: JsonPropertyName("document_type")] string? DocumentType);
+
+    private sealed record EvidenceArguments([property: JsonPropertyName("query")] string? Query);
 }

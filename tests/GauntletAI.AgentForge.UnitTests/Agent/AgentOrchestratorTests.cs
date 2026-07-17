@@ -4,6 +4,7 @@ using GauntletAI.AgentForge.Agent;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -32,6 +33,42 @@ public sealed class AgentOrchestratorTests
     private AgentOrchestrator BuildSut(TimeSpan turnDeadline) => new(
         _llmProvider, _toolDispatcher, _verifier, _metrics,
         Options.Create(new AgentOptions { TurnDeadline = turnDeadline }), NullLogger<AgentOrchestrator>.Instance);
+
+    // Captures formatted log messages so a test can assert the per-encounter telemetry line was emitted.
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Messages.Add(formatter(state, exception));
+    }
+
+    [Fact]
+    public async Task StartBriefAsync_OnVerifiedFinalAnswer_EmitsPerEncounterTelemetry()
+    {
+        // FR-OBS-W2-1: one correlation-scoped telemetry line ties the encounter's signals together - here the
+        // tool sequence and the runtime verification (eval) outcome. reference: gitlab#135.
+        var toolCall = new LlmToolCall("call_1", "get_patient_summary", "{}");
+        A.CallTo(() => _llmProvider.CompleteAsync(A<LlmRequest>._, A<CancellationToken>._))
+            .ReturnsNextFromSequence(
+                new LlmResponse(string.Empty, [toolCall], LlmStopReason.ToolUse, new LlmUsage(10, 5, 0.01m)),
+                new LlmResponse("Active problems: AFib.", [], LlmStopReason.EndTurn, new LlmUsage(20, 10, 0.02m)));
+        A.CallTo(() => _toolDispatcher.DispatchAsync("default", "1", toolCall, A<CancellationToken>._))
+            .Returns(Task.FromResult(new LlmToolResultContent("call_1", """{"problems":["AFib"]}""")));
+        var logger = new CapturingLogger<AgentOrchestrator>();
+        var sut = new AgentOrchestrator(
+            _llmProvider, _toolDispatcher, _verifier, _metrics,
+            Options.Create(new AgentOptions { TurnDeadline = TimeSpan.FromSeconds(60) }), logger);
+
+        await sut.StartBriefAsync("default", "1", CancellationToken.None);
+
+        logger.Messages.Should().ContainSingle(m => m.Contains("encounter.telemetry"))
+            .Which.Should().Contain("tools=[get_patient_summary]")
+            .And.Contain("verification_passed=True")
+            .And.Contain("in_tokens=30");
+    }
 
     [Fact]
     public async Task StartBriefAsync_LlmAnswersImmediately_ReturnsAnswerWithoutDispatchingAnyTools()

@@ -26,4 +26,23 @@ public sealed class CardiologyProfileTests
 
         normalized.Should().Contain(requiredPhrase, becauseReason);
     }
+
+    [Fact]
+    public void SystemPrompt_Always_DirectsTheBriefToSurfaceIngestedDocumentFacts()
+    {
+        // The brief must surface findings that are only in an uploaded document, not just the structured
+        // record - so the prompt must keep directing get_document_facts. reference: gitlab#123.
+        CardiologyProfile.SystemPrompt.Should().Contain("get_document_facts");
+    }
+
+    [Fact]
+    public void SystemPrompt_Always_TellsTheModelNotToNarrateDocumentProvenance()
+    {
+        // The [Document/<id>] citation carries the source, so a document-derived value is stated and cited,
+        // not described as "on the uploaded/outside report" in prose (demo feedback). reference: gitlab#132.
+        var normalized = string.Join(' ', CardiologyProfile.SystemPrompt.ToLowerInvariant().Split(
+            (char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        normalized.Should().Contain("do not narrate its provenance");
+    }
 }

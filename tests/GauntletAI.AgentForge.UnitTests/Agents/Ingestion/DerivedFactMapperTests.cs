@@ -58,6 +58,27 @@ public sealed class DerivedFactMapperTests
     }
 
     [Fact]
+    public void Map_WhenExactQuoteLocated_SetsFullExtractionConfidence()
+    {
+        // A resolved bounding box means the extractor located the exact quote in the source PDF, so the
+        // grounding/extraction confidence is full (FR-OBS-W2-1 per-encounter telemetry, gitlab#135).
+        var facts = new DerivedFactMapper().Map(Lab(), "dr-1");
+
+        facts[0].ExtractionConfidence.Should().Be(1.0);
+    }
+
+    [Fact]
+    public void Map_WhenOnlyPageLevel_SetsReducedExtractionConfidence()
+    {
+        const string pageLevelOnly =
+            """{"tests":[{"test_name":"Potassium","value":"5.8","unit":"mmol/L","reference_range":"3.5-5.1","collection_date":"2026-07-02","abnormal_flag":true,"citation":{"page":1,"quote":"K+ 5.8 (H)"}}]}""";
+
+        var facts = new DerivedFactMapper().Map(Lab(pageLevelOnly), "dr-1");
+
+        facts[0].ExtractionConfidence.Should().Be(0.5);
+    }
+
+    [Fact]
     public void Map_WhenCitationPending_SetsEmptySourceId()
     {
         var facts = new DerivedFactMapper().Map(Lab(), documentReferenceId: null);

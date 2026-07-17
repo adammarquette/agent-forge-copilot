@@ -1,3 +1,5 @@
+using GauntletAI.AgentForge.Agents;
+
 namespace GauntletAI.AgentForge.Api.Chat;
 
 /// <summary>Wire payload for a <c>"brief"</c> or <c>"answer"</c> <see cref="ChatMessage"/>.</summary>
@@ -9,8 +11,14 @@ namespace GauntletAI.AgentForge.Api.Chat;
 /// §13.1) - the UI should render this as "Summary unavailable right now - here is the source data",
 /// not present it as if the model said it.
 /// </param>
+/// <param name="DocumentCitations">
+/// Click-to-source citations for the patient's ingested-document facts (FR-CITE-2, gitlab#119): each
+/// <see cref="DocumentCitation.FactId"/> matches the id part of a <c>[Document/&lt;slug&gt;]</c> token in
+/// <see cref="Answer"/>, carrying the source-document id + region so the client can open the PDF and highlight.
+/// </param>
 public sealed record ChatAnswerPayload(
     string Answer,
     IReadOnlyList<SafetyFlagPayload> SafetyFlags,
     IReadOnlyList<SuppressedClaimPayload> SuppressedClaims,
+    IReadOnlyList<DocumentCitation> DocumentCitations,
     bool IsDeterministicFallback = false);

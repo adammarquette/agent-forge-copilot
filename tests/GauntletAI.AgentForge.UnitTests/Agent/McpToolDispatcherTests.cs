@@ -206,4 +206,66 @@ public sealed class McpToolDispatcherTests
 
         A.CallTo(() => _toolServer.GetPatientSummaryAsync(A<GetPatientSummaryRequest>._, cts.Token)).MustHaveHappenedOnceExactly();
     }
+
+    [Fact]
+    public async Task DispatchAsync_GetDocumentFacts_DelegatesToTheDocumentFactsToolWithTheSessionPatientId()
+    {
+        var tool = A.Fake<IDocumentFactsTool>();
+        A.CallTo(() => tool.GetAsync("1", A<CancellationToken>._))
+            .Returns(Task.FromResult(new DocumentFactsResult(
+                [new DocumentFactRecord("Document", "abc12345", "lab.result", "Potassium 5.9", "docref-9", "1")])));
+        var sut = new McpToolDispatcher(_toolServer, _metrics, _logger, tool);
+
+        var result = await sut.DispatchAsync("default", "1", new LlmToolCall("call_df", "get_document_facts", "{}"), CancellationToken.None);
+
+        result.IsError.Should().BeFalse();
+        result.ResultJson.Should().Contain("Document").And.Contain("docref-9");
+        A.CallTo(() => tool.GetAsync("1", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task DispatchAsync_GetDocumentFactsWithNoToolWired_ReturnsAnEmptyResultRatherThanThrowing()
+    {
+        var result = await _sut.DispatchAsync("default", "1", new LlmToolCall("call_df2", "get_document_facts", "{}"), CancellationToken.None);
+
+        result.IsError.Should().BeFalse();
+        result.ResultJson.Should().Contain("Facts");
+    }
+
+    [Fact]
+    public async Task DispatchAsync_RetrieveEvidence_DelegatesToTheEvidenceToolWithTheQuery()
+    {
+        var tool = A.Fake<IEvidenceTool>();
+        A.CallTo(() => tool.GetAsync("inr target", A<CancellationToken>._))
+            .Returns(Task.FromResult(new EvidenceResult(
+                [new EvidenceRecord("Guideline", "chunk-1", "anticoag-2026", "Warfarin INR target", "Target INR 2.0 to 3.0.")])));
+        var sut = new McpToolDispatcher(_toolServer, _metrics, _logger, null, tool);
+
+        var result = await sut.DispatchAsync("default", "1", new LlmToolCall("call_re", "retrieve_evidence", """{"query":"inr target"}"""), CancellationToken.None);
+
+        result.IsError.Should().BeFalse();
+        result.ResultJson.Should().Contain("Guideline").And.Contain("chunk-1");
+        A.CallTo(() => tool.GetAsync("inr target", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task DispatchAsync_RetrieveEvidenceWithoutQuery_ReturnsErrorResultWithoutCallingTheTool()
+    {
+        var tool = A.Fake<IEvidenceTool>();
+        var sut = new McpToolDispatcher(_toolServer, _metrics, _logger, null, tool);
+
+        var result = await sut.DispatchAsync("default", "1", new LlmToolCall("call_re2", "retrieve_evidence", "{}"), CancellationToken.None);
+
+        result.IsError.Should().BeTrue();
+        A.CallTo(() => tool.GetAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task DispatchAsync_RetrieveEvidenceWithNoToolWired_ReturnsAnEmptyResultRatherThanThrowing()
+    {
+        var result = await _sut.DispatchAsync("default", "1", new LlmToolCall("call_re3", "retrieve_evidence", """{"query":"inr target"}"""), CancellationToken.None);
+
+        result.IsError.Should().BeFalse();
+        result.ResultJson.Should().Contain("Snippets");
+    }
 }

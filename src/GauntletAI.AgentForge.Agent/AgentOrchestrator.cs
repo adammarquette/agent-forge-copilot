@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using GauntletAI.AgentForge.Llm;
 using GauntletAI.AgentForge.Observability;
 using GauntletAI.AgentForge.Verification;
@@ -52,15 +53,39 @@ public sealed class AgentOrchestrator(
         "again with a complete, plain-text answer, citing each clinical fact with its " +
         "[ResourceType/Id] source exactly as instructed.";
 
+    // Human-readable status for each tool, shown while the turn runs (gitlab#126). Perceived-latency only -
+    // never the answer, which is verified before delivery.
+    private static readonly Dictionary<string, string> ToolStatusLabels = new(StringComparer.Ordinal)
+    {
+        ["get_patient_summary"] = "the chart",
+        ["get_interval_changes"] = "what changed since the last visit",
+        ["get_labs"] = "labs",
+        ["get_vitals"] = "vitals",
+        ["get_recent_encounters"] = "recent visits",
+        ["get_documents"] = "documents",
+        ["get_document_facts"] = "the uploaded lab report",
+        ["retrieve_evidence"] = "the guidelines",
+    };
+
+    private static string DescribeToolBatch(IReadOnlyList<LlmToolCall> toolCalls)
+    {
+        var labels = toolCalls
+            .Select(call => ToolStatusLabels.TryGetValue(call.ToolName, out var label) ? label : call.ToolName)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return labels.Length == 0 ? "Retrieving the record…" : "Reading " + string.Join(", ", labels) + "…";
+    }
+
     /// <summary>Starts a new session for a patient and generates the initial pre-visit brief (UC-1).</summary>
-    public Task<AgentTurnResult> StartBriefAsync(string site, string patientId, CancellationToken cancellationToken)
+    public Task<AgentTurnResult> StartBriefAsync(
+        string site, string patientId, CancellationToken cancellationToken, IProgress<string>? progress = null)
     {
         var state = ConversationState.Start(site, patientId) with
         {
             Messages = [LlmMessage.FromText(LlmRole.User, BriefRequestPrompt)],
         };
 
-        return RunTurnAsync(state, cancellationToken);
+        return RunTurnAsync(state, cancellationToken, progress);
     }
 
     /// <summary>Starts a new session for a patient and generates a short Daily Agenda summary (UC-6).</summary>
@@ -76,19 +101,20 @@ public sealed class AgentOrchestrator(
 
     /// <summary>Asks a follow-up question within an existing session, maintaining context (UC-2).</summary>
     public Task<AgentTurnResult> AskFollowUpAsync(
-        ConversationState state, string question, CancellationToken cancellationToken)
+        ConversationState state, string question, CancellationToken cancellationToken, IProgress<string>? progress = null)
     {
         var updated = state with { Messages = [.. state.Messages, LlmMessage.FromText(LlmRole.User, question)] };
-        return RunTurnAsync(updated, cancellationToken);
+        return RunTurnAsync(updated, cancellationToken, progress);
     }
 
-    private async Task<AgentTurnResult> RunTurnAsync(ConversationState state, CancellationToken cancellationToken)
+    private async Task<AgentTurnResult> RunTurnAsync(
+        ConversationState state, CancellationToken cancellationToken, IProgress<string>? progress = null)
     {
         using var activity = AgentForgeActivitySource.Instance.StartActivity("agent.turn");
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var result = await RunTurnCoreAsync(state, cancellationToken).ConfigureAwait(false);
+            var result = await RunTurnCoreAsync(state, progress, cancellationToken).ConfigureAwait(false);
             metrics.RecordAgentTurn(succeeded: true, stopwatch.Elapsed);
             return result;
         }
@@ -100,10 +126,22 @@ public sealed class AgentOrchestrator(
         }
     }
 
-    private async Task<AgentTurnResult> RunTurnCoreAsync(ConversationState state, CancellationToken cancellationToken)
+    private async Task<AgentTurnResult> RunTurnCoreAsync(
+        ConversationState state, IProgress<string>? progress, CancellationToken cancellationToken)
     {
+        progress?.Report("Reviewing this patient's chart…");
         var messages = state.Messages;
         List<string> toolResultJsonThisTurn = [];
+
+        // Per-encounter telemetry accumulators (FR-OBS-W2-1): assembled across the turn's rounds and emitted on
+        // one correlation-scoped line at the verified final answer. reference: gitlab#135.
+        var turnStopwatch = Stopwatch.StartNew();
+        List<string> toolSequence = [];
+        List<string> toolLatencies = [];
+        long inputTokens = 0, outputTokens = 0;
+        decimal costUsd = 0m;
+        int? retrievalHits = null;
+        List<double> extractionConfidences = [];
 
         // PRD.md §13.1's "per-request deadline" design default (the "tool slow / hits deadline"
         // row): bounds the whole turn's wall-clock time, not just each individual HTTP call (those
@@ -120,6 +158,11 @@ public sealed class AgentOrchestrator(
 
         for (var round = 0; round < MaxToolCallRounds; round++)
         {
+            if (round > 0)
+            {
+                progress?.Report("Composing the answer…");
+            }
+
             using var llmActivity = AgentForgeActivitySource.Instance.StartActivity("llm.complete");
             var request = new LlmRequest(CardiologyProfile.SystemPrompt, messages, McpToolCatalog.AllTools);
 
@@ -143,6 +186,9 @@ public sealed class AgentOrchestrator(
             }
 
             metrics.RecordLlmUsage(response.Usage.InputTokens, response.Usage.OutputTokens, response.Usage.EstimatedCostUsd);
+            inputTokens += response.Usage.InputTokens;
+            outputTokens += response.Usage.OutputTokens;
+            costUsd += response.Usage.EstimatedCostUsd;
 
             if (response.StopReason != LlmStopReason.ToolUse || response.ToolCalls.Count == 0)
             {
@@ -175,6 +221,29 @@ public sealed class AgentOrchestrator(
 
                 var verification = verifier.Verify(response.Content, toolResultJsonThisTurn);
                 metrics.RecordVerificationResult(verification.Passed);
+
+                // Guard the string building (CA1873): the per-encounter telemetry is Information level, so
+                // build the joined fields into locals only when that level is enabled.
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    var toolSequenceText = string.Join(",", toolSequence);
+                    var toolLatencyText = string.Join(",", toolLatencies);
+                    double? confidence = extractionConfidences.Count > 0 ? extractionConfidences.Average() : null;
+                    AgentOrchestratorLog.EncounterTelemetry(
+                        logger,
+                        toolSequenceText,
+                        round + 1,
+                        turnStopwatch.ElapsedMilliseconds,
+                        toolLatencyText,
+                        inputTokens,
+                        outputTokens,
+                        (double)costUsd,
+                        retrievalHits,
+                        confidence,
+                        verification.Passed,
+                        verification.SuppressedClaims.Count);
+                }
+
                 var verifiedMessages = messages.Append(
                     new LlmMessage(LlmRole.Assistant, [new LlmTextContent(verification.VerifiedAnswer)]));
 
@@ -187,16 +256,28 @@ public sealed class AgentOrchestrator(
 
             messages = [.. messages, new LlmMessage(LlmRole.Assistant, BuildAssistantContent(response))];
 
-            LlmToolResultContent[] toolResults;
+            progress?.Report(DescribeToolBatch(response.ToolCalls));
+
+            (LlmToolResultContent Result, string Tool, double Ms)[] dispatched;
             try
             {
-                toolResults = await Task.WhenAll(
-                    response.ToolCalls.Select(call => DispatchAndLogAsync(state.Site, state.PatientId, call, operationToken)))
+                dispatched = await Task.WhenAll(
+                    response.ToolCalls.Select(call => TimedDispatchAsync(state.Site, state.PatientId, call, operationToken)))
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (deadlineOnlyCts.IsCancellationRequested)
             {
                 return BuildDeterministicFallback(state, messages, toolResultJsonThisTurn, "Turn exceeded its configured deadline.");
+            }
+
+            var toolResults = new LlmToolResultContent[dispatched.Length];
+            for (var i = 0; i < dispatched.Length; i++)
+            {
+                var d = dispatched[i];
+                toolResults[i] = d.Result;
+                toolSequence.Add(d.Tool);
+                toolLatencies.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{d.Tool}={d.Ms:F0}"));
+                AccumulateToolTelemetry(d.Tool, d.Result.ResultJson, ref retrievalHits, extractionConfidences);
             }
 
             toolResultJsonThisTurn.AddRange(toolResults.Select(r => r.ResultJson));
@@ -233,6 +314,48 @@ public sealed class AgentOrchestrator(
         var result = await toolDispatcher.DispatchAsync(site, patientId, toolCall, cancellationToken).ConfigureAwait(false);
         AgentOrchestratorLog.ToolCallDispatched(logger, toolCall.ToolName, result.IsError);
         return result;
+    }
+
+    // Times a single tool dispatch so the per-encounter telemetry (FR-OBS-W2-1) can report latency by step.
+    private async Task<(LlmToolResultContent Result, string Tool, double Ms)> TimedDispatchAsync(
+        string site, string patientId, LlmToolCall toolCall, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var result = await DispatchAndLogAsync(site, patientId, toolCall, cancellationToken).ConfigureAwait(false);
+        return (result, toolCall.ToolName, stopwatch.Elapsed.TotalMilliseconds);
+    }
+
+    // Pulls the two per-encounter signals that live inside tool results: retrieval hit count from
+    // retrieve_evidence ({"Snippets":[...]}) and extraction confidence from get_document_facts
+    // ({"Facts":[{"Confidence":x},...]}). Tolerant: an error/malformed result simply leaves the signal absent.
+    private static void AccumulateToolTelemetry(
+        string tool, string resultJson, ref int? retrievalHits, List<double> extractionConfidences)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(resultJson);
+            var root = doc.RootElement;
+            if (tool == "retrieve_evidence"
+                && root.TryGetProperty("Snippets", out var snippets) && snippets.ValueKind == JsonValueKind.Array)
+            {
+                retrievalHits = (retrievalHits ?? 0) + snippets.GetArrayLength();
+            }
+            else if (tool == "get_document_facts"
+                && root.TryGetProperty("Facts", out var facts) && facts.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var fact in facts.EnumerateArray())
+                {
+                    if (fact.TryGetProperty("Confidence", out var c) && c.ValueKind == JsonValueKind.Number)
+                    {
+                        extractionConfidences.Add(c.GetDouble());
+                    }
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Telemetry is best-effort: a malformed/error tool result never breaks the turn.
+        }
     }
 
     /// <summary>

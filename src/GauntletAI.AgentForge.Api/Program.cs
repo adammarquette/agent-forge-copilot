@@ -209,6 +209,12 @@ if (weekTwoEnabled)
     builder.Services.AddAgentForgeRetrieval(builder.Configuration);
     builder.Services.AddAgentForgeEvidenceAgent();
 
+    // The chat's Week 2 tools (get_document_facts / retrieve_evidence): registered only with Week 2, since
+    // they depend on the derived-fact store and the evidence retriever. The dispatcher references them
+    // optionally, so the Week 1 chat still boots (degraded to no document/guideline citations) without them.
+    builder.Services.AddScoped<IDocumentFactsTool, DocumentFactsTool>();
+    builder.Services.AddScoped<IEvidenceTool, EvidenceTool>();
+
     // Week 2 ingestion (E2): the front desk uploads through OpenEMR's own Documents; the oe-module-agentforge
     // upload hook then calls POST /documents/ingest with the content, and the sidecar extracts + persists the
     // derived facts citing the OpenEMR DocumentReference. No write-back - OpenEMR is authoritative for the

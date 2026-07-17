@@ -11,8 +11,13 @@ namespace GauntletAI.AgentForge.Mcp;
 /// elsewhere; in production this stream would be routed to dedicated, access-controlled audit
 /// storage, distinct from the general application log sink.
 /// </summary>
-internal static partial class AccessAuditLog
+public static partial class AccessAuditLog
 {
+    /// <summary>
+    /// Records one patient-data access — clinician identity, patient, tool, and correlation id — to the
+    /// access-audit stream (FR-AUTH-4). This is the one log that intentionally carries a patient reference; do
+    /// not route general application logging through it.
+    /// </summary>
     [LoggerMessage(
         Level = LogLevel.Information,
         Message = "ACCESS AUDIT: clinician={ClinicianIdentity} accessed patient={PatientId} via tool={ToolName} correlation={CorrelationId}")]
