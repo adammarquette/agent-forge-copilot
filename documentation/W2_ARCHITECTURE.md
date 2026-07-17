@@ -206,9 +206,10 @@ forward `/agentforge/documents/ingest` straight to it (it did, until the block w
 prompted this correction). The cron reaches the endpoint over `railway.internal`, bypassing the proxy, so the
 block costs it nothing. With both in place the route is reachable only over the Railway private network — i.e.
 the module cron. This keeps Week 1's transient-token custody intact everywhere the clinician's flow touches
-FHIR; nothing is stored here and no token is minted. A **shared-secret header** is the tracked hardening
-follow-up (defense-in-depth against in-project callers or a proxy misconfiguration re-exposing the path),
-deliberately out of scope for the MVP. reference: gitlab#91, gitlab#92
+FHIR; nothing is stored here and no token is minted. A **shared-secret header** remains a deferred hardening
+option (defense-in-depth against in-project callers or a proxy misconfiguration re-exposing the path), out of
+scope for the MVP and not separately tracked. The private-origin trust model and the earlier proxy-exposure fix
+that established it have both shipped. reference: gitlab#91 (trust model), gitlab#92 (exposure fix)
 
 **Idempotency.** Ingest is keyed by a SHA-256 content hash; re-forwarding the same bytes is a no-op that
 returns the existing record, so a cron re-run or overlap never double-persists.
@@ -262,7 +263,8 @@ labeled as *evidence* (`source_type: guideline`) and are never conflated with *p
 
 ## 6. Multi-Agent Graph (Stage 3 / Core Req 4)
 
-A supervisor and two workers, plus a critic gate. Kept small and typed so routing is inspectable — the
+A supervisor routing four workers — intake-extractor → evidence-retriever → answer-composer → critic, the last
+a verification gate. Kept small and typed so routing is inspectable — the
 requirement is *inspectability and logged handoffs*, and a typed .NET state machine delivers that more
 transparently than a dynamic graph.
 
@@ -273,7 +275,8 @@ stateDiagram-v2
     Supervisor --> EvidenceRetriever: needs_evidence
     IntakeExtractor --> Supervisor: facts + citations
     EvidenceRetriever --> Supervisor: evidence snippets
-    Supervisor --> Critic: ready_to_answer
+    Supervisor --> AnswerComposer: facts + evidence assembled
+    AnswerComposer --> Critic: draft ready for verification
     Critic --> Supervisor: reject (uncited/unsafe) - reroute or drop claim
     Critic --> [*]: pass -> cited answer
 ```
@@ -287,6 +290,8 @@ fabricates content — it only routes.
 - **intake-extractor** persists what the ingestion flow (Section 3) already extracted — the copilot reads
   the pre-computed facts rather than extracting in the turn. No write-back; OpenEMR holds the source document.
 - **evidence-retriever** wraps Section 5 (hybrid retrieve → rerank → top-k snippets).
+- **answer-composer** assembles the extracted facts + retrieved evidence into a draft answer with per-claim
+  citations, then hands it to the critic for verification.
 
 **Critic = Verification, promoted (W2-D8).** The critic node is the Week 1 two-layer Verification
 component (source attribution + cardiology domain constraints) invoked as a graph node. It **rejects
@@ -332,7 +337,7 @@ the build fails.
 - **Golden set:** 50 synthetic/demo cases exercising extraction, evidence retrieval, citations, refusals,
   and missing-data behavior — no happy-path-only cases; each case names the failure mode it guards
   (aligns with Week 1 FR-EVAL-1). The set is **reproducible from the repo alone** (JSON + fixture docs in
-  `tests/`), never only in a database (backup/recovery requirement, Section 12).
+  `evals/`), never only in a database (backup/recovery requirement, Section 12).
 - **Boolean rubrics only (W2-D9):** `schema_valid`, `citation_present`, `factually_consistent`,
   `safe_refusal`, `no_phi_in_logs`. Boolean (not 1–10) so a failure is actionable and a regression is
   unambiguous. `schema_valid`, `citation_present`, and `no_phi_in_logs` are checked **deterministically**
@@ -503,7 +508,7 @@ approach is verified in CI by a **PHI-detection check** that fails the build on 
 `no_phi_in_logs` rubric, so the gate enforces it on every PR.
 
 **Backup & recovery.** The **eval golden set + fixture documents are reproducible from the repo alone**
-(they live in `tests/`, not only a database). The `DerivedFactStore` and the guideline corpus index have a
+(they live in `evals/`, not only a database). The `DerivedFactStore` and the guideline corpus index have a
 documented backup + manual-recovery procedure with **[CONFIRM] RPO/RTO** targets; the corpus is
 re-buildable from the source guideline documents committed to the repo.
 
@@ -561,7 +566,7 @@ automated tier). Every test names the failure mode it guards (Week 1 §8 rule).
 | **W2-D14** | Shared `GauntletAI.AgentForge.Data` project — EF Core + Pgvector.EntityFrameworkCore for entities / vector / index / KNN; raw SQL for RRF; EF Migrations for schema + scripts | Dapper / raw Npgsql only; per-project DbContexts | ORM-native for entities, migrations, and dense KNN; raw SQL only where hybrid fusion needs it; one migrations home; EF provider major pinned to the EF Core 10 line in CPM (the pgvector-EF floor won't force it) |
 | **W2-D15** | Front desk uploads via OpenEMR-native Documents; an `oe-module-agentforge` Background Service (cron) forwards new docs to the sidecar `POST /documents/ingest` | Sidecar upload form + write-back (Option 1); patch `Document::createDocument`; browser-JS trigger | Consistent OpenEMR upload path (no double-entry); OpenEMR has no document-created event, so a module cron is the module-only, upgrade-safe trigger; extraction runs pre-visit so the clinician turn stays fast |
 | **W2-D16** *(superseded by W2-D17)* | Cron authenticates to `/documents/ingest` with a transient `client_credentials` token, introspected per call | Sidecar-held/refresh-token admin identity; shared secret | Dropped: the endpoint carries no clinician authority (no user token needed) and staging OpenEMR does not advertise `client_credentials`/`private_key_jwt` |
-| **W2-D17** | `/documents/ingest` authenticates by **trusted private-network origin** — sidecar has no public domain, the reverse proxy does not route the path, so only the in-project cron can reach it | Transient `client_credentials` token (W2-D16); shared secret now | No token to mint or introspect; preserves Week 1 transient-token custody everywhere the clinician flow touches FHIR; shared-secret header is the tracked follow-up (gitlab#91), out of scope for MVP |
+| **W2-D17** | `/documents/ingest` authenticates by **trusted private-network origin** — sidecar has no public domain, the reverse proxy does not route the path, so only the in-project cron can reach it | Transient `client_credentials` token (W2-D16); shared secret now | No token to mint or introspect; preserves Week 1 transient-token custody everywhere the clinician flow touches FHIR; shared-secret header is a deferred hardening option (not separately tracked), out of scope for MVP — the private-origin trust model itself shipped (gitlab#91) |
 
 ---
 
@@ -598,8 +603,8 @@ the derived facts, which only *cite* back.
 | # | Flow | Direction | Transport & auth | Trigger | Crosses | Status / ref |
 |---|---|---|---|---|---|---|
 | **A** | SMART launch + FHIR read (Week 1 base) | browser → sidecar (launch); sidecar → OpenEMR (FHIR read) | Public front door; SMART OAuth authorize/token, **transient** clinician token (never reaches browser, W2-D10/D11) | Clinician opens the copilot from the `oe-module-agentforge` launcher (`launch.php` / `agenda-launch.php` / `patient-launch.php`) | Patient / Observation (labs, vitals) / Condition / MedicationRequest / DocumentReference / Binary | Live (§6; `ARCHITECTURE.md`) |
-| **B** | Document ingestion push | OpenEMR (module cron) → sidecar | **Private network only** (`railway.internal`); **trusted-origin** auth, no token — proxy 404s `/agentforge/documents/*` (W2-D17) | `oe-module-agentforge` Background Service cron scans a `documents.id` watermark, forwards each new doc | `POST /documents/ingest` `{ content, documentReferenceId, patientId, docType, mediaType }` | Live (§3, §4; fork agent-forge#44) |
-| **C** | Source-document fetch for the overlay | sidecar → OpenEMR (FHIR read) | Public front door; **transient** clinician token (same custody as A) | Clinician clicks a cited derived fact in the chat SPA | `GET /fhir/DocumentReference/{id}` → `Binary` (source PDF / page image), rendered with the stored bbox | **Planned** (§7, FR-CITE-2; gitlab#96) — depends on B's persisted citation + Appendix A.2 durability |
+| **B** | Document ingestion push | OpenEMR (module cron) → sidecar | **Private network only** (`railway.internal`); **trusted-origin** auth, no token — proxy 404s `/agentforge/documents/*` (W2-D17) | `oe-module-agentforge` Background Service cron scans a `documents.id` watermark, forwards each new doc | `POST /documents/ingest` `{ content, documentReferenceId, patientId, docType, mediaType }` | **Partial** (§3, §4; fork agent-forge#44 open) — sidecar `/documents/ingest` is live; the module-cron trigger is not yet built on the fork |
+| **C** | Source-document fetch for the overlay | sidecar → OpenEMR (FHIR read) | Public front door; **transient** clinician token (same custody as A) | Clinician clicks a cited derived fact in the chat SPA | `GET /fhir/DocumentReference/{id}` → `Binary` (source PDF / page image), rendered with the stored bbox | **Live** (§7, FR-CITE-2; gitlab#96/#109) — click-to-source verified end-to-end on staging (per-fact bbox overlay) |
 | **D** | Source-document write-back | *(none)* | — | — | — | **Intentionally absent** (W2-D3 revised / W2-D15). Documented so it is not re-introduced: the sidecar never POSTs documents or derived Observations to OpenEMR |
 
 ```mermaid
