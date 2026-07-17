@@ -25,7 +25,11 @@ public sealed class DerivedFact
     /// <summary>Where this fact came from — resolves back to the source (owned value object).</summary>
     public required Citation Citation { get; set; }
 
-    /// <summary>Extractor confidence in <c>[0,1]</c> when reported; null if not provided.</summary>
+    /// <summary>
+    /// Grounding/locatability confidence, populated on every persisted fact: <c>1.0</c> when the citation
+    /// resolved to an exact quote/bounding box in the source, else <c>0.5</c> (page-level only). Despite the
+    /// name, this is derived from the citation's locatability — not a model-reported extraction score.
+    /// </summary>
     public double? ExtractionConfidence { get; set; }
 
     /// <summary>When the fact was persisted.</summary>
