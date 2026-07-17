@@ -40,6 +40,7 @@ public sealed class DerivedFactMapper : IDerivedFactMapper
                 FactType = "lab.result",
                 PayloadJson = JsonSerializer.Serialize(test, DerivedFactJsonContext.Default.LabTestResult),
                 Citation = Cite(sourceId, test.Citation, test.TestName, test.Citation.Quote),
+                ExtractionConfidence = ConfidenceFrom(test.Citation),
             });
         }
 
@@ -58,6 +59,7 @@ public sealed class DerivedFactMapper : IDerivedFactMapper
                 FactType = "intake.demographics",
                 PayloadJson = JsonSerializer.Serialize(intake.Demographics, DerivedFactJsonContext.Default.IntakeDemographics),
                 Citation = Cite(sourceId, intake.Citation, "demographics", intake.Citation.Quote),
+                ExtractionConfidence = ConfidenceFrom(intake.Citation),
             },
         };
 
@@ -73,6 +75,7 @@ public sealed class DerivedFactMapper : IDerivedFactMapper
                 FactType = "intake.medication",
                 PayloadJson = JsonSerializer.Serialize(medication, DerivedFactJsonContext.Default.IntakeMedication),
                 Citation = Cite(sourceId, medication.Citation, medication.Name, medication.Citation.Quote),
+                ExtractionConfidence = ConfidenceFrom(medication.Citation),
             });
         }
 
@@ -98,7 +101,12 @@ public sealed class DerivedFactMapper : IDerivedFactMapper
             FactType = factType,
             PayloadJson = JsonSerializer.Serialize(new TextFactPayload(value), DerivedFactJsonContext.Default.TextFactPayload),
             Citation = Cite(sourceId, citation, field, value),
+            ExtractionConfidence = ConfidenceFrom(citation),
         };
+
+    // Grounding/locatability confidence for a derived fact: 1.0 when the extractor located the exact quote in
+    // the source PDF (a resolved bounding box), else 0.5 (page-level only). reference: gitlab#135 (FR-OBS-W2-1).
+    private static double ConfidenceFrom(ExtractionCitation citation) => citation.BoundingBox is not null ? 1.0 : 0.5;
 
     private static Citation Cite(string sourceId, ExtractionCitation citation, string field, string? quote) => new()
     {
