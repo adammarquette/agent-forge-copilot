@@ -497,3 +497,6 @@ secrets.json
 # tools/LoadTestChat's LoadTest__Debug=1 capture (screenshots/HTML dumps of live OpenEMR pages)
 debug-*.html
 debug-*.png
+
+# Claude Code local agent config (per-developer permission allowlists, machine-specific)
+.claude/

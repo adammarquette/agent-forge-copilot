@@ -165,6 +165,17 @@ polish, most of it "Should"-tier:
     ([AgentOrchestratorLog.cs](../src/GauntletAI.AgentForge.Agent/AgentOrchestratorLog.cs)).
     <br>*Interpretation note:* the golden-set **eval is a CI-only offline gate**, so the per-encounter runtime
     analog of "eval outcome" is the verification/grounding gate — confirmed with the product owner.
+    <br>*Coverage caveats (added by the 2026-07-17 re-verification pass):* (a) the line is emitted **only on the
+    verified-final-answer path** ([AgentOrchestrator.cs:232-244](../src/GauntletAI.AgentForge.Agent/AgentOrchestrator.cs)) —
+    every deterministic-fallback exit (LLM failure, turn-deadline, tool-round-budget exceeded, still-malformed
+    output) returns via `BuildDeterministicFallback` **without** emitting it, so a **degraded/failed encounter
+    leaves no per-encounter record**. Against the FR-OBS-W2-1 "answerable for *any* past encounter" wording this
+    is a real edge: the encounters most worth inspecting (the failures) are exactly the ones not logged.
+    (b) the standalone Week-2 `/evidence/ask` supervisor graph does **not** emit this line — it bypasses
+    `AgentOrchestrator` (see NFR-TRACE-W2). Evidence retrieval **is** captured when the Week-1 agent drives
+    `retrieve_evidence` / `get_document_facts` as MCP tools (those turns get a line with `retrieval_hits` /
+    `extraction_confidence` populated), but the dedicated evidence endpoint is not — which bounds what the
+    cost/latency report (FR-OBS-W2-3) can measure from `encounter.telemetry` to the chat/brief/agenda flows.
 - **FR-OBS-W2-2 (W2 dashboard panels):** the Grafana dashboard carries the **"Week 2 — Multimodal Evidence
   Agent"** row (ingestion rate/latency, per-worker latency p95, routing decisions, evidence-retrieval hit rate
   + latency, rerank latency p50/p95, retrieval-degradations-by-stage) **plus a "Per-encounter story" Loki panel**
@@ -255,9 +266,49 @@ telemetry" — are resolved and dropped.)*
 
 ---
 
+## 5. Base-system findings carried forward (from AUDIT.md)
+
+> **Why this section exists.** [`AUDIT.md`](AUDIT.md) is the pre-agent baseline of the OpenEMR fork, preserved
+> as a historical snapshot and never edited. Its findings must not be lost as the weekly audits move on, so
+> **each weekly implementation audit carries the base findings forward with their current status** — the role
+> the retired `AUDIT_DELTA.md` used to play, now folded in here so there is one living audit rather than a
+> separate delta doc to keep in sync. Next week's audit inherits and updates this table.
+> **Legend:** ✅ Addressed · 🟡 Partial · ➖ Still open · 🔀 Superseded.
+
+| Base finding (AUDIT.md §) | Status | Where it stands now |
+|---|---|---|
+| §1/§2.1 Dev-compose weak creds + exposed side-channels | 🔀 Superseded | Railway staging behind a reverse proxy replaced the dev compose; sidecar on the private network, public domain removed. No longer the deployment path. |
+| §2.2 No per-patient authorization | ✅ Addressed | Sidecar is patient-scoped by construction — a session binds one `PatientSessionContext`, cross-patient asks refused (FR-CHAT-3). The agent inherits no blanket "read all patients" capability. |
+| §2.3 Injection | ➖ Unchanged | Base posture holds; the sidecar adds no SQL path into OpenEMR (FHIR/REST only). |
+| §2.4 `cookie_samesite` Strict→Lax for SMART launch | 🟡 Partial | Fork default is back to `Strict`, with `Lax`/`None` used per-context for the OAuth2/SMART session. *Open:* confirm agent-forge#26 formally closed (tracked as sidecar #63). |
+| §2.5 Crypto keys on the same volume as data | ➖ **Still open** | Production KMS/secret-store still needed; sidecar secrets are env/Options, no secrets in source. |
+| §3.1–3.3 Perf (no cache/replica/FT index; retrieval off the primary DB) | ✅ Followed | Retrieval + embeddings live in the sidecar's own Postgres (pgvector + HNSW), not OpenEMR's MySQL — exactly the §3.2 recommendation. Latency is LLM-dominated as predicted. |
+| §4.4 Separate OAuth2 FHIR client + custom module | ✅ Followed | Sidecar consumes SMART/OAuth FHIR under a scoped token; the UI ships as the `oe-module-agentforge` custom module. |
+| §5.1 Fragmented meds (two-table model) | 🟡 Partial | Agent reads FHIR `MedicationRequest`/`MedicationDispense`; the legacy `lists[type=medication]` source is not separately read. The schema fragmentation itself is unchanged. |
+| §5.2 Empty demo DB | ✅ Addressed | 7 synthetic cardiology patients seeded with problems/allergies/meds/encounters/labs (`seed_cardiology_demo.php`). *Not re-measured:* a fresh live staging row-count. |
+| §5.3 Failure modes (single-source meds, free-text-as-coded, null DOB, orphans) | 🟡 Mitigated | Source-attribution gate + critic/verifier target these; they remain verification problems by design, not eliminated. |
+| §6.1 Audit config-gated; base won't auto-log a service account's reads | ✅ Addressed | `AuditingMcpToolServer` + `AccessAuditLog` record clinician + patient + tool + correlation id on every tool call; the agent reads under the clinician's own SMART token, so OpenEMR's native audit attributes the reads too. |
+| §6.2 No automated retention/purge | ➖ **Still open** | HIPAA retention schedule undefined; out of the agent build's scope. |
+| §6.3 No breach detection/notification | ➖ **Still open** | The sidecar has an alerting surface, but no breach-notification workflow. |
+| §6.4 BAA / PHI-to-LLM disclosure discipline | ✅ Addressed (architecture) | Correlation id per call; no PHI in general logs (CI `no_phi_in_logs`); minimum-necessary field selection; access-audit stream kept distinct; TLS in transit; demo-data-only holds. |
+
+**Still open from the base system (unchanged, carried forward):** crypto keys on the same volume (§2.5),
+automated audit retention/purge (§6.2), breach detection/notification (§6.3), schema-level data fragmentation
+(§5.1), and base safety toggles remaining opt-out (§2.1/§6.1). These are base-EHR policy/infra gaps the agent
+build never claimed to fix; the agent's own always-on audit choke point backstops, but does not replace, the
+base toggles.
+
+---
+
 *Re-audit reflects `develop` as of 2026-07-17 (supersedes 2026-07-16, which superseded 2026-07-15). Status is
 from code inspection, plus **live verification on staging** for FR-CITE-2 (which is how three defects behind a
-code-inspection ✅ were found — see §2.4). "Not fully traced" items need a short confirmation pass. Related:
+code-inspection ✅ were found — see §2.4). **Independently re-verified 2026-07-17 (post-early-submission):**
+FR-RAG (all four stages — dense pgvector(1536)+HNSW, sparse FTS, RRF, Cohere rerank — live and DI-wired from
+both `/evidence/ask` and the chat `retrieve_evidence` tool, not orphaned), FR-OBS-W2-1 (seven-signal line
+confirmed; two coverage caveats added to §2.6), NFR-TRACE (no graph spans; tracer console-only — the one OTLP
+exporter belongs to the logs→Loki pipeline, not traces), and the NFR-API/HEALTH/SEC "declared-but-thin" gaps
+all confirmed against code — **no finding changed**. "Not fully traced" items need a short confirmation pass.
+Related:
 saga #71. Closed since the 2026-07-16 pass — #135 (FR-OBS-W2-1 per-encounter telemetry), #128 (Binary scope +
 reproducible client registration), #130/#136 (click-to-source boxes), #131/#132 (citation UX + prompt), #126
 (brief latency), #127 (CI deploy false-fail). Earlier: #82 (FR-RAG), #96/#109 (FR-CITE-2), #85/#57 + W2 metrics
