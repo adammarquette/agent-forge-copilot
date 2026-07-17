@@ -90,8 +90,8 @@ no browser caller — is blocked at the proxy:
 | [`documentation/`](documentation/) | All specs & design docs (the substance today — see index below) |
 | `GauntletAI.AgentForge.slnx` | Solution file (repo root) |
 | `src/` | Production projects (`GauntletAI.AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
-| `tests/` | Two test projects: `…UnitTests` (mocked) and `…IntegrationTests` (real deps in QA) |
-| `reverse-proxy/` | Nginx front-door container/config for the same-origin reverse-proxy rearchitecture (issue #62, agent-forge#22) — CI lives inline in `.gitlab/ci/`; deploy/verify stay manual and gated until that Railway environment exists; see its own README |
+| `tests/` | Four test projects: `…UnitTests` (mocked), `…IntegrationTests` (real deps in QA), `…EvalTests` (deterministic rubric checks), and `…Evals` (golden-set eval runner; cases in top-level `evals/`) |
+| `reverse-proxy/` | Nginx front-door container/config for the same-origin reverse-proxy front door (issue #62, closed; agent-forge#22) — deployed on staging as `agent-forge-reverse-proxy` (the live-demo front door above); CI lives inline in `.gitlab/ci/`; see its own README |
 | `AGENTS.md` · `src/AGENTS.md` · `tests/AGENTS.md` | Instructions for AI coding agents (root + per-role) |
 | `CLAUDE.md` (each level) | One-line shims so Claude Code honors the same `AGENTS.md` rules |
 
@@ -187,6 +187,12 @@ dotnet test tests/GauntletAI.AgentForge.UnitTests
 
 # Integration tests — run against real OpenEMR/MySQL in the QA environment (see ENGINEERING_STANDARDS.md §8.2)
 dotnet test tests/GauntletAI.AgentForge.IntegrationTests
+
+# Eval rubric checks — deterministic, offline (xUnit)
+dotnet test tests/GauntletAI.AgentForge.EvalTests
+
+# Golden-set eval gate — 50 cases in evals/, boolean rubrics; fails on regression (see W2_ARCHITECTURE.md §8)
+dotnet run --project tests/GauntletAI.AgentForge.Evals -- evals
 ```
 
 Configuration (OpenEMR base URL / site, OAuth client, LLM keys) is supplied via the **Options pattern** —
