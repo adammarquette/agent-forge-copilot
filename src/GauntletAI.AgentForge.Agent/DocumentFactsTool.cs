@@ -48,7 +48,8 @@ public sealed class DocumentFactsTool(
                 fact.FactType,
                 value,
                 documentId,
-                fact.Citation.PageOrSection));
+                fact.Citation.PageOrSection,
+                fact.ExtractionConfidence));
         }
 
         return new DocumentFactsResult(records);
