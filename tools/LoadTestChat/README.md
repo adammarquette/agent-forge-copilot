@@ -39,14 +39,31 @@ money** (PRD.md explicitly expects and asks for the actual dollar figure to be r
 `agentforge_llm_cost_usd_total` metric). Start with a short, low-concurrency dry run to confirm the harness
 actually works before running the full 10/50-concurrent-user pass.
 
+### Measuring the Week-2 evidence flow
+
+Set `LoadTest__Question` to a guideline/evidence question and every call becomes an `AskFollowUp` turn that
+drives the hybrid-RAG `retrieve_evidence` path (Core Req 3) instead of the Week-1 brief. Both flows share the
+same client-side round-trip measurement, so the two runs are directly comparable — the vs-Week-1 baseline the
+cost/latency report needs. reference: gitlab#86
+
+```bash
+LoadTest__LoginUsername=cardio1 LoadTest__LoginPassword='<demo password>' \
+LoadTest__Question="What do the current cardiology guidelines recommend for this patient's LDL target given their ASCVD risk?" \
+LoadTest__ConcurrencyLevels="10,50" LoadTest__DurationSeconds="60" \
+dotnet run --project tools/LoadTestChat
+```
+
 ### Environment variables
 
 | Variable | Purpose |
 |---|---|
-| `LoadTest__SessionCookies` | **Required.** `;`-separated `Name=Value` session cookies from real browser logins |
+| `LoadTest__SessionCookies` | **Required unless the login vars below are set.** `;`-separated `Name=Value` session cookies from real browser logins |
 | `LoadTest__BaseUrl` | Deployed base URL (defaults to the staging Railway instance) |
 | `LoadTest__ConcurrencyLevels` | `,`-separated concurrency levels to run in sequence (default `10`) |
 | `LoadTest__DurationSeconds` | How long to hammer each concurrency level, in seconds (default `15`) |
+| `LoadTest__Question` | If set, every call is an `AskFollowUp(question)` **evidence turn** (Week-2 hybrid-RAG path, Core Req 3) instead of a `RequestBrief` brief (Week-1). Use a guideline/evidence question so the agent invokes `retrieve_evidence`. |
+| `LoadTest__LoginUsername` / `LoadTest__LoginPassword` | Alternative to `LoadTest__SessionCookies`: auto-bootstrap real sessions via Playwright (a genuine `/launch` SMART login). |
+| `LoadTest__PatientIds` | `,`-separated patient ids for the Playwright bootstrap - one distinct session per id. |
 
 ## Output
 

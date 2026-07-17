@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 
 namespace GauntletAI.AgentForge.LoadTestChat;
 
-/// <summary>Outcome of a single real chat-turn call (<c>RequestBrief</c>).</summary>
+/// <summary>Outcome of a single real turn call (<c>RequestBrief</c> or <c>POST /evidence/ask</c>).</summary>
 public sealed record CallResult(bool Success, double LatencyMs, string? Error);
 
 /// <summary>Aggregated results for one concurrency level - Epic 12's NFR-PERF-4 deliverable shape.</summary>
@@ -44,30 +44,48 @@ public sealed record LoadTestResult(int Concurrency, TimeSpan Duration, IReadOnl
 }
 
 /// <summary>
-/// Drives concurrent, real SignalR chat turns (<c>ChatHub.RequestBrief</c>) against a real deployed
-/// AgentForge instance, multiplexing a small pool of real session cookies (obtained via a genuine
-/// browser <c>/launch</c> login - see README.md) across many concurrent connections. This is Epic
-/// 12's load-test harness (PRD.md NFR-PERF-3/4): every call is a real chat turn against real
-/// OpenEMR/LLM dependencies, nothing here is mocked or synthetic.
+/// Drives concurrent, real turns against a deployed AgentForge instance, multiplexing a small pool of real
+/// session cookies (genuine browser <c>/launch</c> logins - see README.md) across many concurrent workers.
+/// Two flows: the Week-1 pre-visit brief over SignalR (<c>ChatHub.RequestBrief</c>), and - when a question is
+/// supplied - the stateless Week-2 evidence graph over HTTP (<c>POST /evidence/ask</c>). Every call is a real
+/// turn against real OpenEMR/LLM/retrieval dependencies (PRD.md NFR-PERF-3/4); nothing here is mocked.
 /// </summary>
 public static class LoadTestRunner
 {
     public static async Task<LoadTestResult> RunAsync(
-        string baseUrl, IReadOnlyList<string> sessionCookies, int concurrency, TimeSpan duration)
+        string baseUrl, IReadOnlyList<string> sessionCookies, int concurrency, TimeSpan duration,
+        string? question = null)
     {
         var results = new ConcurrentBag<CallResult>();
         using var cts = new CancellationTokenSource(duration);
 
-        var workers = Enumerable.Range(0, concurrency)
-            .Select(i => RunWorkerAsync(baseUrl, sessionCookies[i % sessionCookies.Count], results, cts.Token))
-            .ToArray();
-
-        await Task.WhenAll(workers).ConfigureAwait(false);
+        if (question is null)
+        {
+            var workers = Enumerable.Range(0, concurrency)
+                .Select(i => RunBriefWorkerAsync(baseUrl, sessionCookies[i % sessionCookies.Count], results, cts.Token))
+                .ToArray();
+            await Task.WhenAll(workers).ConfigureAwait(false);
+        }
+        else
+        {
+            // /evidence/ask is stateless (a fresh supervisor-graph run per request, no conversation store), so
+            // many concurrent workers can safely share the small cookie pool - each request stands alone, unlike
+            // the stateful chat hub. UseCookies=false + a per-request Cookie header lets one HttpClient serve
+            // every pooled session without a shared container mixing them.
+            var askUri = $"{baseUrl.TrimEnd('/')}/evidence/ask";
+            using var handler = new HttpClientHandler { UseCookies = false };
+            using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(180) };
+            var workers = Enumerable.Range(0, concurrency)
+                .Select(i => RunEvidenceWorkerAsync(
+                    http, askUri, sessionCookies[i % sessionCookies.Count], question, results, cts.Token))
+                .ToArray();
+            await Task.WhenAll(workers).ConfigureAwait(false);
+        }
 
         return new LoadTestResult(concurrency, duration, [.. results]);
     }
 
-    private static async Task RunWorkerAsync(
+    private static async Task RunBriefWorkerAsync(
         string baseUrl, string cookie, ConcurrentBag<CallResult> results, CancellationToken cancellationToken)
     {
         var hubUri = new Uri($"{baseUrl.TrimEnd('/')}/hubs/chat");
@@ -107,6 +125,39 @@ public static class LoadTestRunner
             {
                 // TaskCanceledException derives from OperationCanceledException - this fires when the
                 // duration elapses mid-call. That's the runner's normal stop signal, not a failed call.
+                break;
+            }
+            catch (Exception ex)
+            {
+                results.Add(new CallResult(false, stopwatch.Elapsed.TotalMilliseconds, ex.Message));
+            }
+        }
+    }
+
+    private static async Task RunEvidenceWorkerAsync(
+        HttpClient http, string askUri, string cookie, string question,
+        ConcurrentBag<CallResult> results, CancellationToken cancellationToken)
+    {
+        var stopwatch = new Stopwatch();
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            stopwatch.Restart();
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Post, askUri);
+                request.Headers.Add("Cookie", cookie); // the pooled cookie is already a raw "Name=Value" header
+                request.Content = new MultipartFormDataContent { { new StringContent(question), "question" } };
+
+                using var response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                // Drain the body so the measured time covers the whole graph run, not just the response headers.
+                _ = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                results.Add(new CallResult(true, stopwatch.Elapsed.TotalMilliseconds, null));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Our own duration token fired - the runner's normal stop, not a failed call. (An HttpClient
+                // per-request timeout throws with the token NOT cancelled, so it falls through to be recorded.)
                 break;
             }
             catch (Exception ex)
