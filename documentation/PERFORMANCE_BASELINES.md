@@ -201,10 +201,13 @@ guideline snippets (~1–3k input tokens) and returns a few hundred output token
 ($2/M in, $10/M out) that is roughly **$0.006–0.010 per turn**, i.e. **~$3** for this 410-turn run, plus
 negligible Cohere embed/rerank. Treat as an estimate, not a measurement.
 
-**Recommendation:** instrument the evidence graph's LLM calls into `agentforge_llm_tokens_total` /
-`_cost_usd_total` (route the answer-composer through the same metered `ILlmProvider` path the Week-1
-orchestrator uses, or record tokens in the supervisor). Until then the Week 2 cost figure is an estimate.
-This is a concrete extension of the open NFR-TRACE-W2 gap.
+**Fixed in this change.** `EvidenceAgentSupervisor.ComposeAsync` now records the composer's usage via
+`IAgentForgeMetrics.RecordLlmUsage` (mirroring `AgentOrchestrator`), so `/evidence/ask` tokens and cost reach
+`agentforge_llm_tokens_total` / `_cost_usd_total`. The figures above are the **pre-instrumentation** run
+(metrics were blind to the evidence LLM call); the metered dollar figure replaces the estimate once this
+deploys to staging and a short pass is re-run. One smaller residual remains: the intake-extractor's
+`DocumentExtractor.CompleteAsync` — exercised only on document-upload turns, which this question-only run did
+not hit — is still unmetered.
 
 ## Methodology notes
 
