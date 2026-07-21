@@ -107,7 +107,7 @@ no browser caller — is blocked at the proxy:
 | [`W2_ARCHITECTURE.md`](documentation/W2_ARCHITECTURE.md) | **(Week 2)** Multimodal Evidence Agent — document ingestion, the supervisor/worker graph, hybrid RAG, cloud redundancy, the eval gate, and the Week 2 decision log (W2-D1..D14) |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | Stack, dependencies, coding/testing/security/logging standards |
-| [`supporting/`](documentation/supporting/) | Source requirement PDFs (Week 1 & 2) and the 5-minute architecture-defense decks (`Architecture_Defense.pptx`, `W2_Architecture_Defense.pptx`) |
+| [`supporting/`](documentation/supporting/) | The original Week 1 & 2 requirement briefs as issued (see [Origin](#origin)) and the 5-minute architecture-defense decks (`Architecture_Defense.pptx`, `W2_Architecture_Defense.pptx`) |
 
 ### Why so much cross-referencing
 
@@ -251,6 +251,19 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
   source (`src/RestControllers/AuthorizationController.php`, `SMARTAuthorizationController.php`,
   `TokenIntrospectionRestController.php`, etc. — see `INTERFACE_CONTROL.md` A's "Confirmed in fork" note) than
   to guess from HTTP responses/logs alone.
+
+---
+
+## Origin
+
+This project began as a case study issued by **Gauntlet AI**. The original requirement briefs are preserved
+unaltered in [`documentation/supporting/`](documentation/supporting/) — `PRD.md`'s FR-/NFR- IDs trace back to
+them, so they are kept as source documents rather than edited.
+
+Everything else — the architecture, the sidecar design, the implementation, and the docs in
+[`documentation/`](documentation/) — is original work. The codebase was formerly namespaced
+`GauntletAI.AgentForge.*` and hosted on a Gauntlet-run GitLab; both have been retired in favour of
+`MarqSpec.AgentForge.*` on GitHub.
 
 ---
 
