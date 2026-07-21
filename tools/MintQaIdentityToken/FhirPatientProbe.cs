@@ -1,6 +1,6 @@
 using System.Net.Http.Headers;
 
-namespace GauntletAI.AgentForge.MintQaIdentityToken;
+namespace MarqSpec.AgentForge.MintQaIdentityToken;
 
 /// <summary>
 /// Confirms whether a bearer token can read a given patient's FHIR record - the exact entitlement

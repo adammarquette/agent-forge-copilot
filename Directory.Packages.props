@@ -68,7 +68,7 @@
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.9" />
 
     <!--
-      Data tier (Week 2 - GauntletAI.AgentForge.Data): EF Core over PostgreSQL + pgvector for the
+      Data tier (Week 2 - MarqSpec.AgentForge.Data): EF Core over PostgreSQL + pgvector for the
       hybrid-RAG store and the sidecar-owned DerivedFactStore (W2_ARCHITECTURE.md §5, W2-D14).
       EF Core provider major MUST match the EF Core major (net10 -> the 10.x line); the pgvector-EF
       floor (>= 9.0.1) will NOT force it, so these are pinned to 10.x here on purpose. Pgvector packages

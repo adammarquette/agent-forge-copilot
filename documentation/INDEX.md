@@ -40,7 +40,7 @@ This file adds the missing third leg: **doc / requirement / use-case → code pr
 Layout is authoritative in [`ENGINEERING_STANDARDS.md` §9](ENGINEERING_STANDARDS.md). Each `src/` project also
 carries the finer detail; this is the family-level jump table.
 
-| Project (`src/GauntletAI.AgentForge.*`) | What it is | Implements | Specified by |
+| Project (`src/MarqSpec.AgentForge.*`) | What it is | Implements | Specified by |
 |---|---|---|---|
 | `.Api` | ASP.NET Core host: BFF (server-side token custody), SignalR hub, `/health` + `/ready` | `FR-AUTH-*`, `FR-CHAT-*`, `NFR-HEALTH-1`, `NFR-SEC-*` | `ARCHITECTURE.md` (BFF/trust), `PRD.md` |
 | `.Agent` | Orchestrator: multi-turn loop, tool chaining, prioritized synthesis | `FR-CHAT-*`, `FR-VERIF-0` (routing) | `ARCHITECTURE.md`, `USERS.md` (UC-1/2/6) |
@@ -84,17 +84,23 @@ Read `USERS.md` §4/§5 for the *why*; this is the jump from a use case to the p
 
 ---
 
-## 5. The external wiki (GitLab)
+## 5. The external wiki (issue tracker)
 
-The wiki extends beyond this folder into the GitLab tracker — issues/epics/MRs are cited as heavily as doc
+The wiki extends beyond this folder into the issue tracker — issues/epics/PRs are cited as heavily as doc
 sections because they carry the same reconstructable context (see `README.md`). Project
-**`adammarquette/agent-forge-copilot`** (id **1464**) on `labs.gauntletai.com`.
+**[`adammarquette/agent-forge-copilot`](https://github.com/adammarquette/agent-forge-copilot)** on GitHub.
 
-- **MVP v1** — parent tracking issue **#6**; Epics 1–12 merged (`main`).
-- **Week 2 — Multimodal Evidence Agent** — saga/tracking issue **#71**; see `W2_ARCHITECTURE.md`.
-- **The coupled OpenEMR fork** — [`agent-forge`](https://labs.gauntletai.com/adammarquette/agent-forge)
-  (id 1457); read its PHP source when diagnosing fork-specific auth/FHIR quirks (`README.md` §Related
-  repositories).
+> **Numbering caveat.** The project was migrated off its original GitLab tracker, and issue numbers did **not**
+> survive the move — a `#N` minted on GitLab addresses a *different* issue on GitHub (e.g. old #109 was the
+> click-to-source `Binary.read` scope; GitHub #109 is an unrelated QA-login issue). Historical `gitlab#N`
+> citations throughout the docs and code comments therefore refer to the **retired** tracker and must not be
+> read as GitHub links. The two tracking issues below are pre-migration numbers.
+
+- **MVP v1** — parent tracking issue **#6** *(legacy GitLab number)*; Epics 1–12 merged (`main`).
+- **Week 2 — Multimodal Evidence Agent** — saga/tracking issue **#71** *(legacy GitLab number)*; see
+  `W2_ARCHITECTURE.md`.
+- **The coupled OpenEMR fork** — [`agent-forge`](https://github.com/adammarquette/agent-forge); read its PHP
+  source when diagnosing fork-specific auth/FHIR quirks (`README.md` §Related repositories).
 
 > **Maintenance:** this is a navigational catalog, not storage. Update it on ingest — when a doc, `src/`
 > project, requirement family, or use case is added or renamed, add/fix the row here so the jump stays live.

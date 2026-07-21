@@ -31,7 +31,7 @@ the old `development` names.
 flowchart TB
     dev["Developer"]
 
-    subgraph GL["GitLab CI &mdash; labs.gauntletai.com"]
+    subgraph CI["CI pipeline"]
         direction LR
         lint["lint"] --> build["build"] --> test["test"] --> deploy["deploy (auto on main)"] --> verify["verify (post-deploy smoke test)"]
         itest["integration-tests<br/>BFF runs in-process on runner"]
@@ -201,7 +201,7 @@ signal if it never comes up, rather than failing the whole suite on login timeou
     cross-identity scope tests
   - `OpenEmrQa__TestAccessToken` — deliberately unset; when absent,
     `OpenEmrQaFixture` mints it itself via a Playwright login fallback (see
-    `tests/GauntletAI.AgentForge.IntegrationTests/Support/OpenEmrQaFixture.cs`)
+    `tests/MarqSpec.AgentForge.IntegrationTests/Support/OpenEmrQaFixture.cs`)
   - `OpenEmrQa__System__ClientId`, `OpenEmrQa__System__PrivateKeyPath` (**File**
     type), `OpenEmrQa__System__KeyId`, `OpenEmrQa__System__Scope` — see below
   - `LlmQa__ApiKey`, `LlmQa__Model` = real Anthropic key + model for test runs

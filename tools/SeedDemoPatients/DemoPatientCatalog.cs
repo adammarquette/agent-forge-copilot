@@ -1,4 +1,4 @@
-namespace GauntletAI.AgentForge.SeedDemoPatients;
+namespace MarqSpec.AgentForge.SeedDemoPatients;
 
 /// <summary>A synthetic demo patient's demographics (GitLab issue #26 follow-up).</summary>
 public sealed record DemoPatient(string GivenName, string FamilyName, string BirthDate, string Gender);

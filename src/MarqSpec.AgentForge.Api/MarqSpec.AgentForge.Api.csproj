@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <!-- Force the patched Microsoft.OpenApi (2.7.5) over the vulnerable 2.0.0 that
+         Microsoft.AspNetCore.OpenApi pulls transitively - see Directory.Packages.props (NU1903). -->
+    <PackageReference Include="Microsoft.OpenApi" />
+    <PackageReference Include="Refit.HttpClientFactory" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Process" />
+    <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MarqSpec.AgentForge.Integration.OpenEmr\MarqSpec.AgentForge.Integration.OpenEmr.csproj" />
+    <ProjectReference Include="..\MarqSpec.AgentForge.Llm\MarqSpec.AgentForge.Llm.csproj" />
+    <ProjectReference Include="..\MarqSpec.AgentForge.Mcp\MarqSpec.AgentForge.Mcp.csproj" />
+    <ProjectReference Include="..\MarqSpec.AgentForge.Agent\MarqSpec.AgentForge.Agent.csproj" />
+    <!-- Week 2 multimodal evidence agent -->
+    <ProjectReference Include="..\MarqSpec.AgentForge.Agents\MarqSpec.AgentForge.Agents.csproj" />
+    <ProjectReference Include="..\MarqSpec.AgentForge.Data\MarqSpec.AgentForge.Data.csproj" />
+    <ProjectReference Include="..\MarqSpec.AgentForge.Documents\MarqSpec.AgentForge.Documents.csproj" />
+    <ProjectReference Include="..\MarqSpec.AgentForge.Retrieval\MarqSpec.AgentForge.Retrieval.csproj" />
+  </ItemGroup>
+
+</Project>

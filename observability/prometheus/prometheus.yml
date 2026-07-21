@@ -1,6 +1,6 @@
 # Scrape config for the AgentForge sidecar's own OTel Prometheus exporter (/metrics, wired in
 # Program.cs). Default target is the sidecar running locally via `dotnet run`
-# (src/GauntletAI.AgentForge.Api/Properties/launchSettings.json's fixed HTTP port, 5113). Pointing
+# (src/MarqSpec.AgentForge.Api/Properties/launchSettings.json's fixed HTTP port, 5113). Pointing
 # this at a deployed instance instead - e.g. Railway - is a one-line edit to the target below.
 global:
   scrape_interval: 15s

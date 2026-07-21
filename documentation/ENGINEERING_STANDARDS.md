@@ -196,7 +196,7 @@ Rules that make this checkable:
   the expected external contract up front — but the strict test-first gate is enforced on unit tests.
 - **When a bug is found, reproduce it with a failing test first,** then fix (regression-first).
 
-### 8.1 Unit tests — `GauntletAI.AgentForge.UnitTests`
+### 8.1 Unit tests — `MarqSpec.AgentForge.UnitTests`
 - **Fully mocked.** **FakeItEasy** fakes *every* external dependency — `IOpenEmrFhirApi`, `ILlmProvider`,
   clock, config, etc. **No network, no database, no file I/O.** The unit tier tests **expectations and behavior
   in isolation**, deterministically.
@@ -220,7 +220,7 @@ public async Task GetLabs_WhenFhirReturns500_RetriesThenDegrades()
 }
 ```
 
-### 8.2 Integration tests — `GauntletAI.AgentForge.IntegrationTests`
+### 8.2 Integration tests — `MarqSpec.AgentForge.IntegrationTests`
 - **Run against real external dependencies** — a deployed **OpenEMR** (FHIR / OAuth / SMART), **MySQL**, and any
   other real service — in the **QA testing environment** (not a developer laptop, not mocks).
 - **Nothing under test is mocked** — that is the point of this tier. These exercise the real **Refit** clients,
@@ -236,30 +236,30 @@ public async Task GetLabs_WhenFhirReturns500_RetriesThenDegrades()
 
 ## 9. Solution Layout
 
-**Base namespace / assembly prefix: `GauntletAI.AgentForge`.** The **solution sits at the repo root**
-(`GauntletAI.AgentForge.slnx`) with `src/` and `tests/` as siblings — the conventional .NET layout. **Exactly
+**Base namespace / assembly prefix: `MarqSpec.AgentForge`.** The **solution sits at the repo root**
+(`MarqSpec.AgentForge.slnx`) with `src/` and `tests/` as siblings — the conventional .NET layout. **Exactly
 two test projects** — one unit, one integration (§8).
 
 ```
-GauntletAI.AgentForge.slnx                   // solution (repo root)
+MarqSpec.AgentForge.slnx                   // solution (repo root)
 src/
-  GauntletAI.AgentForge.Api/                 // ASP.NET Core host: BFF, SignalR hub, /health + /ready
-  GauntletAI.AgentForge.Agent/               // orchestrator: multi-turn loop, tool chaining
-  GauntletAI.AgentForge.Mcp/                 // MCP tool server: contracts, audit log, read-only FHIR tools
-  GauntletAI.AgentForge.Verification/        // source attribution + cardiology domain-constraint rules
-  GauntletAI.AgentForge.Integration.OpenEmr/ // Refit clients, OAuth/SMART, FHIR mappers (see ICD)
-  GauntletAI.AgentForge.Llm/                 // ILlmProvider abstraction + one implementation
-  GauntletAI.AgentForge.Observability/       // OTel activity source + metrics (FR-OBS-2/3)
-  GauntletAI.AgentForge.Data/                // (Week 2) EF Core + pgvector: entities, DbContext, migrations
+  MarqSpec.AgentForge.Api/                 // ASP.NET Core host: BFF, SignalR hub, /health + /ready
+  MarqSpec.AgentForge.Agent/               // orchestrator: multi-turn loop, tool chaining
+  MarqSpec.AgentForge.Mcp/                 // MCP tool server: contracts, audit log, read-only FHIR tools
+  MarqSpec.AgentForge.Verification/        // source attribution + cardiology domain-constraint rules
+  MarqSpec.AgentForge.Integration.OpenEmr/ // Refit clients, OAuth/SMART, FHIR mappers (see ICD)
+  MarqSpec.AgentForge.Llm/                 // ILlmProvider abstraction + one implementation
+  MarqSpec.AgentForge.Observability/       // OTel activity source + metrics (FR-OBS-2/3)
+  MarqSpec.AgentForge.Data/                // (Week 2) EF Core + pgvector: entities, DbContext, migrations
                                              //   for the hybrid-RAG corpus + DerivedFactStore (W2_ARCHITECTURE.md §5, W2-D14)
 tests/
-  GauntletAI.AgentForge.UnitTests/           // §8.1 — fully mocked (FakeItEasy); expectations only; no I/O
-  GauntletAI.AgentForge.IntegrationTests/    // §8.2 — real OpenEMR/MySQL in the QA environment; synthetic data only
+  MarqSpec.AgentForge.UnitTests/           // §8.1 — fully mocked (FakeItEasy); expectations only; no I/O
+  MarqSpec.AgentForge.IntegrationTests/    // §8.2 — real OpenEMR/MySQL in the QA environment; synthetic data only
 ```
 
 Notes:
-- The MCP tool server is its own project (`GauntletAI.AgentForge.Mcp`), consumed by the host
-  (`GauntletAI.AgentForge.Api`). (Name the host as you prefer — `.Api` is the placeholder; the earlier
+- The MCP tool server is its own project (`MarqSpec.AgentForge.Mcp`), consumed by the host
+  (`MarqSpec.AgentForge.Api`). (Name the host as you prefer — `.Api` is the placeholder; the earlier
   `.Copilot` template project is removed.)
 - The two test projects stay fixed regardless of how many `src/` projects exist — unit tests reference the
   projects they fake; integration tests reference the host.

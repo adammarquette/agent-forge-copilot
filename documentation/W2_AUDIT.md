@@ -89,12 +89,12 @@ polish, most of it "Should"-tier:
   Observation write-back — matches the E2 pivot. ✅
 - **FR-DOC-4/5 (required fields + confidence):** extraction schemas carry the required fields and per-fact
   citations; `DerivedFact.ExtractionConfidence` is a real `double?`
-  ([DerivedFact.cs:29](../src/GauntletAI.AgentForge.Data/Entities/DerivedFact.cs)). The 2026-07-16 "*confirm the
+  ([DerivedFact.cs:29](../src/MarqSpec.AgentForge.Data/Entities/DerivedFact.cs)). The 2026-07-16 "*confirm the
   extractor actually populates it*" caveat has been **checked and closed**: it did **not** — the column was
   always null in practice — and it now **is** populated. `DerivedFactMapper` sets it at all four fact sites via
   `ConfidenceFrom(citation)`: **1.0** when the extractor located the exact quote in the source PDF (a resolved
   bounding box), **0.5** when only page-level
-  ([DerivedFactMapper.cs:109](../src/GauntletAI.AgentForge.Agents/Ingestion/DerivedFactMapper.cs)). Note this is
+  ([DerivedFactMapper.cs:109](../src/MarqSpec.AgentForge.Agents/Ingestion/DerivedFactMapper.cs)). Note this is
   a *grounding/locatability* confidence, not a model-reported one — the extraction schema does not ask the model
   for a confidence value. ✅
 
@@ -105,14 +105,14 @@ polish, most of it "Should"-tier:
   and a **sparse** half (`FtsEvidenceRetriever`, Postgres FTS) via **`ReciprocalRankFusion`**, then applies a
   **cross-encoder rerank** (`CohereReranker`, rerank-v3.5) with embeddings from `CohereEmbeddingProvider`
   (embed-v4). On any stage failure it degrades deterministically and continues — recorded via
-  `RecordRetrievalDegradation(stage)` ([HybridEvidenceRetriever.cs](../src/GauntletAI.AgentForge.Retrieval/HybridEvidenceRetriever.cs)).
+  `RecordRetrievalDegradation(stage)` ([HybridEvidenceRetriever.cs](../src/MarqSpec.AgentForge.Retrieval/HybridEvidenceRetriever.cs)).
   ✅
 - **FR-RAG-3 (evidence vs record facts):** `CitationSourceType` separates `guideline` from `fhir`/`derived`. ✅
 
 ### 2.3 FR-GRAPH — Supervisor + workers — ✅ Met
 - `EvidenceAgentSupervisor` routes over typed state through **four** workers —
   `intake-extractor → evidence-retriever → answer-composer → critic` — logging **and metering** every handoff
-  (`RecordRoutingDecision`) ([EvidenceAgentSupervisor.cs](../src/GauntletAI.AgentForge.Agents/EvidenceAgentSupervisor.cs)).
+  (`RecordRoutingDecision`) ([EvidenceAgentSupervisor.cs](../src/MarqSpec.AgentForge.Agents/EvidenceAgentSupervisor.cs)).
   Contract-tested (`EvidenceAgentSupervisorTests`). ✅
 - **FR-GRAPH-3 (critic gate):** the critic **is** the Week 1 `IClinicalResponseVerifier`, reused as a node; it
   suppresses uncited claims and surfaces domain-constraint flags. `BuildToolResults` projects lab, derived, and
@@ -162,7 +162,7 @@ polish, most of it "Should"-tier:
     input/output tokens, cost, retrieval hits (from `retrieve_evidence` results), extraction confidence (from
     `get_document_facts`), and the **eval outcome** = the runtime verification result (passed + suppressed
     claims). No PHI: tool names and numbers only; the correlation id (not a patient id) is the encounter key
-    ([AgentOrchestratorLog.cs](../src/GauntletAI.AgentForge.Agent/AgentOrchestratorLog.cs)).
+    ([AgentOrchestratorLog.cs](../src/MarqSpec.AgentForge.Agent/AgentOrchestratorLog.cs)).
     <br>*Interpretation note:* the golden-set **eval is a CI-only offline gate**, so the per-encounter runtime
     analog of "eval outcome" is the verification/grounding gate — confirmed with the product owner.
 - **FR-OBS-W2-2 (W2 dashboard panels):** the Grafana dashboard carries the **"Week 2 — Multimodal Evidence
@@ -182,7 +182,7 @@ polish, most of it "Should"-tier:
   **Newly confirmed (closing the 2026-07-16 "confirm the OTel tracer exports" question): it does not.**
   `WithTracing(...)` is wired to **`AddConsoleExporter()` only** — there is no OTLP trace exporter and no traces
   backend (the stack is Prometheus + Loki; no Tempo)
-  ([Program.cs](../src/GauntletAI.AgentForge.Api/Program.cs)). So even the spans that *are* opened go to stdout
+  ([Program.cs](../src/MarqSpec.AgentForge.Api/Program.cs)). So even the spans that *are* opened go to stdout
   and are never collected or queryable.
   <br>**What this no longer blocks:** "reconstruct one encounter" is now answered by the per-encounter
   `encounter.telemetry` line + its Grafana panel (FR-OBS-W2-1 ✅). The residual gap is the **span waterfall** —
@@ -195,7 +195,7 @@ polish, most of it "Should"-tier:
   control, but note it's not a runtime alert. No explicit ingestion/retrieval-latency SLO alert yet.
 - **NFR-HEALTH-W2 — 🟡** `/ready` aggregates `OpenEmrHealthCheck`, `LlmProviderHealthCheck`,
   `ObservabilityHealthCheck` (degraded-aware) — but **still no vector-index (Postgres/pgvector) readiness
-  check** ([Program.cs:241](../src/GauntletAI.AgentForge.Api/Program.cs)). The reranker has no check but degrades
+  check** ([Program.cs:241](../src/MarqSpec.AgentForge.Api/Program.cs)). The reranker has no check but degrades
   gracefully, so its absence is non-fatal.
 - **NFR-CI-W2 — ✅** evals gate + deterministic rubric theories in the pipeline. *Not fully traced:*
   dependency-audit + security-scan on every PR (confirm present in CI).

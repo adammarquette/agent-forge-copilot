@@ -1,4 +1,4 @@
-using GauntletAI.AgentForge.SeedDemoPatients;
+using MarqSpec.AgentForge.SeedDemoPatients;
 
 var baseUrl = Environment.GetEnvironmentVariable("SeedDemo__BaseUrl") ?? "https://openemr-staging-25fc.up.railway.app";
 var site = Environment.GetEnvironmentVariable("SeedDemo__Site") ?? "default";

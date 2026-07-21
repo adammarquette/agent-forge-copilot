@@ -1,4 +1,4 @@
-namespace GauntletAI.AgentForge.SeedDemoPatients;
+namespace MarqSpec.AgentForge.SeedDemoPatients;
 
 /// <summary>One patient's seeding outcome - success (with identifiers) or failure (with the reason).</summary>
 public sealed record SeedOutcome(DemoPatient Patient, CreatedPatient? Created, string? Error);

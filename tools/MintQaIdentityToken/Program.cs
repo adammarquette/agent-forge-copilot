@@ -1,5 +1,5 @@
-using GauntletAI.AgentForge.Integration.OpenEmr.Auth;
-using GauntletAI.AgentForge.MintQaIdentityToken;
+using MarqSpec.AgentForge.Integration.OpenEmr.Auth;
+using MarqSpec.AgentForge.MintQaIdentityToken;
 using Refit;
 
 var baseUrl = Environment.GetEnvironmentVariable("MintToken__BaseUrl") ?? "https://openemr-staging-25fc.up.railway.app";
