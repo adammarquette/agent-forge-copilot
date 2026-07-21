@@ -1,0 +1,283 @@
+# -----------------------------------------------------------------------------
+# CI — lint, build, test, evals. Ported from the retired GitLab pipeline
+# (.gitlab/ci/{lint,build,test,evals}.yml); see documentation/CI-SETUP.md.
+#
+# This is the CI half only. The deploy/verify half (Railway deploys, post-deploy
+# smoke tests, integration tests) is a separate follow-up: it needs ~18 repository
+# secrets that do not exist yet, and it touches live infrastructure. Everything
+# here runs with NO secrets at all.
+#
+# Three things changed shape in the port rather than being copied across:
+#
+#  1. No merge-with-target preamble. The GitLab pipeline ran a `git fetch` +
+#     `git merge` of the MR target branch in a global before_script so that a
+#     pipeline tested "your changes + current target", not a stale snapshot.
+#     Actions gives this for free: a `pull_request` run checks out the MERGE
+#     COMMIT (refs/pull/N/merge), and GitHub blocks the PR outright when that
+#     merge is conflicted. The preamble - and the GIT_DEPTH tuning that existed
+#     only to make its merge-base lookup work - is gone.
+#
+#  2. No cross-job build artifact. GitLab passed **/bin/ + **/obj/ from `build`
+#     to the test jobs so they could use --no-build. That artifact could not
+#     carry the NuGet global packages cache (it lives outside the checkout),
+#     which is the root cause of the false-green in legacy issue #21 and forced a
+#     `dotnet restore` before every --no-build test anyway. It also dragged in
+#     ~100MB Playwright driver copies that had to be excluded by hand to stay
+#     under the artifact size limit. Uploading tens of thousands of small files
+#     through Actions' artifact API is slow and loses the executable bit, so each
+#     job restores and builds in its own container instead, with the NuGet cache
+#     shared via actions/cache. That deletes the whole bug class.
+#
+#  3. No native JUnit report. GitLab rendered `reports: junit` inline in the MR.
+#     Actions has no equivalent, so .github/scripts/verify-test-results.sh writes
+#     the counts to the job summary and the raw XML is uploaded as an artifact.
+#     Deliberately not a third-party reporter action - that would be a supply-chain
+#     dependency on every CI run for cosmetics.
+# -----------------------------------------------------------------------------
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# = GitLab's `interruptible: true`. Superseded runs on the same ref are cancelled;
+# main is excluded so a merge always produces a complete, attributable run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  SOLUTION: MarqSpec.AgentForge.slnx
+  BUILD_CONFIG: Release
+  UNIT_TEST_PATTERN: "*UnitTests.csproj"
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # LINT — style/format gate + third-party license gate
+  # (ENGINEERING_STANDARDS.md §10). Runs alongside build so a style or license
+  # violation surfaces without waiting on the test matrix.
+  # ---------------------------------------------------------------------------
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/dotnet/sdk:10.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: dotnet format --verify-no-changes
+        run: dotnet format "$SOLUTION" --verify-no-changes
+
+  # Fails the run if any dependency (direct or transitive) resolves to a license outside
+  # .github/licenses/allowed-licenses.json - catches a restrictive-license bump before it
+  # merges (ENGINEERING_STANDARDS.md §2, the FluentAssertions v8 commercial-license note).
+  #
+  # --use-project-assets-json reads the resolved project.assets.json. Central Package
+  # Management leaves PackageReference elements without a Version attribute, which the tool
+  # cannot resolve from the csproj alone, so this restores first to populate it.
+  #
+  # license-packages-filter.json narrowly exempts xunit.abstractions: it is genuinely
+  # Apache-2.0 (same as the rest of the xunit project) but its NuGet package metadata has no
+  # machine-readable license tag, only a LicenseUrl - a known metadata gap, not a license
+  # risk. Extend that file only for the same kind of verified false positive.
+  license-scan:
+    name: license-scan
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/dotnet/sdk:10.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Restore (populates project.assets.json for the scanner)
+        run: dotnet restore "$SOLUTION"
+      - name: Scan licenses
+        env:
+          DOTNET_ROLL_FORWARD: LatestMajor
+        run: |
+          dotnet tool install --global dotnet-project-licenses
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          dotnet-project-licenses -i . --use-project-assets-json -t \
+            --allowed-license-types .github/licenses/allowed-licenses.json \
+            --packages-filter .github/licenses/license-packages-filter.json \
+            --json --outfile licenses-report.json -l Warning
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: licenses-report
+          path: licenses-report.json
+          retention-days: 7
+
+  # Validates reverse-proxy/nginx.conf.template's syntax without needing real upstream hosts
+  # or a deployed environment. `nginx -t` only checks the RENDERED config, so the template's
+  # ${VAR} placeholders are substituted with placeholders first (envsubst, the same mechanism
+  # nginx's docker-entrypoint uses at container start) - this never needs the real Railway
+  # upstream hostnames, and needs no secrets.
+  #
+  # Runs nginx via `docker run` rather than as a job `container:`. nginx:1.27-alpine is
+  # musl-based, and Actions injects its own glibc-built Node into container jobs to run
+  # JS actions like actions/checkout - which fails on musl. Checking out on the host and
+  # shelling into the image sidesteps that entirely.
+  nginx-config-lint:
+    name: nginx-config-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render template and validate
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work \
+            -e PORT=8080 \
+            -e OPENEMR_UPSTREAM=openemr.railway.internal:80 \
+            -e SIDECAR_UPSTREAM=agent-forge-api.railway.internal:8080 \
+            -e DNS_RESOLVER=127.0.0.11 \
+            nginx:1.27-alpine sh -c '
+              envsubst "\$PORT \$OPENEMR_UPSTREAM \$SIDECAR_UPSTREAM \$DNS_RESOLVER" \
+                < reverse-proxy/nginx.conf.template > /etc/nginx/conf.d/default.conf
+              nginx -t
+            '
+
+  # ---------------------------------------------------------------------------
+  # BUILD — compile gate. The test jobs below rebuild in their own containers
+  # (see header note 2), so this does not hand anything downstream; it exists so
+  # a compile error surfaces as ONE red job instead of three, and so the NuGet
+  # cache is warm by the time the test jobs start.
+  # ---------------------------------------------------------------------------
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/dotnet/sdk:10.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Restore
+        run: dotnet restore "$SOLUTION"
+      - name: Build
+        run: dotnet build "$SOLUTION" --no-restore -c "$BUILD_CONFIG"
+
+  # ---------------------------------------------------------------------------
+  # TEST — unit tests (fully mocked) and the deterministic eval rubrics.
+  #
+  # The integration suite is NOT here: it runs post-deploy against the real
+  # OpenEMR and is part of the deploy/verify half still to be ported.
+  #
+  # Results handling: every project writes into ONE shared results directory via
+  # --results-directory, and each logger uses LogFileName (relative to it) rather
+  # than LogFilePath, so the artifact glob cannot miss nested per-project
+  # TestResults locations. {assembly} keeps filenames unique across projects.
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    name: unit-tests
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/dotnet/sdk:10.0
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Run unit tests
+        run: |
+          set -e
+          projects=$(find . -type f -name "$UNIT_TEST_PATTERN" -not -path "*/bin/*" -not -path "*/obj/*")
+          if [ -z "$projects" ]; then
+            echo "No unit test projects matched '$UNIT_TEST_PATTERN'. Fix UNIT_TEST_PATTERN in .github/workflows/ci.yml."
+            exit 1
+          fi
+          for proj in $projects; do
+            echo "dotnet test $proj"
+            dotnet test "$proj" -c "$BUILD_CONFIG" \
+              --results-directory "$GITHUB_WORKSPACE/TestResults" \
+              --logger "junit;LogFileName={assembly}.junit.xml" \
+              --logger "trx;LogFileName={assembly}.trx"
+          done
+      - name: Verify tests actually ran
+        if: always()
+        run: bash .github/scripts/verify-test-results.sh TestResults
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-unit
+          path: TestResults/
+          retention-days: 7
+
+  # The DETERMINISTIC eval rubrics (schema_valid / citation_present / no_phi_in_logs) run as
+  # xUnit theory tests - one result per golden case - so an extraction/schema regression shows
+  # up as an ordinary red test. This is the hermetic half of the eval split: it never calls an
+  # LLM judge. The baseline/regression policy and the judge-bound rubrics stay in the `evals`
+  # job below. Single known project, so its path is referenced directly rather than globbed.
+  eval-tests:
+    name: eval-tests
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/dotnet/sdk:10.0
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Run eval tests
+        run: |
+          dotnet test "tests/MarqSpec.AgentForge.EvalTests/MarqSpec.AgentForge.EvalTests.csproj" \
+            -c "$BUILD_CONFIG" \
+            --results-directory "$GITHUB_WORKSPACE/TestResults" \
+            --logger "junit;LogFileName={assembly}.junit.xml" \
+            --logger "trx;LogFileName={assembly}.trx"
+      - name: Verify tests actually ran
+        if: always()
+        run: bash .github/scripts/verify-test-results.sh TestResults
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-eval
+          path: TestResults/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # EVALS — the Week 2 eval-driven HARD GATE (Core Req 6). Runs the golden-set
+  # eval (deterministic, no database, no live API) and FAILS the run when any
+  # rubric category drops below its threshold or regresses beyond the tolerance
+  # in evals/baseline.json. A red `evals` job blocks the PR - this is the
+  # PR-blocking "git hook equivalent". See evals/README.md and
+  # W2_ARCHITECTURE.md §8.
+  # ---------------------------------------------------------------------------
+  evals:
+    name: evals
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/dotnet/sdk:10.0
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Run golden-set eval gate
+        run: dotnet run --project "tests/MarqSpec.AgentForge.Evals" -c "$BUILD_CONFIG" -- evals
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: evals/results.json
+          retention-days: 7
