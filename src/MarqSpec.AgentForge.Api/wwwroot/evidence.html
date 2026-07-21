@@ -53,9 +53,8 @@
     In production, documents are ingested <em>pre-visit</em> (uploaded in OpenEMR → cron → the sidecar extracts and
     persists facts), and the clinician turn reads those persisted facts — no in-turn upload. Here the browser
     renders the PDF you upload so the overlay works without fetching the source from OpenEMR. Wiring the overlay to
-    the real flow (read persisted facts → fetch the OpenEMR <code>DocumentReference</code> Binary) is tracked in
-    <a href="https://labs.gauntletai.com/adammarquette/agent-forge-copilot/-/issues/109" target="_blank" rel="noopener">issue #109</a>
-    (blocked on #81 / #40).
+    the real flow (read persisted facts → fetch the OpenEMR <code>DocumentReference</code> Binary) is tracked as
+    follow-up work (legacy tracker issue #109, blocked on #81 / #40 — pre-migration numbers, not GitHub issues).
   </div>
   <div class="wrap">
     <div class="left">

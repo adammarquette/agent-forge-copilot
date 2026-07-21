@@ -236,7 +236,7 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 ## Related repositories
 
-- **OpenEMR fork — [`agent-forge`](https://labs.gauntletai.com/adammarquette/agent-forge)** — the audited EHR
+- **OpenEMR fork — [`agent-forge`](https://github.com/adammarquette/agent-forge)** — the audited EHR
   base + the thin custom module (`oe-module-agentforge`) that originates the SMART EHR launch of this sidecar.
   The module adds two in-EHR entry points — an **AgentForge launch button** on the patient demographics page
   and a top-nav **Daily Agenda** tab — and on click performs a SMART EHR launch of the sidecar, opening it as
@@ -254,4 +254,4 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 ---
 
-*Gauntlet AI — AgentForge Clinical Co-Pilot. Internal project; docs are living and versioned (`v0.1`).*
+*AgentForge Clinical Co-Pilot. Internal project; docs are living and versioned (`v0.1`).*

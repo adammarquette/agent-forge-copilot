@@ -1,7 +1,7 @@
 # AgentForge Clinical Co-Pilot — Product Requirements Document
 
 **Product:** AgentForge Clinical Co-Pilot for Cardiology
-**Codebase:** Fork of OpenEMR (`Gauntlet-HQ/openemr-base-clean`)
+**Codebase:** Fork of OpenEMR — see [`agent-forge`](https://github.com/adammarquette/agent-forge)
 **Target user:** Outpatient cardiologist
 **Author:** Adam Marquette
 **Status:** Draft v0.1 — foundation doc (feeds `USERS.md` and `ARCHITECTURE.md`)

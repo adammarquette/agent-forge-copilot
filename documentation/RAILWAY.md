@@ -31,7 +31,7 @@ the old `development` names.
 flowchart TB
     dev["Developer"]
 
-    subgraph GL["GitLab CI &mdash; labs.gauntletai.com"]
+    subgraph CI["CI pipeline"]
         direction LR
         lint["lint"] --> build["build"] --> test["test"] --> deploy["deploy (auto on main)"] --> verify["verify (post-deploy smoke test)"]
         itest["integration-tests<br/>BFF runs in-process on runner"]
