@@ -91,6 +91,13 @@ jobs:
   # Apache-2.0 (same as the rest of the xunit project) but its NuGet package metadata has no
   # machine-readable license tag, only a LicenseUrl - a known metadata gap, not a license
   # risk. Extend that file only for the same kind of verified false positive.
+  #
+  # The scanner is pinned via the tool manifest (.config/dotnet-tools.json), NOT installed
+  # latest-wins. An unpinned `dotnet tool install` makes this gate non-deterministic: a new
+  # upstream release can change detection behaviour or break the job with no change in this
+  # repo, and it is an unpinned dependency fetched on every run. 3.0.0-alpha is already
+  # published, so "latest stable" is one release away from a major bump. The manifest keeps
+  # CI and local runs on the same version and makes the pin reviewable in source.
   license-scan:
     name: license-scan
     runs-on: ubuntu-latest
@@ -100,17 +107,17 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj', '.config/dotnet-tools.json') }}
           restore-keys: nuget-${{ runner.os }}-
       - name: Restore (populates project.assets.json for the scanner)
         run: dotnet restore "$SOLUTION"
+      - name: Restore pinned tools
+        run: dotnet tool restore
       - name: Scan licenses
         env:
           DOTNET_ROLL_FORWARD: LatestMajor
         run: |
-          dotnet tool install --global dotnet-project-licenses
-          export PATH="$PATH:$HOME/.dotnet/tools"
-          dotnet-project-licenses -i . --use-project-assets-json -t \
+          dotnet tool run dotnet-project-licenses -- -i . --use-project-assets-json -t \
             --allowed-license-types .github/licenses/allowed-licenses.json \
             --packages-filter .github/licenses/license-packages-filter.json \
             --json --outfile licenses-report.json -l Warning
