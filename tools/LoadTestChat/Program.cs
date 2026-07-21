@@ -1,5 +1,5 @@
 using System.Globalization;
-using GauntletAI.AgentForge.LoadTestChat;
+using MarqSpec.AgentForge.LoadTestChat;
 
 var baseUrl = Environment.GetEnvironmentVariable("LoadTest__BaseUrl")
     ?? "https://agent-forge-api-staging-staging.up.railway.app";

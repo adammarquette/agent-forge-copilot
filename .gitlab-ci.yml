@@ -9,7 +9,7 @@ stages:
   - verify
 
 variables:
-  SOLUTION: "GauntletAI.AgentForge.slnx"
+  SOLUTION: "MarqSpec.AgentForge.slnx"
   BUILD_CONFIG: "Release"
   UNIT_TEST_PATTERN: "*UnitTests.csproj"
   INTEGRATION_TEST_PATTERN: "*IntegrationTests.csproj"

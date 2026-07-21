@@ -6,8 +6,8 @@ Testing Agent**. This root file holds the rules that apply everywhere.
 
 ## What this repo is
 The **.NET sidecar** for an AI clinical copilot embedded in OpenEMR for the outpatient cardiologist. It
-integrates with OpenEMR only over standard FHIR/OAuth/SMART. Base namespace: **`GauntletAI.AgentForge`**;
-solution: **`GauntletAI.AgentForge.slnx`** (repo root), with projects under `src/` and `tests/`.
+integrates with OpenEMR only over standard FHIR/OAuth/SMART. Base namespace: **`MarqSpec.AgentForge`**;
+solution: **`MarqSpec.AgentForge.slnx`** (repo root), with projects under `src/` and `tests/`.
 
 ## Source of truth (read before coding)
 **Start at `README.md`, then `documentation/INDEX.md` — the wiki's front door.** `INDEX.md` sequences the docs
@@ -49,7 +49,7 @@ these AGENTS files summarize and point to it.
 | **Integration Testing Agent** | the integration test project (real deps in QA) | `tests/AGENTS.md` |
 
 ## Build / test
-- Build: `dotnet build GauntletAI.AgentForge.slnx`
-- Unit tests (fast, mocked): `dotnet test tests/GauntletAI.AgentForge.UnitTests`
-- Integration tests (QA env, real deps): `dotnet test tests/GauntletAI.AgentForge.IntegrationTests`
+- Build: `dotnet build MarqSpec.AgentForge.slnx`
+- Unit tests (fast, mocked): `dotnet test tests/MarqSpec.AgentForge.UnitTests`
+- Integration tests (QA env, real deps): `dotnet test tests/MarqSpec.AgentForge.IntegrationTests`
 - Before opening a PR: `dotnet format --verify-no-changes` + unit tests green.

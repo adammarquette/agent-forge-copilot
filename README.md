@@ -88,8 +88,8 @@ no browser caller — is blocked at the proxy:
 | Path | What's there |
 |---|---|
 | [`documentation/`](documentation/) | All specs & design docs (the substance today — see index below) |
-| `GauntletAI.AgentForge.slnx` | Solution file (repo root) |
-| `src/` | Production projects (`GauntletAI.AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
+| `MarqSpec.AgentForge.slnx` | Solution file (repo root) |
+| `src/` | Production projects (`MarqSpec.AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
 | `tests/` | Four test projects: `…UnitTests` (mocked), `…IntegrationTests` (real deps in QA), `…EvalTests` (deterministic rubric checks), and `…Evals` (golden-set eval runner; cases in top-level `evals/`) |
 | `reverse-proxy/` | Nginx front-door container/config for the same-origin reverse-proxy front door (issue #62, closed; agent-forge#22) — deployed on staging as `agent-forge-reverse-proxy` (the live-demo front door above); CI lives inline in `.gitlab/ci/`; see its own README |
 | `AGENTS.md` · `src/AGENTS.md` · `tests/AGENTS.md` | Instructions for AI coding agents (root + per-role) |
@@ -180,19 +180,19 @@ Details and rationale: [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md). Exter
 Prerequisites: **.NET 10 SDK** (or later). Build and test from the repo root:
 
 ```bash
-dotnet build GauntletAI.AgentForge.slnx
+dotnet build MarqSpec.AgentForge.slnx
 
 # Unit tests — fully mocked, fast, no external deps
-dotnet test tests/GauntletAI.AgentForge.UnitTests
+dotnet test tests/MarqSpec.AgentForge.UnitTests
 
 # Integration tests — run against real OpenEMR/MySQL in the QA environment (see ENGINEERING_STANDARDS.md §8.2)
-dotnet test tests/GauntletAI.AgentForge.IntegrationTests
+dotnet test tests/MarqSpec.AgentForge.IntegrationTests
 
 # Eval rubric checks — deterministic, offline (xUnit)
-dotnet test tests/GauntletAI.AgentForge.EvalTests
+dotnet test tests/MarqSpec.AgentForge.EvalTests
 
 # Golden-set eval gate — 50 cases in evals/, boolean rubrics; fails on regression (see W2_ARCHITECTURE.md §8)
-dotnet run --project tests/GauntletAI.AgentForge.Evals -- evals
+dotnet run --project tests/MarqSpec.AgentForge.Evals -- evals
 ```
 
 Configuration (OpenEMR base URL / site, OAuth client, LLM keys) is supplied via the **Options pattern** —

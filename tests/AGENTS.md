@@ -1,11 +1,11 @@
 # AGENTS.md — Integration Testing Agent (`tests/`)
 
-Governs the **integration test project** `GauntletAI.AgentForge.IntegrationTests`. Inherits the root
+Governs the **integration test project** `MarqSpec.AgentForge.IntegrationTests`. Inherits the root
 `AGENTS.md`. This is a **distinct role from the Coding Agent**.
 
-> **Ownership note.** `tests/` contains two projects. `GauntletAI.AgentForge.UnitTests` is authored by the
+> **Ownership note.** `tests/` contains two projects. `MarqSpec.AgentForge.UnitTests` is authored by the
 > **Coding Agent** as part of test-first development (`src/AGENTS.md`) — do **not** duplicate or manage unit
-> tests here. This file governs **`GauntletAI.AgentForge.IntegrationTests` only**.
+> tests here. This file governs **`MarqSpec.AgentForge.IntegrationTests` only**.
 
 ## Role
 Author and run **integration tests against real external dependencies** — a deployed **OpenEMR** (FHIR / OAuth /

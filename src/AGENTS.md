@@ -2,7 +2,7 @@
 
 Governs production code in `src/`. Inherits the root `AGENTS.md`; adds the coding-specific rules below.
 This agent **writes production code and the unit tests that drive it** (unit tests live in
-`tests/GauntletAI.AgentForge.UnitTests`, but authoring them is part of *this* role — see TDD below). This agent
+`tests/MarqSpec.AgentForge.UnitTests`, but authoring them is part of *this* role — see TDD below). This agent
 does **not** write integration tests (that is the Integration Testing Agent — `tests/AGENTS.md`).
 
 ## Mandatory workflow: test-first (TDD / BDD)

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MarqSpec.AgentForge.Agents\MarqSpec.AgentForge.Agents.csproj" />
+    <ProjectReference Include="..\MarqSpec.AgentForge.Data\MarqSpec.AgentForge.Data.csproj" />
+    <ProjectReference Include="..\MarqSpec.AgentForge.Llm\MarqSpec.AgentForge.Llm.csproj" />
+    <ProjectReference Include="..\MarqSpec.AgentForge.Mcp\MarqSpec.AgentForge.Mcp.csproj" />
+    <ProjectReference Include="..\MarqSpec.AgentForge.Observability\MarqSpec.AgentForge.Observability.csproj" />
+    <ProjectReference Include="..\MarqSpec.AgentForge.Verification\MarqSpec.AgentForge.Verification.csproj" />
+  </ItemGroup>
+
+</Project>

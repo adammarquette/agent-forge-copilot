@@ -11,7 +11,7 @@ and it's optional infra: the app boots and serves traffic without any of it (see
 
 ```bash
 # 1. Start the sidecar (separately) - the fixed local dev port is 5113:
-dotnet run --project src/GauntletAI.AgentForge.Api
+dotnet run --project src/MarqSpec.AgentForge.Api
 
 # 2. Start the observability stack:
 docker compose -f observability/docker-compose.yml up

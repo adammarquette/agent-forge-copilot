@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Net;
 using Microsoft.AspNetCore.SignalR.Client;
 
-namespace GauntletAI.AgentForge.LoadTestChat;
+namespace MarqSpec.AgentForge.LoadTestChat;
 
 /// <summary>Outcome of a single real chat-turn call (<c>RequestBrief</c>).</summary>
 public sealed record CallResult(bool Success, double LatencyMs, string? Error);

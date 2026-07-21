@@ -23,11 +23,11 @@ directly usable as a single command producing pass/fail results (FR-EVAL-3).
 The sidecar must be running locally first:
 
 ```
-dotnet run --project src/GauntletAI.AgentForge.Api
+dotnet run --project src/MarqSpec.AgentForge.Api
 ```
 
 This starts it on `http://localhost:5113` (the `local` environment's `baseUrl`), matching
-`src/GauntletAI.AgentForge.Api/Properties/launchSettings.json`'s `http` profile.
+`src/MarqSpec.AgentForge.Api/Properties/launchSettings.json`'s `http` profile.
 
 ## What's covered
 
@@ -40,7 +40,7 @@ This starts it on `http://localhost:5113` (the `local` environment's `baseUrl`),
 
 The actual chat conversation (`/hubs/chat`) is a WebSocket-based SignalR protocol, not REST - a
 plain HTTP collection can prove the hub is mapped and reachable (via negotiate) but can't drive a
-real multi-message exchange the way `tests/GauntletAI.AgentForge.IntegrationTests/Api/*` already
+real multi-message exchange the way `tests/MarqSpec.AgentForge.IntegrationTests/Api/*` already
 does with a real `HubConnection`. The SMART launch's `/callback` step isn't included either: it
 requires a real, live authorization code from an actual OpenEMR login, which can't be scripted
 into a static collection request - see `documentation/AGENTS.md`'s note on the interactive SMART

@@ -2,7 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 
-namespace GauntletAI.AgentForge.SeedDemoPatients;
+namespace MarqSpec.AgentForge.SeedDemoPatients;
 
 /// <summary>Result of a successful patient create: the two identifiers OpenEMR assigns.</summary>
 public sealed record CreatedPatient(int Pid, string Uuid);

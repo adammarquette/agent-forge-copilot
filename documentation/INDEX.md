@@ -40,7 +40,7 @@ This file adds the missing third leg: **doc / requirement / use-case → code pr
 Layout is authoritative in [`ENGINEERING_STANDARDS.md` §9](ENGINEERING_STANDARDS.md). Each `src/` project also
 carries the finer detail; this is the family-level jump table.
 
-| Project (`src/GauntletAI.AgentForge.*`) | What it is | Implements | Specified by |
+| Project (`src/MarqSpec.AgentForge.*`) | What it is | Implements | Specified by |
 |---|---|---|---|
 | `.Api` | ASP.NET Core host: BFF (server-side token custody), SignalR hub, `/health` + `/ready` | `FR-AUTH-*`, `FR-CHAT-*`, `NFR-HEALTH-1`, `NFR-SEC-*` | `ARCHITECTURE.md` (BFF/trust), `PRD.md` |
 | `.Agent` | Orchestrator: multi-turn loop, tool chaining, prioritized synthesis | `FR-CHAT-*`, `FR-VERIF-0` (routing) | `ARCHITECTURE.md`, `USERS.md` (UC-1/2/6) |
