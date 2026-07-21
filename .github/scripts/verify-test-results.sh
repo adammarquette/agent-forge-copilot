@@ -31,10 +31,33 @@ if ! ls "$results_dir"/*.junit.xml >/dev/null 2>&1; then
   exit 1
 fi
 
-total_tests=$(grep -ohE 'tests="[0-9]+"' "$results_dir"/*.junit.xml | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
-total_failures=$(grep -ohE 'failures="[0-9]+"' "$results_dir"/*.junit.xml | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
-total_errors=$(grep -ohE 'errors="[0-9]+"' "$results_dir"/*.junit.xml | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
-total_skipped=$(grep -ohE 'skipped="[0-9]+"' "$results_dir"/*.junit.xml | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+# Sum one numeric JUnit attribute across every result file.
+#
+# Done in a single awk rather than `grep | grep | awk` on purpose. Under
+# `set -euo pipefail` a grep that matches ZERO times exits 1, which fails the whole
+# pipeline and aborts this script — with no output at all, because the failure happens
+# inside a command substitution. A JUnit file that simply omits an attribute (some
+# loggers drop `errors="0"`) would therefore turn a perfectly good run into a red job
+# carrying no diagnostic: the exact misleading-CI-signal failure mode this guard exists
+# to prevent. awk has no such behaviour — an attribute that never matches leaves the
+# running total at 0, which is the intended reading, and lets a genuinely empty run flow
+# into the explicit total_tests check below instead of dying before it.
+sum_attr() {
+  awk -v attr="$1" '
+    {
+      while (match($0, attr "=\"[0-9]+\"")) {
+        s += substr($0, RSTART + length(attr) + 2, RLENGTH - length(attr) - 3)
+        $0 = substr($0, RSTART + RLENGTH)
+      }
+    }
+    END { print s + 0 }
+  ' "$results_dir"/*.junit.xml
+}
+
+total_tests=$(sum_attr tests)
+total_failures=$(sum_attr failures)
+total_errors=$(sum_attr errors)
+total_skipped=$(sum_attr skipped)
 
 if [ "$total_tests" -eq 0 ]; then
   echo "Test result files exist but report zero tests executed (legacy issue #21). Failing rather than reporting a false green."
