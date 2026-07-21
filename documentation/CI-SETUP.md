@@ -36,10 +36,24 @@ required.
 | `eval-tests` | test | deterministic eval rubrics as xUnit theories |
 | `evals` | test | golden-set **hard gate** (Core Req 6) |
 
-Triggers are `pull_request` (any branch) and `push` to `main`, matching the old
-GitLab `workflow.rules`. Concurrency cancels superseded runs on the same ref
-(the old `interruptible: true`), except on `main`, so every merge produces one
+Triggers are `pull_request` (any branch) and `push` to **`main` and `develop`**.
+Concurrency cancels superseded runs on the same ref (the old `interruptible:
+true`), except on those two integration branches, so every merge produces one
 complete attributable run.
+
+Both integration branches are in the push list because each is protected (§2) and
+the commit that actually lands there needs verifying on its own. A PR run tests
+the *merge preview*; with squash merges enabled, the commit that lands is a new
+object that never existed when the PR ran, so "require branches to be up to date"
+does not cover it. It also means a direct push to a protected branch can acquire
+the required checks instead of being permanently unmergeable.
+
+> This is an explicit list, **not** a catch-all. The GitLab pipeline deliberately
+> had no bare `$CI_COMMIT_BRANCH` rule (legacy issue #40): every branch here gets a
+> PR right after its first push, so a catch-all tested the same commits twice —
+> once on the raw branch ref, once on the MR pipeline. Naming only the integration
+> branches keeps that fixed; feature branches run via `pull_request` alone. Don't
+> widen it.
 
 The three lint jobs and `build` run in parallel; the three test jobs depend on
 `build` so a compile error surfaces as one red job rather than four.

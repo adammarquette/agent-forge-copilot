@@ -37,16 +37,28 @@
 
 name: CI
 
+# `develop` is listed alongside `main` because it is the sole integration branch and is
+# protected: without a push trigger the commit that actually lands on `develop` is never
+# verified on its own. A PR run tests the merge preview, but this repo allows SQUASH merges,
+# and a squashed commit is a new object that never existed when the PR ran - "require branches
+# to be up to date" does not close that gap. It also means a direct push to a protected
+# `develop` could never acquire the required checks at all.
+#
+# Note this is an explicit branch LIST, not a catch-all. The retired GitLab pipeline
+# deliberately had no bare `$CI_COMMIT_BRANCH` rule (legacy issue #40): every branch here gets
+# a PR opened right after its first push, so a catch-all ran the same commits twice - once on
+# the raw branch ref, once on the MR pipeline. Naming only the integration branches keeps that
+# fixed: feature branches still run via `pull_request` alone. Do not widen this to all branches.
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, develop]
 
-# = GitLab's `interruptible: true`. Superseded runs on the same ref are cancelled;
-# main is excluded so a merge always produces a complete, attributable run.
+# = GitLab's `interruptible: true`. Superseded runs on the same ref are cancelled; the
+# integration branches are excluded so every merge produces one complete, attributable run.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
 
 permissions:
   contents: read
