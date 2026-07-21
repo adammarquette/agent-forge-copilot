@@ -33,10 +33,14 @@ these AGENTS files summarize and point to it.
   a workaround, a surprising invariant) — never restate *what* the code does. XML doc comments on public
   methods describe behavior/contract only.
 - **Reference comments are allowed, but must be prefixed `reference:`.** A comment may point to a
-  `documentation/` file/section or a GitLab issue/MR/epic (e.g., `// reference: documentation/ARCHITECTURE.md
-  §9` or `// reference: gitlab#62`) when it's the fastest way to point a future agent at fuller context. The
+  `documentation/` file/section or a GitHub issue/PR (e.g., `// reference: documentation/ARCHITECTURE.md
+  §9` or `// reference: gh#62`) when it's the fastest way to point a future agent at fuller context. The
   `reference:` prefix keeps these grep-able and visually distinct from an ordinary comment — it never
   substitutes for the *why*, which must still be stated inline, not left implicit behind the link.
+  **Existing `gitlab#N` / `GitLab issue #N` citations address the RETIRED GitLab tracker and do not map to
+  GitHub** — issue numbers did not survive the migration (old #109 was the click-to-source `Binary.read`
+  scope; GitHub #109 is an unrelated QA-login issue). Treat them as historical context only, never as links,
+  and use `gh#N` for anything new. See `documentation/INDEX.md` §5.
 - **Commits:** Conventional Commits; add `Assisted-by:` trailer when authored by an AI agent.
 - **No orphaned MRs.** Every MR references a tracking issue (`Closes #N` / `Related to #N`) that states the
   problem or requirement being addressed, opened *before* the MR. If no issue exists yet for the work, open

@@ -91,7 +91,7 @@ no browser caller — is blocked at the proxy:
 | `MarqSpec.AgentForge.slnx` | Solution file (repo root) |
 | `src/` | Production projects (`MarqSpec.AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
 | `tests/` | Four test projects: `…UnitTests` (mocked), `…IntegrationTests` (real deps in QA), `…EvalTests` (deterministic rubric checks), and `…Evals` (golden-set eval runner; cases in top-level `evals/`) |
-| `reverse-proxy/` | Nginx front-door container/config for the same-origin reverse-proxy front door (issue #62, closed; agent-forge#22) — deployed on staging as `agent-forge-reverse-proxy` (the live-demo front door above); CI lives inline in `.gitlab/ci/`; see its own README |
+| `reverse-proxy/` | Nginx front-door container/config for the same-origin reverse-proxy front door (issue #62, closed; agent-forge#22) — deployed on staging as `agent-forge-reverse-proxy` (the live-demo front door above); its config lint runs in `.github/workflows/ci.yml`; see its own README |
 | `AGENTS.md` · `src/AGENTS.md` · `tests/AGENTS.md` | Instructions for AI coding agents (root + per-role) |
 | `CLAUDE.md` (each level) | One-line shims so Claude Code honors the same `AGENTS.md` rules |
 
