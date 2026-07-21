@@ -34,7 +34,60 @@ For the full picture, read the docs below in order.
 
 ---
 
-## Live demo
+## Run it locally
+
+Two ways to see this working: the hosted demo below, or your own stack via
+[`docker-compose.yml`](docker-compose.yml).
+
+```bash
+cp .env.example .env          # set OPENEMR_ADMIN_PASSWORD
+docker compose up -d          # OpenEMR + the AgentForge module + the front door
+```
+
+Then open **<http://localhost:8080>** and log in as `admin`. That tier needs **no API key** — you get
+OpenEMR with the module installed, including the AgentForge launch button and the Daily Agenda tab.
+
+The OpenEMR image is pulled from `ghcr.io/adammarquette/agent-forge`, published by the
+[fork's](https://github.com/adammarquette/agent-forge) own pipeline. The compose file pins an
+immutable `sha-` tag (not `:latest`) so this demo stays reproducible; set `OPENEMR_IMAGE` in `.env`
+to `:latest`/`:main` to follow the newest build. It is **not** stock OpenEMR: the SMART launch
+depends on core patches in that fork (the `SessionUtil` launch-bridge cookie, `AuthorizationController`,
+`library/auth.inc.php`), so stock OpenEMR with the module dropped on top will not reproduce a working
+launch.
+
+### Adding the co-pilot
+
+The sidecar needs two things the EHR tier doesn't, so it sits behind a profile rather than
+crash-looping for anyone without them:
+
+1. **An Anthropic API key.** `Llm:ApiKey` is `[Required]` and validated at startup — the sidecar
+   cannot boot without one. Put it in `.env` as `ANTHROPIC_API_KEY`.
+2. **A registered SMART client.** In OpenEMR: **Admin → System → API Clients**, register a
+   *confidential* client with redirect URI `http://localhost:8080/agentforge/callback`, then
+   **enable it** — freshly-registered clients land disabled. Put its id/secret in `.env` as
+   `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET`. (`dotnet run --project tools/RegisterSmartClients`
+   automates the registration.)
+
+Also set **Admin → Configuration → Connectors → Site Address Override** to `http://localhost:8080`.
+Without it OpenEMR advertises its own container hostname as the FHIR base, and every launch fails the
+SMART `aud` check before reaching a login form.
+
+```bash
+docker compose --profile copilot up -d
+```
+
+Everything is reached through the one origin on port 8080 — OpenEMR at `/`, the sidecar under
+`/agentforge`. That is not cosmetic: a launch whose `/launch` and `/callback` land on different hosts
+loses its session cookie ("No pending SMART launch"), and `site_addr_oath` must equal the sidecar's
+`OpenEmr:BaseUrl` or the `aud` check fails. Same reason the hosted demo runs behind a reverse proxy.
+
+> **Demo data only.** This stack is for evaluation on synthetic data — never real PHI. It runs over
+> plain HTTP with local-development escape hatches enabled
+> (`AllowInsecureHttpForLocalDevelopment`), which are not safe for anything else.
+
+---
+
+## Hosted demo
 
 A running OpenEMR instance (synthetic data only) is deployed on Railway — see [Deployment](#deployment).
 Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issue #62) as of 2026-07-12:
@@ -91,6 +144,7 @@ no browser caller — is blocked at the proxy:
 | Path | What's there |
 |---|---|
 | [`documentation/`](documentation/) | All specs & design docs (the substance today — see index below) |
+| [`docker-compose.yml`](docker-compose.yml) · `.env.example` | Local demo stack — OpenEMR + module (keyless) and, behind `--profile copilot`, the sidecar. See [Run it locally](#run-it-locally) |
 | `MarqSpec.AgentForge.slnx` | Solution file (repo root) |
 | `src/` | Production projects (`MarqSpec.AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
 | `tests/` | Four test projects: `…UnitTests` (mocked), `…IntegrationTests` (real deps in QA), `…EvalTests` (deterministic rubric checks), and `…Evals` (golden-set eval runner; cases in top-level `evals/`) |

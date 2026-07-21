@@ -1,0 +1,207 @@
+# -----------------------------------------------------------------------------
+# Local demo stack — OpenEMR (this project's fork) + the AgentForge sidecar.
+#
+# Quick start is in README.md ("Run it locally"). Two tiers, by design:
+#
+#   docker compose up -d                      # OpenEMR + the AgentForge module.
+#                                             # No API key needed.
+#   docker compose --profile copilot up -d    # ...plus the sidecar. Needs an
+#                                             # Anthropic key (see .env.example).
+#
+# WHY TWO TIERS: the sidecar's Llm:ApiKey is [Required] and validated at startup
+# (Program.cs, ValidateOnStart), so it cannot boot without a real Anthropic key.
+# Rather than have `docker compose up` crash-loop for anyone who hasn't got one,
+# the default stack brings up OpenEMR with the module and the front door, which
+# needs no secrets at all, and the sidecar is opt-in behind a profile.
+#
+# WHY EVERYTHING GOES THROUGH THE PROXY, even in the default tier: the SMART EHR
+# launch requires ONE origin. OpenEMR's `site_addr_oath` must equal the sidecar's
+# OpenEmr:BaseUrl or the `aud` check fails, and a launch whose /launch and
+# /callback land on different hosts loses the session cookie ("No pending SMART
+# launch"). See documentation/RAILWAY.md. So there is a single entry point,
+# http://localhost:8080, and no service publishes its own port.
+#
+# WHY OPENEMR IS PULLED, NOT BUILT: the image is this project's OpenEMR fork,
+# which carries core patches the launch depends on (SessionUtil's launch-bridge
+# cookie, AuthorizationController, library/auth.inc.php) on top of the
+# oe-module-agentforge module. Stock openemr/openemr plus the module dropped on
+# top does NOT reproduce a working launch. The fork's own pipeline publishes the
+# built image to GHCR on green main; building it here instead would mean cloning
+# a second repo and a ~10 minute Alpine/PHP build. To build from source anyway,
+# see the commented `build:` block on the openemr service.
+# -----------------------------------------------------------------------------
+
+name: agentforge-demo
+
+services:
+  # ---------------------------------------------------------------------------
+  # Front door. The single origin every request enters through - OpenEMR at /,
+  # the sidecar under /agentforge. Same nginx config that runs on staging.
+  # ---------------------------------------------------------------------------
+  reverse-proxy:
+    build:
+      context: ./reverse-proxy
+    ports:
+      - "${DEMO_PORT:-8080}:8080"
+    environment:
+      PORT: 8080
+      OPENEMR_UPSTREAM: openemr:80
+      SIDECAR_UPSTREAM: agent-forge-api:8080
+      # Docker's embedded DNS. nginx resolves upstreams at request time, so the
+      # proxy starts even when the sidecar is absent (default tier): / still
+      # serves OpenEMR and /agentforge/ returns 502 until you add the profile.
+      DNS_RESOLVER: 127.0.0.11
+    depends_on:
+      - openemr
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # OpenEMR, from this project's fork. Module + core launch patches baked in.
+  # ---------------------------------------------------------------------------
+  openemr:
+    # Pinned to an immutable digest-style tag, NOT :latest, so a reviewer months
+    # from now gets the exact image this demo was verified against - it can't drift
+    # when the fork's pipeline republishes. `:latest` / `:main` track the newest
+    # build; override OPENEMR_IMAGE in .env to follow them or to bump the pin.
+    image: ${OPENEMR_IMAGE:-ghcr.io/adammarquette/agent-forge:sha-dfe7e6c4077d}
+    # To build from the fork's source instead of pulling, clone
+    # https://github.com/adammarquette/agent-forge next to this repo and swap the
+    # image above for:
+    # build:
+    #   context: ../agent-forge
+    #   dockerfile: docker/railway/Dockerfile
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_ROOT_PASS: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_USER: openemr
+      MYSQL_PASS: ${MYSQL_PASSWORD:-openemr}
+      MYSQL_DATABASE: openemr
+      OE_USER: admin
+      OE_PASS: ${OPENEMR_ADMIN_PASSWORD:?set OPENEMR_ADMIN_PASSWORD in .env}
+      # Named volumes mount EMPTY - they do not inherit image contents. The
+      # OpenEMR image only restores its sites/ skeleton from /swarm-pieces (and
+      # runs first-boot setup) when SWARM_MODE=yes and the replica elects itself
+      # leader. Without this it crash-loops on a missing sites/default/sqlconf.php.
+      # Single replica => always leader => safe. Same reason it is set on Railway
+      # (documentation/RAILWAY.md).
+      SWARM_MODE: "yes"
+    volumes:
+      - openemr-sites:/var/www/localhost/htdocs/openemr/sites
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:9.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: openemr
+      MYSQL_USER: openemr
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-openemr}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # openemr's first boot fails outright against a half-started MySQL, so the
+      # dependency above gates on this rather than on container start.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # profile: copilot — the sidecar and its own datastore.
+  # ---------------------------------------------------------------------------
+  agent-forge-api:
+    profiles: [copilot]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      PORT: 8080
+      # Both of these must be the FRONT DOOR, never a service's own hostname:
+      # OpenEmr__BaseUrl has to match OpenEMR's site_addr_oath or the SMART `aud`
+      # check fails, and a redirect_uri on a different host loses the session.
+      OpenEmr__BaseUrl: http://localhost:${DEMO_PORT:-8080}
+      Bff__PublicBaseUrl: http://localhost:${DEMO_PORT:-8080}/agentforge
+      Bff__PathBase: /agentforge
+      OpenEmr__Site: default
+      # Plain http is fine for a local demo but is rejected by default - these
+      # options exist precisely for this case (BffOptions/OpenEmrOptions).
+      OpenEmr__AllowInsecureHttpForLocalDevelopment: "true"
+      Bff__AllowInsecureHttpForLocalDevelopment: "true"
+      # Registered + admin-ENABLED confidential SMART client. Freshly-registered
+      # clients land disabled; see the README bootstrap steps.
+      # Deliberately `:-` (empty default) and NOT `:?` (required): compose
+      # interpolates EVERY service's variables during config, including ones
+      # behind a profile it is not starting. A `:?` here made the default,
+      # keyless `docker compose up` fail on a variable only the sidecar needs -
+      # exactly the crash the two-tier split exists to avoid. Empty values fail
+      # later, in the sidecar's own startup validation, with a clearer message.
+      OpenEmr__ClientId: ${OPENEMR_CLIENT_ID:-}
+      OpenEmr__ClientSecret: ${OPENEMR_CLIENT_SECRET:-}
+      # Contiguous 0-based list - a gap truncates the bound array at the first
+      # missing index. Casing matters: patient/encounter.read is rejected.
+      OpenEmr__Scopes__0: openid
+      OpenEmr__Scopes__1: fhirUser
+      OpenEmr__Scopes__2: launch
+      OpenEmr__Scopes__3: launch/patient
+      OpenEmr__Scopes__4: api:fhir
+      OpenEmr__Scopes__5: patient/Patient.read
+      OpenEmr__Scopes__6: patient/Encounter.read
+      OpenEmr__Scopes__7: patient/Observation.read
+      OpenEmr__Scopes__8: patient/DocumentReference.read
+      OpenEmr__Scopes__9: patient/Binary.read
+      OpenEmr__Scopes__10: patient/Condition.read
+      OpenEmr__Scopes__11: patient/AllergyIntolerance.read
+      OpenEmr__Scopes__12: patient/MedicationRequest.read
+      OpenEmr__Scopes__13: patient/Procedure.read
+      OpenEmr__Scopes__14: patient/DiagnosticReport.read
+      # Same reasoning as OpenEmr__ClientId above - `:-`, not `:?`, so the
+      # default keyless tier still starts. The sidecar's Llm:ApiKey is [Required]
+      # with ValidateOnStart, so an empty value here fails at ITS startup with an
+      # explicit message rather than blocking compose for everyone.
+      Llm__ApiKey: ${ANTHROPIC_API_KEY:-}
+      Llm__Model: ${LLM_MODEL:-claude-sonnet-5}
+      Llm__InputPricePerMillionTokensUsd: ${LLM_INPUT_PRICE:-3.00}
+      Llm__OutputPricePerMillionTokensUsd: ${LLM_OUTPUT_PRICE:-15.00}
+      AgentForgeData__ConnectionString: Host=postgres;Port=5432;Database=agentforge;Username=agentforge;Password=${POSTGRES_PASSWORD:-agentforge}
+      # The pending-SMART-launch cookie is DataProtection-encrypted; an in-memory
+      # key ring cannot decrypt it after a restart, which surfaces as "No pending
+      # SMART launch" on the callback. Persist the ring on a volume.
+      DataProtection__KeyRingPath: /keys
+    volumes:
+      - dataprotection-keys:/keys
+    depends_on:
+      postgres:
+        condition: service_healthy
+      openemr:
+        condition: service_started
+    restart: unless-stopped
+
+  postgres:
+    profiles: [copilot]
+    # pgvector, not stock postgres: the sidecar's hybrid-RAG store uses a vector
+    # column + HNSW index, and its EF migrations create the extension.
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: agentforge
+      POSTGRES_USER: agentforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentforge}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentforge -d agentforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  openemr-sites:
+  postgres-data:
+  dataprotection-keys:
