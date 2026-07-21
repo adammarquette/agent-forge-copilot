@@ -270,4 +270,4 @@ Everything else — the architecture, the sidecar design, the implementation, an
 
 ---
 
-*AgentForge Clinical Co-Pilot. Internal project; docs are living and versioned (`v0.1`).*
+*AgentForge Clinical Co-Pilot — a personal student project (see [Origin](#origin)); docs are living and versioned (`v0.1`).*
