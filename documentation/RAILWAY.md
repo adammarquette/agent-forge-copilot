@@ -336,8 +336,8 @@ Completed 2026-07-09 through 2026-07-11 against the fresh staging OpenEMR:
 > if there's a concrete reason to (see issue #44's closing note for the full
 > investigation trail).
 
-Admin login (demo): `admin` / `P@ssw0rd1` (also the `OE_PASS` service variable
-on `openemr`, kept in sync so a re-setup recreates the same credentials).
+Admin login (demo): `admin` / **ask** — the password is withheld from source; the live value is the
+`OE_PASS` service variable on `openemr`, kept in sync so a re-setup recreates the same credentials.
 
 ## Remaining setup (one-time)
 

@@ -43,8 +43,11 @@ Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issu
 
 | Role | Username | Password |
 |---|---|---|
-| Administrator | `admin` | `P@ssw0rd1` |
-| Cardiologist (demo provider — the patients' attending) | `cardio1` | `P@ssw0rd1` |
+| Administrator | `admin` | **ask** |
+| Cardiologist (demo provider — the patients' attending) | `cardio1` | **ask** |
+
+> Both demo logins share one password, so it is withheld rather than printed — masking only the
+> administrator row would leave it readable on the row below. Ask the maintainer for it.
 
 ### Observability dashboard (Grafana)
 
@@ -58,14 +61,14 @@ logs are **operational only — no PHI** (see `NFR-SEC-W2-1`).
 
 | Service | Username | Password |
 |---|---|---|
-| Grafana (demo) | `admin` | `P@ssw0rd1` |
+| Grafana (demo) | `admin` | **ask** |
 
 > **Staging/demo only — not for production.** These are throwaway credentials for a synthetic-data, non-PHI
-> dashboard (same posture as the OpenEMR logins above), published here purely so a reviewer can open the demo.
-> A production deployment **must** replace them: set a strong, unique `GF_SECURITY_ADMIN_PASSWORD` (and rotate
-> `GF_SECURITY_ADMIN_USER`) on the `agentforge-grafana` service, keep the value out of source, and remove this
-> table. The real value lives in that Railway variable, not here. Prometheus and Loki stay reachable only over
-> the project's private network (`agentforge-prometheus.railway.internal:9090`,
+> dashboard (same posture as the OpenEMR logins above). The password is withheld rather than printed — ask the
+> maintainer. A production deployment **must** replace it anyway: set a strong, unique
+> `GF_SECURITY_ADMIN_PASSWORD` (and rotate `GF_SECURITY_ADMIN_USER`) on the `agentforge-grafana` service, and
+> keep the value out of source. The real value lives in that Railway variable, not here. Prometheus and Loki
+> stay reachable only over the project's private network (`agentforge-prometheus.railway.internal:9090`,
 > `agentforge-loki.railway.internal:3100`).
 
 ### Front-door surface (what's reachable, and how it's protected)
