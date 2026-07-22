@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Fail-safe guard against a FALSE GREEN test run, ported from .gitlab/ci/test.yml's
-# `.verify_results` anchor. GitHub Actions has no YAML anchors, so the guard lives here
+# Fail-safe guard against a FALSE GREEN test run, ported from the retired GitLab
+# pipeline's test config (git history: fbbf07d). GitHub Actions has no YAML anchors, so the guard lives here
 # and each test job calls it rather than triplicating the logic.
 #
 # Why this exists (GitLab issue #21 — legacy tracker number): `dotnet test` once ran ZERO

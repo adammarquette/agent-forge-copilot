@@ -169,7 +169,7 @@ no browser caller — is blocked at the proxy:
 ### Why so much cross-referencing
 
 You'll notice heavy cross-referencing throughout `documentation/` and this README — FR-/NFR- IDs, `USERS.md`
-use cases, GitLab issue numbers, doc-section pointers. That's deliberate, not noise: most of the code in this
+use cases, legacy GitLab issue numbers (INDEX.md §5), doc-section pointers. That's deliberate, not noise: most of the code in this
 repo is written by LLM coding agents, and this web of references is the index they traverse to reconstruct
 context quickly instead of re-deriving it each session. If it reads as excessive to you, that's fair — it's
 optimized for a different reader. **C# is an example of a lower level of abstraction I'm comfortable working
@@ -187,9 +187,10 @@ software engineering, it's simply *another* layer of abstraction above the code,
 layer of abstraction above IL/machine instructions. `documentation/` is written at that higher layer on
 purpose - a knowledge base meant to be read and maintained by models, not just humans, favoring dense
 cross-links and explicit context over prose that assumes a reader who already remembers yesterday's session.
-The wiki isn't only that folder, either - it extends into GitLab issues/epics and MR descriptions too, which
-is why those get cited as heavily as doc sections. Together they're the wiki this project's agents read to
-reconstruct state.
+The wiki isn't only that folder, either - it extends into the GitHub issues and PR descriptions too, which
+is why those get cited as heavily as doc sections. (Citations of the form `gitlab#N` address the retired
+pre-migration tracker — historical context, not links; see `INDEX.md` §5.) Together they're the wiki this
+project's agents read to reconstruct state.
 
 ---
 

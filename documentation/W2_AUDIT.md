@@ -140,8 +140,8 @@ polish, most of it "Should"-tier:
 - **FR-EVAL-W2-1:** exactly **50** golden cases (`evals/golden/*.json`). ✅
 - **FR-EVAL-W2-2:** all five boolean rubrics present (`RubricEvaluator`): `schema_valid`, `citation_present`,
   `factually_consistent`, `safe_refusal`, `no_phi_in_logs`; deterministic ones also run as xUnit theories
-  (`.gitlab/ci/test.yml`). ✅
-- **FR-EVAL-W2-3:** the `evals` job (`.gitlab/ci/evals.yml`) fails the pipeline on a threshold/regression breach
+  (the `eval-tests` job in `.github/workflows/ci.yml`). ✅
+- **FR-EVAL-W2-3:** the `evals` job (`.github/workflows/ci.yml`) fails the pipeline on a threshold/regression breach
   vs `evals/baseline.json` — verified by injecting a regression. ✅
 - **FR-EVAL-W2-4:** refusal / missing-data / not-JSON cases are in the set. ✅
 - ⚠️ **Coverage caveat (still open — see R2):** the golden set is entirely `intake-*` / `lab-*` extraction
