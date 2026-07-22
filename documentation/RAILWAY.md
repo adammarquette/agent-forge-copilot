@@ -134,7 +134,7 @@ Variables (Options-pattern, `__` = section separator):
 | `Bff__PublicBaseUrl` | `https://agent-forge-reverse-proxy-staging.up.railway.app/agentforge` (front door + path base — NOT `${{RAILWAY_PUBLIC_DOMAIN}}`, which is this service's own host and breaks the OAuth `redirect_uri`) |
 | `OpenEmrAgenda__ClientId` / `OpenEmrAgenda__ClientSecret` | the roster/agenda OAuth client (see agenda section below). Note the live var name is `OPenEmrAgenda__ClientId` (typo, works via case-insensitive .NET binding — fix when convenient). |
 | `OpenEmrAgenda__Scopes__0..5` | `openid`, `fhirUser`, `launch`, `api:fhir`, `user/Appointment.read`, `user/Patient.read` |
-| `Llm__ApiKey` | real Anthropic key — **set via the `Llm__ApiKey` GitLab CI variable, not the Railway dashboard** (see CI/deployment flow below) |
+| `Llm__ApiKey` | real Anthropic key — will be **asserted from the `Llm__ApiKey` GitHub Actions secret** once the CD deploy job lands (see the CD secrets section below); until then the Railway service variable is the live value |
 | `Llm__Model` | `claude-sonnet-5` |
 | `Llm__InputPricePerMillionTokensUsd` / `Output…` | `0` (set real prices when cost tracking matters — `agentforge_llm_cost_usd_total` reads 0 until then) |
 
@@ -152,14 +152,16 @@ invariant that bit us in three places: **every host/audience must be that front 
 (`https://agent-forge-reverse-proxy-staging.up.railway.app`), never a service's own
 `*-staging.up.railway.app` host.
 
-**Auto-asserted by CI** (the `deploy` job, on every deploy — self-healing like `Llm__ApiKey`):
-the host/path vars (`OpenEmr__BaseUrl`, `Bff__PublicBaseUrl`, `Bff__PathBase`,
-`DataProtection__KeyRingPath`), the OAuth client ids/secrets (`OpenEmr__ClientId/Secret`,
-`OPenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret`), and the per-flow scope lists
-(`OpenEmr__Scopes__*`, `OpenEmrAgenda__Scopes__*`). Secrets live as **masked GitLab CI variables**
-(Settings → CI/CD → Variables); ids/hosts/scopes are non-secret. **Rotate a client secret by
-updating the GitLab CI variable and re-running `deploy`, not by editing the Railway dashboard** (it
-would be overwritten on the next deploy).
+**Auto-asserted by CI** (the retired GitLab `deploy` job did this on every deploy — self-healing
+like `Llm__ApiKey`; the pending GitHub Actions deploy job takes over the same duty): the host/path
+vars (`OpenEmr__BaseUrl`, `Bff__PublicBaseUrl`, `Bff__PathBase`, `DataProtection__KeyRingPath`),
+the OAuth client ids/secrets (`OpenEmr__ClientId/Secret`,
+`OpenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret`), and the per-flow scope lists
+(`OpenEmr__Scopes__*`, `OpenEmrAgenda__Scopes__*`). Secrets belong in **GitHub Actions secrets**,
+ids/hosts/scopes in Actions variables or inline (see the CD secrets section below). **Until the
+deploy job lands, deploys are manual and the Railway service variables are the live source —
+rotate by editing them directly; once it lands, rotate the GitHub secret and push to `main`**
+(the dashboard value is then overwritten on the next deploy).
 
 **One-time / manual (NOT yet in source — do these on any fresh environment):**
 
@@ -178,10 +180,11 @@ would be overwritten on the next deploy).
    per-launch prompt — run that `UPDATE oauth_clients SET is_enabled = 1,
    skip_ehr_launch_authorization_flow = 1 WHERE client_id IN (…)` against OpenEMR MySQL (this replaces
    the old Admin → System → API Clients "Enable each + Skip EHR Launch Authorization Flow" GUI step; the
-   agenda client registers *disabled*, so it especially needs it). The ids/secrets live in the GitLab CI
-   variables `OpenEmr__ClientId`/`OpenEmr__ClientSecret` (patient, redirect `/agentforge/callback`) and
-   `OPenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret` (roster, redirect `/agentforge/agenda/callback`)
-   — the `deploy` job already pushes all four to Railway every deploy, so on a fresh environment you only
+   agenda client registers *disabled*, so it especially needs it). The ids/secrets belong in the GitHub
+   Actions secrets/variables `OpenEmr__ClientId`/`OpenEmr__ClientSecret` (patient, redirect
+   `/agentforge/callback`) and `OpenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret` (roster, redirect
+   `/agentforge/agenda/callback`)
+   — the pending deploy job will push all four to Railway every deploy, so on a fresh environment you only
    update those CI variables with the tool's output, no dashboard edits.
 3. **OpenEMR globals** (Admin → Configuration → Connectors): `site_addr_oath` = the front door;
    **"OAuth2 EHR-Launch Authorization Flow Skip"** enabled (gates the per-client skip above).
@@ -203,9 +206,9 @@ transient OpenEMR outage must not veto a sidecar deploy. The job waits for OpenE
 healthy (a FHIR-metadata preflight) and skips with a distinct "dependency unavailable"
 signal if it never comes up, rather than failing the whole suite on login timeouts.
 
-- **Integration tests** run the BFF **in-process** on the GitLab runner and
-  talk to the staging OpenEMR over FHIR/OAuth. They need these GitLab CI
-  variables (Settings > CI/CD > Variables, masked + protected):
+- **Integration tests** run the BFF **in-process** on the CI runner and
+  talk to the staging OpenEMR over FHIR/OAuth. They need this configuration
+  (as GitHub Actions secrets/variables — see the CD secrets section below):
   - `OpenEmrQa__BaseUrl` = `https://openemr-staging-25fc.up.railway.app`
   - `OpenEmrQa__Site` = `default`
   - `OpenEmrQa__TestPatientId` = `a23a7ed4-54de-4dc7-b5c4-93d3e1d03fd4`
@@ -219,15 +222,15 @@ signal if it never comes up, rather than failing the whole suite on login timeou
     type), `OpenEmrQa__System__KeyId`, `OpenEmrQa__System__Scope` — see below
   - `LlmQa__ApiKey`, `LlmQa__Model` = real Anthropic key + model for test runs
 
-> **Masked variables can't represent "unset" as an empty string.** GitLab
-> **masked** variables must be at least 8 characters and satisfy its masking
-> rules, and the UI won't accept an empty value for one — so you can't blank a
-> masked variable to mean "not configured". To represent unset, **delete the
-> variable**, don't set it to `""`. The fixture/config code treats absent and
-> whitespace-only identically (`IsNullOrWhiteSpace`), which is why the
-> deliberately-optional ones (`OpenEmrQa__TestAccessToken`,
-> `OpenEmrQa__System__ClientId`/`PrivateKeyPath`) are *deleted* when unused,
-> triggering the intended fallback path, rather than left blank.
+> **"Unset" means DELETE the secret, not blank it.** The fixture/config code
+> treats absent and whitespace-only identically (`IsNullOrWhiteSpace`), and the
+> deliberately-optional values (`OpenEmrQa__TestAccessToken`,
+> `OpenEmrQa__System__ClientId`/`PrivateKeyPath`) trigger their intended
+> fallback paths only when genuinely not configured — so to represent unset,
+> **delete the GitHub Actions secret**, don't set it to an empty string.
+> (This rule originated with the retired GitLab masked variables, which
+> couldn't even hold an empty value; the delete-don't-blank practice carries
+> over unchanged.)
 
 > **Access-token expiry — solved (GitLab issue #22):** OpenEMR access tokens
 > live ~1 hour, so a *static* `OpenEmrQa__TestAccessToken` went stale between
@@ -273,34 +276,36 @@ signal if it never comes up, rather than failing the whole suite on login timeou
 >   otherwise-correct assertion.
 >
 > Config maps `OpenEmrQa__System__ClientId`/`PrivateKeyPath`/`KeyId`/`Scope` →
-> `OpenEmrQa:System:ClientId` etc. `PrivateKeyPath` is a GitLab **File**-type
-> variable (GitLab sets the env var's value to a temp file path at runtime,
-> preserving the multi-line PEM exactly — inline `Variable`-type values are
-> fragile for this). When `System__ClientId`/`PrivateKeyPath` aren't set, the
+> `OpenEmrQa:System:ClientId` etc. `PrivateKeyPath` expects a **file path**, and
+> GitHub Actions secrets are strings — so if this path is ever revived, store the
+> PEM content as a secret and have the workflow write it to a temp file, then
+> point `PrivateKeyPath` at it (the retired GitLab setup used its File-type
+> variables for this). When `System__ClientId`/`PrivateKeyPath` aren't set, the
 > fixture falls back to the static `OpenEmrQa__TestAccessToken` unchanged.
 
-- **deploy** (auto on `main`): sets `Llm__ApiKey` on the Railway service from
-  the GitLab CI variable of the same name (`railway variable set`), then runs
-  `railway up --service agent-forge-api-staging --ci` with
-  `RAILWAY_TOKEN=$RAILWAY_TOKEN_STAGING`. Railway builds the Dockerfile
-  server-side.
+- **deploy** (pending — the Phase-2 GitHub Actions job): pins the Railway
+  service to the freshly published `ghcr.io/adammarquette/agent-forge-copilot`
+  image, re-asserts the runtime vars from GitHub Actions secrets, and redeploys
+  with `RAILWAY_TOKEN=$RAILWAY_TOKEN_STAGING`. Until it lands, deploys are
+  manual (below) and Railway still builds from source.
 
 Create the Railway project token in Railway (Project Settings > Tokens, scoped
-to the staging environment) and store it as the `RAILWAY_TOKEN_STAGING` GitLab
-CI variable.
+to the staging environment) and store it as the `RAILWAY_TOKEN_STAGING` GitHub
+Actions secret.
 
-> **Secrets live in GitLab CI/CD variables, not the Railway dashboard.** Railway
-> service variables and GitLab CI/CD variables are two independent stores —
-> nothing propagates between them automatically. `Llm__ApiKey` used to be
-> hand-edited directly on the Railway service; it silently drifted to an
-> invalid value there, and every SMART launch's LLM call 401'd for a full
-> session before anyone noticed (the deterministic-fallback path returns a
-> normal-looking "success", so nothing failed loudly). Fixed by having the
-> `deploy` job push `Llm__ApiKey` from GitLab into Railway on every run, so
-> GitLab is the one source of truth and a bad manual edit in the Railway
-> dashboard self-heals on the next deploy. **To rotate this key, update the
-> `Llm__ApiKey` GitLab CI/CD variable and push to `main` — don't edit it in
-> the Railway dashboard, it'll just be overwritten on the next deploy.**
+> **Secrets belong in one place — CI — not the Railway dashboard.** Railway
+> service variables and CI secrets are two independent stores — nothing
+> propagates between them automatically. `Llm__ApiKey` used to be hand-edited
+> directly on the Railway service; it silently drifted to an invalid value
+> there, and every SMART launch's LLM call 401'd for a full session before
+> anyone noticed (the deterministic-fallback path returns a normal-looking
+> "success", so nothing failed loudly). The retired GitLab `deploy` job fixed
+> this by pushing `Llm__ApiKey` into Railway on every run — one source of
+> truth, bad dashboard edits self-heal on the next deploy. The pending GitHub
+> Actions deploy job restores exactly that behavior from the `Llm__ApiKey`
+> GitHub secret. **Until it lands, the Railway service variable is the live
+> value — rotate there; afterwards, rotate the GitHub secret and push to
+> `main`.**
 
 ## Manual deploys (ad hoc)
 
@@ -355,14 +360,14 @@ Admin login (demo): `admin` / **ask** — the password is withheld from source; 
 ## Remaining setup (one-time)
 
 1. ~~Set `OpenEmr__ClientId` on the agent-forge-api service~~ — **done**, see above.
-2. ~~Set a real `Llm__ApiKey`~~ — **done**. The GitLab CI `Llm__ApiKey`
-   variable is shared across environments; it was also copied directly onto
-   `agent-forge-api-staging` ahead of this cutover so the service worked
-   before CI started pushing to it. Going forward `deploy` re-asserts it on
-   every run, same as it did for `development`.
+2. ~~Set a real `Llm__ApiKey`~~ — **done** (at the time, via the retired GitLab
+   CI variable; it was also copied directly onto `agent-forge-api-staging`, which
+   is the value the service runs on today). The pending GitHub Actions deploy job
+   resumes re-asserting it from the `Llm__ApiKey` GitHub secret on every run.
 3. ~~Create the Railway project token~~ — **done**: `RAILWAY_TOKEN_STAGING`
-   (Railway > Project Settings > Tokens, staging scope), masked/protected
-   GitLab CI variable.
+   (Railway > Project Settings > Tokens, staging scope). Store it as the
+   `RAILWAY_TOKEN_STAGING` GitHub Actions secret for the deploy job (the retired
+   GitLab copy is gone with GitLab).
 4. In the dashboard, confirm `agent-forge-api-staging`'s domain targets port
    8080 and `openemr`'s domain targets port 80 (see the domain-port gotcha
    above) — both were hit by this exact gotcha during the staging cutover.
@@ -396,13 +401,15 @@ not flipping a version pointer.
 ran for the service. In the Railway dashboard: `agent-forge-api-staging` →
 Deployments → find the last known-good deployment → **Redeploy**. This
 re-uses that build's already-built image, so it comes back up in the time it
-takes the container to restart (no rebuild), independent of GitLab/CI being
-reachable.
+takes the container to restart (no rebuild), independent of CI being
+reachable. (Once the service is repointed at the GHCR image, rollback gets
+even simpler: pin the service to the last known-good immutable `sha-<12>` tag.)
 
-**From GitLab, if you need to re-trigger CI instead** (e.g. the Railway
+**From GitHub, if you need to re-trigger CI instead** (e.g. the Railway
 dashboard route isn't available): revert the bad commit(s) on `main` with a
 normal `git revert` (never `git reset --hard` on a shared branch) and push -
-the `deploy` job runs again automatically and ships the reverted code.
+the pipeline runs again automatically (Actions tab → the `main` push run), and
+once the deploy job lands it ships the reverted code end-to-end.
 
 **Manual, from a known-good local checkout** (fastest if CI itself is the
 problem, not the app):
@@ -419,13 +426,13 @@ OpenEMR's data. Most
 Railway service *variables* (`OpenEmr__ClientId`, etc.) aren't versioned with
 the code and aren't reverted by any of the above - if a rollback is needed
 because of a bad variable change rather than a bad code change, fix the
-variable in the dashboard directly instead. `Llm__ApiKey` is the one
-exception: it's re-pushed from the GitLab CI variable on every run of the
-**deploy** job specifically (see CI/deployment flow above), so the "fastest
-path" (dashboard Redeploy) and CI-triggered rollback both leave whatever's
-currently in GitLab in place, unchanged - only the "manual, from a known-good
-local checkout" path bypasses that push, since it calls `railway up` directly
-rather than going through `deploy.yml`.
+variable in the dashboard directly instead. `Llm__ApiKey` will be the one
+exception once the GitHub Actions **deploy** job lands: it gets re-pushed from
+the `Llm__ApiKey` GitHub secret on every deploy-job run (see CI/deployment flow
+above), so the "fastest path" (dashboard Redeploy) leaves whatever's in GitHub
+in place, unchanged - only a manual `railway up` bypasses that push. Until the
+deploy job lands, no path re-asserts it and the dashboard value is
+authoritative.
 
 **Detecting the need to roll back:** watch `/health` (process up) and `/ready`
 (real dependency checks - Epic 10) on the public domain after any deploy;

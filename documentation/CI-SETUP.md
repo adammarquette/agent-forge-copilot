@@ -22,10 +22,13 @@ required.
 > (re-assert vars + redeploy), the post-deploy `/health` + `/ready` smoke tests,
 > and the health-gated integration suite — they need repository secrets that do
 > not exist yet and touch live infrastructure. The retired `.gitlab-ci.yml` and
-> `.gitlab/ci/` are kept **temporarily and inertly** as the reference for that
-> port (nothing on GitHub reads them) and should be deleted once CD lands.
-> Until the deploy job lands, **deploys are manual** (and Railway still builds
-> from source until the service is repointed at the GHCR image — see `RAILWAY.md`).
+> `.gitlab/ci/` have been **deleted from the tree**; the originals — including
+> `deploy.yml`, whose comments encode the deploy incidents the port must honor
+> (the `Llm__ApiKey` drift, the `railway up` log-stream false positive, the
+> scope-array truncation) — live in git history at `fbbf07d` (`git show
+> fbbf07d:.gitlab/ci/deploy.yml`). Until the deploy job lands, **deploys are
+> manual** (and Railway still builds from source until the service is repointed
+> at the GHCR image — see `RAILWAY.md`).
 
 ## 1. What runs, and when
 
