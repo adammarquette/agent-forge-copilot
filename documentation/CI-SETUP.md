@@ -16,13 +16,16 @@ required.
 ```
 
 > **Migration status.** This repo ran on GitLab CI until the move to GitHub. The
-> **CI half** (lint, build, test, evals) is ported and live. The **CD half** —
-> Railway deploys, the post-deploy `/health` + `/ready` smoke tests, and the
-> health-gated integration suite — is **not yet ported**; it needs repository
-> secrets that do not exist yet and it touches live infrastructure. The retired
-> `.gitlab-ci.yml` and `.gitlab/ci/` are kept **temporarily and inertly** as the
-> reference for that port (nothing on GitHub reads them) and should be deleted
-> once CD lands. Until then, **deploys are manual**.
+> **CI half** (lint, build, test, evals) is ported and live, and the **sidecar
+> image is now published to GHCR** on merge to `main` (`publish-image`, below).
+> Still **not yet ported**: the Railway **deploy** that consumes that image
+> (re-assert vars + redeploy), the post-deploy `/health` + `/ready` smoke tests,
+> and the health-gated integration suite — they need repository secrets that do
+> not exist yet and touch live infrastructure. The retired `.gitlab-ci.yml` and
+> `.gitlab/ci/` are kept **temporarily and inertly** as the reference for that
+> port (nothing on GitHub reads them) and should be deleted once CD lands.
+> Until the deploy job lands, **deploys are manual** (and Railway still builds
+> from source until the service is repointed at the GHCR image — see `RAILWAY.md`).
 
 ## 1. What runs, and when
 
@@ -35,6 +38,7 @@ required.
 | `unit-tests` | test | fully mocked suite |
 | `eval-tests` | test | deterministic eval rubrics as xUnit theories |
 | `evals` | test | golden-set **hard gate** (Core Req 6) |
+| `publish-image` | publish | **main only**; builds the sidecar, verifies it, pushes to `ghcr.io/adammarquette/agent-forge-copilot` (`sha-<12>` + `main` + `latest`). Gated on `unit-tests`/`eval-tests`/`evals`. Uses the built-in `GITHUB_TOKEN` — no secret. |
 
 Triggers are `pull_request` (any branch) and `push` to **`main` and `develop`**.
 Concurrency cancels superseded runs on the same ref (the old `interruptible:

@@ -1,11 +1,14 @@
 # -----------------------------------------------------------------------------
-# CI — lint, build, test, evals. Ported from the retired GitLab pipeline
+# CI — lint, build, test, evals, + publish the sidecar image to GHCR on release
+# (merge to main). Ported from the retired GitLab pipeline
 # (.gitlab/ci/{lint,build,test,evals}.yml); see documentation/CI-SETUP.md.
 #
-# This is the CI half only. The deploy/verify half (Railway deploys, post-deploy
-# smoke tests, integration tests) is a separate follow-up: it needs ~18 repository
-# secrets that do not exist yet, and it touches live infrastructure. Everything
-# here runs with NO secrets at all.
+# The lint/build/test/evals gates run with NO secrets. The `publish-image` job
+# (bottom of this file) builds the sidecar once and pushes it to GHCR using the
+# built-in GITHUB_TOKEN - still no repo secret. What is NOT here yet is the
+# Railway DEPLOY that consumes that image (re-assert vars + redeploy): it needs
+# RAILWAY_TOKEN_STAGING + the runtime-var secrets (not set yet) and a one-time
+# console reconfig of the service to image-source, so it lands as a follow-up.
 #
 # Three things changed shape in the port rather than being copied across:
 #
@@ -300,3 +303,111 @@ jobs:
           name: eval-results
           path: evals/results.json
           retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # PUBLISH-IMAGE — build the sidecar once and push it to GHCR, so Railway pulls
+  # a pre-built image instead of rebuilding from source on every `railway up`
+  # (ADR/RAILWAY.md). "Build once, deploy that exact artifact."
+  #
+  # ON MERGE TO main ONLY. In this repo main IS the release: develop is the sole
+  # integration branch, staging takes develop-only, main takes staging-only
+  # (human-promoted, single-source). So a push to main is the release event, and
+  # the published image == the deployed image == the released state. develop
+  # pushes and PRs run the gates above but do NOT publish.
+  #
+  # Gated on the full test matrix (needs: unit-tests, eval-tests, evals - build
+  # is their transitive dep), so a red suite never publishes a deployable image.
+  #
+  # Uses the built-in GITHUB_TOKEN (packages: write) - no secret to manage. The
+  # image carries NO secrets; runtime config comes from the Railway service's env
+  # at deploy time.
+  #
+  # NOTE: the Railway deploy that CONSUMES this image is a follow-up - it needs
+  # RAILWAY_TOKEN_STAGING (not yet set) and a one-time console reconfig of the
+  # service from build-from-source to this GHCR image. Publishing is independent
+  # and safe to land first.
+  #
+  # FIRST-PUBLISH console step: a new GHCR package is PRIVATE; flip it to public
+  # (Settings -> Packages -> agent-forge-copilot -> Change visibility) so Railway
+  # (and anyone) can pull without a credential.
+  # ---------------------------------------------------------------------------
+  publish-image:
+    name: publish-image
+    runs-on: ubuntu-latest
+    needs: [unit-tests, eval-tests, evals]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build to the local daemon first (single-platform; the deploy target is
+      # amd64), so the verify below runs against the exact image that will be
+      # pushed. The push step re-runs from the gha cache, so it is a cache hit,
+      # not a second full build.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          load: true
+          push: false
+          tags: ${{ env.IMAGE }}:ci-candidate
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Sanity-check the built image is the runnable sidecar before publishing -
+      # cheaper than discovering a broken publish at deploy time. Not a full boot
+      # (the app's ValidateOnStart needs OpenEmr/Llm config it must not carry), so
+      # this asserts the published entrypoint assembly is present in the runtime layer.
+      - name: Verify the image is the sidecar
+        run: |
+          set -euo pipefail
+          if docker run --rm --entrypoint sh "${IMAGE}:ci-candidate" -c "test -f /app/MarqSpec.AgentForge.Api.dll"; then
+            echo "OK: MarqSpec.AgentForge.Api.dll present in the runtime image."
+          else
+            echo "::error::Built image is missing the sidecar entrypoint assembly; refusing to publish."
+            exit 1
+          fi
+
+      - name: Compute tags
+        id: tags
+        run: echo "sha=sha-$(echo "${GITHUB_SHA}" | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:main
+            ${{ env.IMAGE }}:${{ steps.tags.outputs.sha }}
+          cache-from: type=gha
+
+      - name: Summary
+        run: |
+          {
+            echo "### Sidecar image published"
+            echo ""
+            echo '```'
+            echo "docker pull ${IMAGE}:${{ steps.tags.outputs.sha }}"
+            echo '```'
+            echo ""
+            echo "| Tag | |"
+            echo "|---|---|"
+            echo "| \`latest\` / \`main\` | move with main |"
+            echo "| \`${{ steps.tags.outputs.sha }}\` | immutable — pin the Railway deploy to this |"
+          } >> "$GITHUB_STEP_SUMMARY"
