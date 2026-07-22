@@ -1,0 +1,27 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MarqSpec.AgentForge.Agent/MarqSpec.AgentForge.Agent.csproj" />
+    <Project Path="src/MarqSpec.AgentForge.Agents/MarqSpec.AgentForge.Agents.csproj" />
+    <Project Path="src/MarqSpec.AgentForge.Api/MarqSpec.AgentForge.Api.csproj" />
+    <Project Path="src/MarqSpec.AgentForge.Data/MarqSpec.AgentForge.Data.csproj" />
+    <Project Path="src/MarqSpec.AgentForge.Documents/MarqSpec.AgentForge.Documents.csproj" />
+    <Project Path="src/MarqSpec.AgentForge.Integration.OpenEmr/MarqSpec.AgentForge.Integration.OpenEmr.csproj" />
+    <Project Path="src/MarqSpec.AgentForge.Llm/MarqSpec.AgentForge.Llm.csproj" />
+    <Project Path="src/MarqSpec.AgentForge.Mcp/MarqSpec.AgentForge.Mcp.csproj" />
+    <Project Path="src/MarqSpec.AgentForge.Observability/MarqSpec.AgentForge.Observability.csproj" />
+    <Project Path="src/MarqSpec.AgentForge.Retrieval/MarqSpec.AgentForge.Retrieval.csproj" />
+    <Project Path="src/MarqSpec.AgentForge.Verification/MarqSpec.AgentForge.Verification.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MarqSpec.AgentForge.EvalTests/MarqSpec.AgentForge.EvalTests.csproj" />
+    <Project Path="tests/MarqSpec.AgentForge.Evals/MarqSpec.AgentForge.Evals.csproj" />
+    <Project Path="tests/MarqSpec.AgentForge.IntegrationTests/MarqSpec.AgentForge.IntegrationTests.csproj" />
+    <Project Path="tests/MarqSpec.AgentForge.UnitTests/MarqSpec.AgentForge.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/LoadTestChat/LoadTestChat.csproj" />
+    <Project Path="tools/MintQaIdentityToken/MintQaIdentityToken.csproj" />
+    <Project Path="tools/RegisterSmartClients/RegisterSmartClients.csproj" />
+    <Project Path="tools/SeedDemoPatients/SeedDemoPatients.csproj" />
+  </Folder>
+</Solution>

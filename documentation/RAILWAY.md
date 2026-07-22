@@ -17,7 +17,7 @@ never became available to diagnose it further — and was decommissioned
 
 | Service | Image / source | Notes |
 |---|---|---|
-| `agent-forge-api-staging` | this repo's root `Dockerfile` (.NET 10) | The BFF/API. Deployed by CI via `railway up`. Public domain → port 8080. |
+| `agent-forge-api-staging` | this repo's root `Dockerfile` (.NET 10) — **transitioning to the pre-built GHCR image** `ghcr.io/adammarquette/agent-forge-copilot` (see the image-source note below) | The BFF/API. Currently deployed by CI via `railway up` (build-from-source); the image is now published on merge to `main` by the `publish-image` CI job, and the service is being repointed to pull it. Public domain → port 8080. |
 | `openemr` | **built from the fork `adammarquette/agent-forge`** (`docker/railway/Dockerfile` via its own `railway.json`) — *not* the stock `openemr/openemr` image | OpenEMR EHR **with the `oe-module-agentforge` custom module baked in** (`COPY . /openemr`). Public domain → port 80. Deployed by the **fork's** CI on merge to the fork's `main`, not this repo's. |
 | `MySQL-gDNR` | `mysql:9.4` | OpenEMR's database. Private TCP only (port 3306). |
 
@@ -31,7 +31,7 @@ the old `development` names.
 flowchart TB
     dev["Developer"]
 
-    subgraph GL["GitLab CI &mdash; labs.gauntletai.com"]
+    subgraph CI["CI pipeline"]
         direction LR
         lint["lint"] --> build["build"] --> test["test"] --> deploy["deploy (auto on main)"] --> verify["verify (post-deploy smoke test)"]
         itest["integration-tests<br/>BFF runs in-process on runner"]
@@ -98,9 +98,22 @@ domain on port 80. Variables: `MYSQL_HOST/PORT/ROOT_PASS` (references to the MyS
 > Settings → Networking → set the domain's target port (80 for openemr, 8080
 > for agent-forge-api).
 
-**agent-forge-api-staging** — built from this repo's root `Dockerfile`
-(multi-stage .NET 10, binds Kestrel to Railway's `$PORT`). Public domain on
-port 8080. Deployed by CI via `railway up`, not by image.
+**agent-forge-api-staging** — multi-stage .NET 10, binds Kestrel to Railway's
+`$PORT`. Public domain on port 8080.
+
+> **Image source — moving from build-from-source to a pre-built GHCR image.**
+> CI's `publish-image` job (`.github/workflows/ci.yml`) now builds this repo's
+> root `Dockerfile` once on merge to `main` and pushes
+> `ghcr.io/adammarquette/agent-forge-copilot` (`sha-<12>` + `main` + `latest`),
+> the same build-once pattern as the OpenEMR fork. **Two operator steps complete
+> the switch:** (1) after the first publish, flip the GHCR package to **public**
+> (Settings → Packages → agent-forge-copilot → Change visibility); (2) reconfigure
+> the Railway service source from the repo Dockerfile to the GHCR image, pinned to
+> the immutable `sha-<12>` tag. Until (2), Railway keeps building from source via
+> `railway up` and the published image serves local `docker-compose` only. The CI
+> **deploy** job that re-asserts the vars below and redeploys the pulled image is a
+> follow-up (needs `RAILWAY_TOKEN_STAGING` + the runtime-var secrets).
+
 Variables (Options-pattern, `__` = section separator):
 
 > **Reverse-proxy front door (2026-07-13):** the SMART launch now routes through the
@@ -201,7 +214,7 @@ signal if it never comes up, rather than failing the whole suite on login timeou
     cross-identity scope tests
   - `OpenEmrQa__TestAccessToken` — deliberately unset; when absent,
     `OpenEmrQaFixture` mints it itself via a Playwright login fallback (see
-    `tests/GauntletAI.AgentForge.IntegrationTests/Support/OpenEmrQaFixture.cs`)
+    `tests/MarqSpec.AgentForge.IntegrationTests/Support/OpenEmrQaFixture.cs`)
   - `OpenEmrQa__System__ClientId`, `OpenEmrQa__System__PrivateKeyPath` (**File**
     type), `OpenEmrQa__System__KeyId`, `OpenEmrQa__System__Scope` — see below
   - `LlmQa__ApiKey`, `LlmQa__Model` = real Anthropic key + model for test runs
@@ -336,8 +349,8 @@ Completed 2026-07-09 through 2026-07-11 against the fresh staging OpenEMR:
 > if there's a concrete reason to (see issue #44's closing note for the full
 > investigation trail).
 
-Admin login (demo): `admin` / `P@ssw0rd1` (also the `OE_PASS` service variable
-on `openemr`, kept in sync so a re-setup recreates the same credentials).
+Admin login (demo): `admin` / **ask** — the password is withheld from source; the live value is the
+`OE_PASS` service variable on `openemr`, kept in sync so a re-setup recreates the same credentials.
 
 ## Remaining setup (one-time)
 

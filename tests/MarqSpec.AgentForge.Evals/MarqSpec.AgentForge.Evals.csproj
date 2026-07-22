@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Documents\MarqSpec.AgentForge.Documents.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The EvalTests project reuses these internal eval building blocks (GoldenCase, RubricEvaluator,
+         Stub/CapturingLogger) so the fast xUnit tests share this gate's exact pipeline. -->
+    <InternalsVisibleTo Include="MarqSpec.AgentForge.EvalTests" />
+  </ItemGroup>
+
+</Project>

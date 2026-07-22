@@ -68,7 +68,7 @@
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.9" />
 
     <!--
-      Data tier (Week 2 - GauntletAI.AgentForge.Data): EF Core over PostgreSQL + pgvector for the
+      Data tier (Week 2 - MarqSpec.AgentForge.Data): EF Core over PostgreSQL + pgvector for the
       hybrid-RAG store and the sidecar-owned DerivedFactStore (W2_ARCHITECTURE.md §5, W2-D14).
       EF Core provider major MUST match the EF Core major (net10 -> the 10.x line); the pgvector-EF
       floor (>= 9.0.1) will NOT force it, so these are pinned to 10.x here on purpose. Pgvector packages
@@ -88,11 +88,16 @@
 
     <!--
       Security pin: Microsoft.EntityFrameworkCore.Design's MSBuild/Roslyn tooling pulls
-      System.Security.Cryptography.Xml 9.0.0, which has a high-severity CVE (NU1903). Pin up to the patched
-      10.0.9 (matches our other MS package cadence). The Design package is design-time only (PrivateAssets),
+      System.Security.Cryptography.Xml 9.0.0, which has a high-severity CVE (NU1903). Pin up to a patched
+      release (matches our other MS package cadence). The Design package is design-time only (PrivateAssets),
       so this never ships at runtime - it exists solely to keep the audit gate green.
+
+      This pin needs re-bumping whenever the pinned version itself picks up an advisory: 10.0.9 was the
+      patched target until GHSA-23rf-6693-g89p / -8q5v-6pqq-x66h / -cvvh-rhrc-wg4q / -g8r8-53c2-pm3f landed
+      against it, which turned every `dotnet build` red under warnings-as-errors. 10.0.10 clears all four.
+      Treat a NU1903 on this package as "bump the pin", not "suppress the audit".
     -->
-    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.9" />
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.10" />
 
     <!-- Test infrastructure (both test projects) -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />

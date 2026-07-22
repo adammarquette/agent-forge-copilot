@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- CA1707 (no underscores) conflicts with the mandated Method_State_ExpectedResult
+         test-naming convention (ENGINEERING_STANDARDS.md §8). -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="JunitXml.TestLogger" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ISession and other ASP.NET Core abstractions for testing the BFF (Epic 3) -
+         part of the shared framework, not a NuGet package, for a non-Sdk.Web project. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Integration.OpenEmr\MarqSpec.AgentForge.Integration.OpenEmr.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Llm\MarqSpec.AgentForge.Llm.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Mcp\MarqSpec.AgentForge.Mcp.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Observability\MarqSpec.AgentForge.Observability.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Agent\MarqSpec.AgentForge.Agent.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Api\MarqSpec.AgentForge.Api.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Verification\MarqSpec.AgentForge.Verification.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Documents\MarqSpec.AgentForge.Documents.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Agents\MarqSpec.AgentForge.Agents.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Retrieval\MarqSpec.AgentForge.Retrieval.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

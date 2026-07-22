@@ -17,9 +17,9 @@ no LLM judge, so the gate cannot drift. `factually_consistent` / `safe_refusal` 
 answer-composition cases once P2 (RAG + graph) lands; the judge config will live here.
 
 ## Two tiers (both run in CI)
-1. **Console gate** — `tests/GauntletAI.AgentForge.Evals` (this project). Runs *all* rubrics and enforces the
+1. **Console gate** — `tests/MarqSpec.AgentForge.Evals` (this project). Runs *all* rubrics and enforces the
    `baseline.json` regression policy; it is also where the future LLM-judge rubrics attach. CI job: `evals`.
-2. **Deterministic xUnit tests** — `tests/GauntletAI.AgentForge.EvalTests`. Runs the mechanically-checked
+2. **Deterministic xUnit tests** — `tests/MarqSpec.AgentForge.EvalTests`. Runs the mechanically-checked
    rubrics (`schema_valid`, `citation_present`, `no_phi_in_logs`) as a data-driven `[Theory]`, one result per
    golden case, in the standard `dotnet test` flow. Never calls a judge, so it stays hermetic. CI job:
    `eval-tests`. Both projects share one extraction pipeline (the xUnit tests reuse this project's internals),
@@ -27,8 +27,8 @@ answer-composition cases once P2 (RAG + graph) lands; the judge config will live
 
 ## Running
 ```
-dotnet run --project tests/GauntletAI.AgentForge.Evals -- evals   # console gate (all rubrics + baseline)
-dotnet test tests/GauntletAI.AgentForge.EvalTests                 # deterministic rubrics, per-case
+dotnet run --project tests/MarqSpec.AgentForge.Evals -- evals   # console gate (all rubrics + baseline)
+dotnet test tests/MarqSpec.AgentForge.EvalTests                 # deterministic rubrics, per-case
 ```
 Console-gate exit code 0 = gate passed; 1 = a category is below `pass_threshold` or regressed more than
 `max_regression` from its baseline (the build fails). Wired into CI as the `evals` job.

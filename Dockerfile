@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Multi-stage build for GauntletAI.AgentForge.Api
+# Multi-stage build for MarqSpec.AgentForge.Api
 # Railway auto-detects this Dockerfile at the repo root and uses it for the service build.
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
@@ -10,11 +10,11 @@ WORKDIR /src
 # suppresses the analyzers (CA1861 etc.) that would otherwise fail `dotnet publish` under
 # warnings-as-errors. Omitting it here (while local/CI builds have the full repo) silently broke the
 # Railway build once the first generated migration landed.
-COPY Directory.Build.props Directory.Packages.props GauntletAI.AgentForge.slnx .editorconfig ./
+COPY Directory.Build.props Directory.Packages.props MarqSpec.AgentForge.slnx .editorconfig ./
 COPY src/ src/
 
-RUN dotnet restore src/GauntletAI.AgentForge.Api/GauntletAI.AgentForge.Api.csproj
-RUN dotnet publish src/GauntletAI.AgentForge.Api/GauntletAI.AgentForge.Api.csproj \
+RUN dotnet restore src/MarqSpec.AgentForge.Api/MarqSpec.AgentForge.Api.csproj
+RUN dotnet publish src/MarqSpec.AgentForge.Api/MarqSpec.AgentForge.Api.csproj \
     -c Release \
     --no-restore \
     -o /app/publish
@@ -27,4 +27,4 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_EnableDiagnostics=0
 
 # Railway injects PORT at runtime; bind Kestrel to it (default 8080 for local docker run).
-ENTRYPOINT ["/bin/sh", "-c", "ASPNETCORE_URLS=http://0.0.0.0:${PORT:-8080} exec dotnet GauntletAI.AgentForge.Api.dll"]
+ENTRYPOINT ["/bin/sh", "-c", "ASPNETCORE_URLS=http://0.0.0.0:${PORT:-8080} exec dotnet MarqSpec.AgentForge.Api.dll"]

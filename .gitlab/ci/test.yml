@@ -83,9 +83,9 @@ unit-tests:
 eval-tests:
   <<: *test_template
   script:
-    - dotnet restore "tests/GauntletAI.AgentForge.EvalTests/GauntletAI.AgentForge.EvalTests.csproj"
+    - dotnet restore "tests/MarqSpec.AgentForge.EvalTests/MarqSpec.AgentForge.EvalTests.csproj"
     - |
-      dotnet test "tests/GauntletAI.AgentForge.EvalTests/GauntletAI.AgentForge.EvalTests.csproj" --no-build -c $BUILD_CONFIG \
+      dotnet test "tests/MarqSpec.AgentForge.EvalTests/MarqSpec.AgentForge.EvalTests.csproj" --no-build -c $BUILD_CONFIG \
         --results-directory "$CI_PROJECT_DIR/TestResults" \
         --logger "junit;LogFileName={assembly}.junit.xml" \
         --logger "trx;LogFileName={assembly}.trx"
@@ -186,7 +186,7 @@ integration-tests:
         # changed. Copying it explicitly here, straight from the NuGet cache the restore above
         # just repopulated, makes this deterministic instead of hoping the build job's copy
         # step ran this time.
-        dest_dir="tests/GauntletAI.AgentForge.IntegrationTests/bin/$BUILD_CONFIG/net10.0/.playwright"
+        dest_dir="tests/MarqSpec.AgentForge.IntegrationTests/bin/$BUILD_CONFIG/net10.0/.playwright"
         mkdir -p "$dest_dir"
         cp -r "$pw_dir"/. "$dest_dir"/
         echo "Installing Playwright's Chromium (for OpenEmrQaFixture's login self-heal)..."

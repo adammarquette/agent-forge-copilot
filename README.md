@@ -34,7 +34,60 @@ For the full picture, read the docs below in order.
 
 ---
 
-## Live demo
+## Run it locally
+
+Two ways to see this working: the hosted demo below, or your own stack via
+[`docker-compose.yml`](docker-compose.yml).
+
+```bash
+cp .env.example .env          # set OPENEMR_ADMIN_PASSWORD
+docker compose up -d          # OpenEMR + the AgentForge module + the front door
+```
+
+Then open **<http://localhost:8080>** and log in as `admin`. That tier needs **no API key** — you get
+OpenEMR with the module installed, including the AgentForge launch button and the Daily Agenda tab.
+
+The OpenEMR image is pulled from `ghcr.io/adammarquette/agent-forge`, published by the
+[fork's](https://github.com/adammarquette/agent-forge) own pipeline. The compose file pins an
+immutable `sha-` tag (not `:latest`) so this demo stays reproducible; set `OPENEMR_IMAGE` in `.env`
+to `:latest`/`:main` to follow the newest build. It is **not** stock OpenEMR: the SMART launch
+depends on core patches in that fork (the `SessionUtil` launch-bridge cookie, `AuthorizationController`,
+`library/auth.inc.php`), so stock OpenEMR with the module dropped on top will not reproduce a working
+launch.
+
+### Adding the co-pilot
+
+The sidecar needs two things the EHR tier doesn't, so it sits behind a profile rather than
+crash-looping for anyone without them:
+
+1. **An Anthropic API key.** `Llm:ApiKey` is `[Required]` and validated at startup — the sidecar
+   cannot boot without one. Put it in `.env` as `ANTHROPIC_API_KEY`.
+2. **A registered SMART client.** In OpenEMR: **Admin → System → API Clients**, register a
+   *confidential* client with redirect URI `http://localhost:8080/agentforge/callback`, then
+   **enable it** — freshly-registered clients land disabled. Put its id/secret in `.env` as
+   `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET`. (`dotnet run --project tools/RegisterSmartClients`
+   automates the registration.)
+
+Also set **Admin → Configuration → Connectors → Site Address Override** to `http://localhost:8080`.
+Without it OpenEMR advertises its own container hostname as the FHIR base, and every launch fails the
+SMART `aud` check before reaching a login form.
+
+```bash
+docker compose --profile copilot up -d
+```
+
+Everything is reached through the one origin on port 8080 — OpenEMR at `/`, the sidecar under
+`/agentforge`. That is not cosmetic: a launch whose `/launch` and `/callback` land on different hosts
+loses its session cookie ("No pending SMART launch"), and `site_addr_oath` must equal the sidecar's
+`OpenEmr:BaseUrl` or the `aud` check fails. Same reason the hosted demo runs behind a reverse proxy.
+
+> **Demo data only.** This stack is for evaluation on synthetic data — never real PHI. It runs over
+> plain HTTP with local-development escape hatches enabled
+> (`AllowInsecureHttpForLocalDevelopment`), which are not safe for anything else.
+
+---
+
+## Hosted demo
 
 A running OpenEMR instance (synthetic data only) is deployed on Railway — see [Deployment](#deployment).
 Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issue #62) as of 2026-07-12:
@@ -43,8 +96,11 @@ Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issu
 
 | Role | Username | Password |
 |---|---|---|
-| Administrator | `admin` | `P@ssw0rd1` |
-| Cardiologist (demo provider — the patients' attending) | `cardio1` | `P@ssw0rd1` |
+| Administrator | `admin` | **ask** |
+| Cardiologist (demo provider — the patients' attending) | `cardio1` | **ask** |
+
+> Both demo logins share one password, so it is withheld rather than printed — masking only the
+> administrator row would leave it readable on the row below. Ask the maintainer for it.
 
 ### Observability dashboard (Grafana)
 
@@ -58,14 +114,14 @@ logs are **operational only — no PHI** (see `NFR-SEC-W2-1`).
 
 | Service | Username | Password |
 |---|---|---|
-| Grafana (demo) | `admin` | `P@ssw0rd1` |
+| Grafana (demo) | `admin` | **ask** |
 
 > **Staging/demo only — not for production.** These are throwaway credentials for a synthetic-data, non-PHI
-> dashboard (same posture as the OpenEMR logins above), published here purely so a reviewer can open the demo.
-> A production deployment **must** replace them: set a strong, unique `GF_SECURITY_ADMIN_PASSWORD` (and rotate
-> `GF_SECURITY_ADMIN_USER`) on the `agentforge-grafana` service, keep the value out of source, and remove this
-> table. The real value lives in that Railway variable, not here. Prometheus and Loki stay reachable only over
-> the project's private network (`agentforge-prometheus.railway.internal:9090`,
+> dashboard (same posture as the OpenEMR logins above). The password is withheld rather than printed — ask the
+> maintainer. A production deployment **must** replace it anyway: set a strong, unique
+> `GF_SECURITY_ADMIN_PASSWORD` (and rotate `GF_SECURITY_ADMIN_USER`) on the `agentforge-grafana` service, and
+> keep the value out of source. The real value lives in that Railway variable, not here. Prometheus and Loki
+> stay reachable only over the project's private network (`agentforge-prometheus.railway.internal:9090`,
 > `agentforge-loki.railway.internal:3100`).
 
 ### Front-door surface (what's reachable, and how it's protected)
@@ -88,10 +144,11 @@ no browser caller — is blocked at the proxy:
 | Path | What's there |
 |---|---|
 | [`documentation/`](documentation/) | All specs & design docs (the substance today — see index below) |
-| `GauntletAI.AgentForge.slnx` | Solution file (repo root) |
-| `src/` | Production projects (`GauntletAI.AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
-| `tests/` | Two test projects: `…UnitTests` (mocked) and `…IntegrationTests` (real deps in QA) |
-| `reverse-proxy/` | Nginx front-door container/config for the same-origin reverse-proxy rearchitecture (issue #62, agent-forge#22) — CI lives inline in `.gitlab/ci/`; deploy/verify stay manual and gated until that Railway environment exists; see its own README |
+| [`docker-compose.yml`](docker-compose.yml) · `.env.example` | Local demo stack — OpenEMR + module (keyless) and, behind `--profile copilot`, the sidecar. See [Run it locally](#run-it-locally) |
+| `MarqSpec.AgentForge.slnx` | Solution file (repo root) |
+| `src/` | Production projects (`MarqSpec.AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
+| `tests/` | Four test projects: `…UnitTests` (mocked), `…IntegrationTests` (real deps in QA), `…EvalTests` (deterministic rubric checks), and `…Evals` (golden-set eval runner; cases in top-level `evals/`) |
+| `reverse-proxy/` | Nginx front-door container/config for the same-origin reverse-proxy front door (issue #62, closed; agent-forge#22) — deployed on staging as `agent-forge-reverse-proxy` (the live-demo front door above); its config lint runs in `.github/workflows/ci.yml`; see its own README |
 | `AGENTS.md` · `src/AGENTS.md` · `tests/AGENTS.md` | Instructions for AI coding agents (root + per-role) |
 | `CLAUDE.md` (each level) | One-line shims so Claude Code honors the same `AGENTS.md` rules |
 
@@ -107,7 +164,7 @@ no browser caller — is blocked at the proxy:
 | [`W2_ARCHITECTURE.md`](documentation/W2_ARCHITECTURE.md) | **(Week 2)** Multimodal Evidence Agent — document ingestion, the supervisor/worker graph, hybrid RAG, cloud redundancy, the eval gate, and the Week 2 decision log (W2-D1..D14) |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | Stack, dependencies, coding/testing/security/logging standards |
-| [`supporting/`](documentation/supporting/) | Source requirement PDFs (Week 1 & 2) and the 5-minute architecture-defense decks (`Architecture_Defense.pptx`, `W2_Architecture_Defense.pptx`) |
+| [`supporting/`](documentation/supporting/) | The original Week 1 & 2 requirement briefs as issued (see [Origin](#origin)) and the 5-minute architecture-defense decks (`Architecture_Defense.pptx`, `W2_Architecture_Defense.pptx`) |
 
 ### Why so much cross-referencing
 
@@ -180,13 +237,19 @@ Details and rationale: [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md). Exter
 Prerequisites: **.NET 10 SDK** (or later). Build and test from the repo root:
 
 ```bash
-dotnet build GauntletAI.AgentForge.slnx
+dotnet build MarqSpec.AgentForge.slnx
 
 # Unit tests — fully mocked, fast, no external deps
-dotnet test tests/GauntletAI.AgentForge.UnitTests
+dotnet test tests/MarqSpec.AgentForge.UnitTests
 
 # Integration tests — run against real OpenEMR/MySQL in the QA environment (see ENGINEERING_STANDARDS.md §8.2)
-dotnet test tests/GauntletAI.AgentForge.IntegrationTests
+dotnet test tests/MarqSpec.AgentForge.IntegrationTests
+
+# Eval rubric checks — deterministic, offline (xUnit)
+dotnet test tests/MarqSpec.AgentForge.EvalTests
+
+# Golden-set eval gate — 50 cases in evals/, boolean rubrics; fails on regression (see W2_ARCHITECTURE.md §8)
+dotnet run --project tests/MarqSpec.AgentForge.Evals -- evals
 ```
 
 Configuration (OpenEMR base URL / site, OAuth client, LLM keys) is supplied via the **Options pattern** —
@@ -230,7 +293,7 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 ## Related repositories
 
-- **OpenEMR fork — [`agent-forge`](https://labs.gauntletai.com/adammarquette/agent-forge)** — the audited EHR
+- **OpenEMR fork — [`agent-forge`](https://github.com/adammarquette/agent-forge)** — the audited EHR
   base + the thin custom module (`oe-module-agentforge`) that originates the SMART EHR launch of this sidecar.
   The module adds two in-EHR entry points — an **AgentForge launch button** on the patient demographics page
   and a top-nav **Daily Agenda** tab — and on click performs a SMART EHR launch of the sidecar, opening it as
@@ -248,4 +311,17 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 ---
 
-*Gauntlet AI — AgentForge Clinical Co-Pilot. Internal project; docs are living and versioned (`v0.1`).*
+## Origin
+
+This project began as a case study issued by **Gauntlet AI**. The original requirement briefs are preserved
+unaltered in [`documentation/supporting/`](documentation/supporting/) — `PRD.md`'s FR-/NFR- IDs trace back to
+them, so they are kept as source documents rather than edited.
+
+Everything else — the architecture, the sidecar design, the implementation, and the docs in
+[`documentation/`](documentation/) — is original work. The codebase was formerly namespaced
+`GauntletAI.AgentForge.*` and hosted on a Gauntlet-run GitLab; both have been retired in favour of
+`MarqSpec.AgentForge.*` on GitHub.
+
+---
+
+*AgentForge Clinical Co-Pilot — a personal student project (see [Origin](#origin)); docs are living and versioned (`v0.1`).*

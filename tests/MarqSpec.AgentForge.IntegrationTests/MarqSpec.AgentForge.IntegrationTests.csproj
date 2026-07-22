@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- CA1707 (no underscores) conflicts with the mandated Method_State_ExpectedResult
+         test-naming convention (ENGINEERING_STANDARDS.md §8). -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="JunitXml.TestLogger" />
+    <PackageReference Include="Refit.HttpClientFactory" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <PackageReference Include="Microsoft.Playwright" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Integration.OpenEmr\MarqSpec.AgentForge.Integration.OpenEmr.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Mcp\MarqSpec.AgentForge.Mcp.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Observability\MarqSpec.AgentForge.Observability.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Llm\MarqSpec.AgentForge.Llm.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Agent\MarqSpec.AgentForge.Agent.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Api\MarqSpec.AgentForge.Api.csproj" />
+    <ProjectReference Include="..\..\src\MarqSpec.AgentForge.Verification\MarqSpec.AgentForge.Verification.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

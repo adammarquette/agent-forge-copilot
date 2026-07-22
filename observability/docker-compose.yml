@@ -3,7 +3,7 @@
 # sidecar's logs over OTLP (Epic 107); Grafana reads from both and is pre-provisioned with the
 # AgentForge dashboard, alert rules, and datasources below. This compose file stands up the
 # observability *backend* only - run the sidecar itself separately (`dotnet run` from
-# src/GauntletAI.AgentForge.Api, or its own container). To ship logs here, the sidecar needs
+# src/MarqSpec.AgentForge.Api, or its own container). To ship logs here, the sidecar needs
 # Observability__LokiOtlpEndpoint=http://localhost:3100/otlp/v1/logs (set in appsettings.Development.json).
 #
 # Usage: docker compose -f observability/docker-compose.yml up
