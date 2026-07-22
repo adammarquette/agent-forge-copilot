@@ -108,6 +108,7 @@ Confirmed available scopes relevant to the cardiology read paths. Request **only
 | Vitals | `patient/Observation.read` | casing confirmed PascalCase (GitLab issue #41) |
 | Procedures | `patient/Procedure.read` | casing confirmed PascalCase (GitLab issue #41) |
 | Documents (echo/EF, device narrative) | `patient/DocumentReference.read` | casing confirmed PascalCase (GitLab issue #41) |
+| Source document bytes for click-to-source | `patient/Binary.read` (single-patient) · `user/Binary.read` (agenda) | required for the `Binary` fetch behind `GET /evidence/document/{id}`; registered by `tools/RegisterSmartClients` — gitlab#128, #109 |
 | Launch/identity | `openid`, `fhirUser`, `launch`, `launch/patient` | |
 | FHIR API companion | `api:fhir` | **required alongside every `patient/*` FHIR-resource scope above** — confirmed against the live server; requesting a resource scope without it is rejected as `invalid_scope` |
 
@@ -237,6 +238,7 @@ Confirmed in this repo: `MarqSpec.AgentForge.Api` (`Program.cs`, `Launch/`, `Age
 | POST | `/agenda/select-patient` | Drill-down: scope a roster row to a patient | 200 | 401 |
 | GET | `/patient` | Launched patient's context (id, name, demographics, problems, meds, allergies) | 200 (JSON) | 401 (no session) |
 | POST | `/evidence/ask` | Week-2 multimodal evidence agent (**only mapped when the data tier is configured**) | 200 | — |
+| GET | `/evidence/document/{documentId}` | Stream a source document's `Binary` bytes for the click-to-source overlay (FR-CITE-2), fetched as the launched clinician | 200 (file) | 401 (no session) / 404 (not found) |
 | GET | `/health` | Liveness — process is up; **no** dependency checks (can't flap on a transient blip) | 200 | — |
 | GET | `/ready` | Readiness — OpenEMR + LLM + observability checks (NFR-HEALTH-1) | 200 | 503 (a dependency unreachable) |
 | GET | `/metrics` | Prometheus scrape (Epic 9) | 200 (text) | — |
@@ -270,7 +272,7 @@ patient session (complete the SMART launch first).
 
 ### D.3 MCP tool catalog
 
-Six read-only, patient-scoped tools (`ARCHITECTURE.md` §8.1, D2). Every tool **validates its input contract
+Eight read-only tools (`McpToolCatalog.AllTools`): the six patient-scoped Week-1 FHIR tools (`ARCHITECTURE.md` §8.1, D2) plus two Week-2 tools — `get_document_facts` (facts from the patient's ingested documents) and `retrieve_evidence` (clinical-guideline corpus). Every tool **validates its input contract
 first** (`McpToolContract.Validate`, NFR-CONTRACT-1). **`patientId` and `site` are never tool arguments** —
 they are session-bound, resolved by the orchestrator from the authenticated launch context and forced by the
 dispatcher regardless of any model-supplied value (the schema-level + dispatch-level halves of FR-CHAT-3).
@@ -283,6 +285,8 @@ dispatcher regardless of any model-supplied value (the schema-level + dispatch-l
 | `get_vitals` | `since_date` (optional) | `{ vitals[] }` — `ObservationRecord`; **null-valued placeholder observations are dropped** (#78) |
 | `get_recent_encounters` | `count` (int 1–20, default 3) | `{ encounters[] }` — thin list (date, type, reason) |
 | `get_documents` | `document_type` (case-insensitive substring, optional) | `{ documents[] }` — DiagnosticReport + DocumentReference narratives |
+| `get_document_facts` | *(none)* | facts already extracted from the patient's ingested documents, each citable as `[Document/<id>]` |
+| `retrieve_evidence` | `query` (**required**) | grounded clinical-guideline snippets for the query, each citable as `[Guideline/<id>]` |
 
 The authoritative model-facing JSON schemas are in `McpToolCatalog.AllTools`; the result record shapes are the
 `*Result` types on `IMcpToolServer`.
