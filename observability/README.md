@@ -54,7 +54,7 @@ alongside the sidecar, so the panels are viewable without running anything local
   restarts (like the sidecar's `/keys` volume) - not config-as-code.
 
 All three build via Railway's `RAILWAY_DOCKERFILE_PATH` with the context at the repo root (same mechanism as
-`reverse-proxy/`), and deploy from CI (`.gitlab/ci/deploy.yml`) using `RAILWAY_TOKEN_STAGING`. Grafana admin
+`reverse-proxy/`), and deploy manually pending the GitHub Actions deploy job (see `documentation/RAILWAY.md`), which will use `RAILWAY_TOKEN_STAGING`. Grafana admin
 credentials come from the `GF_SECURITY_ADMIN_*` Railway variables — never baked into the image.
 
 ## Alerts
