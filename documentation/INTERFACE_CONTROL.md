@@ -133,8 +133,9 @@ silently omit the new scopes from the granted token rather than fail loudly.
 user/prescription.read user/drug.read user/list.read user/allergy.read user/vital.read
 user/procedure.read user/surgery.read user/document.read user/Appointment.read`, confidential
 client (`token_endpoint_auth_method: client_secret_post`), enabled via Admin → System → API
-Clients. Credentials live as `OpenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret` GitLab CI
-variables. Casing beyond `Patient`/`Appointment` (both PascalCase, matching the one confirmed-live
+Clients. Credentials live as the `OpenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret` GitHub
+Actions variable/secret (see `RAILWAY.md`'s CD secrets section). Casing beyond
+`Patient`/`Appointment` (both PascalCase, matching the one confirmed-live
 casing rule above) is still best-effort, not individually re-verified per resource — `[CONFIRM]`
 against actual QA-tier test results once they run.)*
 

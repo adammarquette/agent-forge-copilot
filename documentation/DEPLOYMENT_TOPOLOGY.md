@@ -21,7 +21,7 @@ flowchart TB
     subgraph users["Clients (public internet)"]
         clin["Cardiologist browser<br/>SMART EHR launch · chat SPA · agenda"]
         ops["Reviewer / operator<br/>dashboards · admin"]
-        ci["GitLab CI<br/>integration tests"]
+        ci["GitHub Actions<br/>integration tests"]
     end
 
     subgraph rw["Railway project: lucid-clarity — environment: staging"]

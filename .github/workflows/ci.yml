@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------
 # CI — lint, build, test, evals, + publish the sidecar image to GHCR on release
 # (merge to main). Ported from the retired GitLab pipeline
-# (.gitlab/ci/{lint,build,test,evals}.yml); see documentation/CI-SETUP.md.
+# (originals in git history at fbbf07d); see documentation/CI-SETUP.md.
 #
 # The lint/build/test/evals gates run with NO secrets. The `publish-image` job
 # (bottom of this file) builds the sidecar once and pushes it to GHCR using the
