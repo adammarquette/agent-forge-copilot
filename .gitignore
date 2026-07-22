@@ -497,3 +497,13 @@ secrets.json
 # tools/LoadTestChat's LoadTest__Debug=1 capture (screenshots/HTML dumps of live OpenEMR pages)
 debug-*.html
 debug-*.png
+
+# Local GitLab->GitHub migration archive. NEVER commit: the export's project.json
+# carries a live GitLab runners_token (gitleaks rule: gitlab-rrt), and the archive
+# also mirrors CI variables. It is read locally by the importer only, and must not
+# reach GitHub or any other remote. The agent-forge fork ignores this too.
+gitlab-export/
+
+# Claude Code local agent config - per-developer permission allowlists and
+# machine-specific paths, not shared project configuration.
+.claude/
