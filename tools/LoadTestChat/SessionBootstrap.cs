@@ -39,6 +39,12 @@ public static class SessionBootstrap
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 15000 })
             .ConfigureAwait(false);
 
+        if (Environment.GetEnvironmentVariable("LoadTest__Debug") == "1")
+        {
+            Console.WriteLine($"[debug] after login submit, landed on: {page.Url}");
+            await File.WriteAllTextAsync("debug-after-login.html", await page.ContentAsync(), cancellationToken).ConfigureAwait(false);
+        }
+
         var patientButtonSelector = $"button[data-patient-id='{patientId}']";
         var patientButton = await page.WaitForSelectorAsync(patientButtonSelector, new PageWaitForSelectorOptions { Timeout = 15000 })
             .ConfigureAwait(false)
