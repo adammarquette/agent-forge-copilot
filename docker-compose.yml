@@ -78,7 +78,13 @@ services:
       MYSQL_PASS: ${MYSQL_PASSWORD:-openemr}
       MYSQL_DATABASE: openemr
       OE_USER: admin
-      OE_PASS: ${OPENEMR_ADMIN_PASSWORD:?set OPENEMR_ADMIN_PASSWORD in .env}
+      # Zero-config LOCAL default so `docker compose up` just works. Deliberately
+      # NOT the staging admin password (which is withheld from source) - this stack
+      # is ephemeral, localhost-only, synthetic data, so a known throwaway default
+      # is fine and can't reach anything shared. Override in .env for a non-throwaway
+      # stack. `admin` is the only login a fresh boot creates; `cardio1` + demo
+      # patients need the seed/bootstrap (gh#375), not built-in.
+      OE_PASS: ${OPENEMR_ADMIN_PASSWORD:-LocalDev1!}
       # Named volumes mount EMPTY - they do not inherit image contents. The
       # OpenEMR image only restores its sites/ skeleton from /swarm-pieces (and
       # runs first-boot setup) when SWARM_MODE=yes and the replica elects itself

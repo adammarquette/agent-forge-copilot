@@ -29,8 +29,10 @@ not per-deployment: see [Railway's private networking docs](https://docs.railway
 
 ## Status
 
-Deployed and live as of 2026-07-12 at `https://agent-forge-reverse-proxy-staging.up.railway.app`,
-confirmed working: `/` correctly reaches OpenEMR (a 302, its normal unauthenticated response).
+Deployed and live at `https://agent-forge.marqspec.com` (custom domain since 2026-07-30; the
+generated `agent-forge-reverse-proxy-staging.up.railway.app` still resolves but is no longer the
+launch origin), confirmed working: `/` correctly reaches OpenEMR (a 302, its normal unauthenticated
+response).
 Not yet wired into production traffic, though: `/agentforge/*` 404s because `Bff__PathBase`
 isn't set on the real `agent-forge-api-staging` service yet, and OpenEMR's own config
 (`agent-forge#24`, `#25`, `#26` - redirect_uri, launch URI, `cookie_samesite` revert) hasn't been
