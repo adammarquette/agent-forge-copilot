@@ -111,8 +111,11 @@ domain on port 80. Variables: `MYSQL_HOST/PORT/ROOT_PASS` (references to the MyS
 > `Dockerfile` once on merge to `main` and pushes
 > `ghcr.io/adammarquette/agent-forge-copilot` (`sha-<12>` + `main` + `latest`),
 > the same build-once pattern as the OpenEMR fork. The Railway service source is
-> now that image, **pinned to `sha-f3203a6d5f38`** (the package is public, so no
-> pull credential). This replaced build-from-source, which had silently frozen:
+> now that image, pinned to a specific `sha-<12>` — currently
+> **`sha-60c9495d39ff`** (the promoted-`main` build; this value moves on each
+> roll-forward, so treat the live service source as truth, not this line) (the
+> package is public, so no pull credential). This replaced build-from-source, which
+> had silently frozen:
 > Railway kept rebuilding a months-old `railway up` snapshot that still pinned the
 > vulnerable `System.Security.Cryptography.Xml 10.0.9`, so every redeploy failed
 > `dotnet restore` on NU1903 and the last good deploy was weeks stale — pulling the
