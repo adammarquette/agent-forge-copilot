@@ -105,9 +105,10 @@ loses its session cookie ("No pending SMART launch"), and `site_addr_oath` must 
 ## Hosted demo
 
 A running OpenEMR instance (synthetic data only) is deployed on Railway — see [Deployment](#deployment).
-Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issue #62) as of 2026-07-12:
+Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issue #62), on the custom
+domain as of 2026-07-30:
 
-**[agent-forge-reverse-proxy-staging.up.railway.app](https://agent-forge-reverse-proxy-staging.up.railway.app/)**
+**[agent-forge.marqspec.com](https://agent-forge.marqspec.com/)**
 
 | Role | Username | Password |
 |---|---|---|

@@ -129,7 +129,8 @@ vs Week 1).
 **Run date:** 2026-07-17. **Target:** the live `staging` deployment (`agent-forge-api-staging`, Railway
 project `lucid-clarity`), reached through the same-origin reverse-proxy front door under the `/agentforge`
 PathBase (`reverse-proxy/nginx.conf.template`, issue #62) — the sidecar's own public domain is retired, so
-`https://agent-forge-reverse-proxy-staging.up.railway.app/agentforge` is the only external entry. `/ready`
+`https://agent-forge.marqspec.com/agentforge` is the only external entry (this run predated the custom
+domain and used the generated `…-staging.up.railway.app` host; the numbers are hostname-independent). `/ready`
 was 200 (dependencies healthy) at run time. **Flow:** `POST /evidence/ask` — the stateless supervisor→worker
 graph (intake-extractor / evidence-retriever / answer-composer / critic), question-only (no document upload),
 so the hybrid-RAG guideline path runs but vision extraction does not. **Question:** a fixed guideline query
