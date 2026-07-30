@@ -80,8 +80,8 @@ flowchart TB
 
 | Service (Railway) | Role | Build source | Port | Public domain | Persists |
 |---|---|---|---|---|---|
-| `agent-forge-reverse-proxy` | Same-origin nginx front door (gitlab#62) | `reverse-proxy/Dockerfile` | `$PORT` | ✅ `agent-forge-reverse-proxy-staging.up.railway.app` | — |
-| `agent-forge-api-staging` | .NET 10 sidecar / BFF (agent, verification, MCP tools, SignalR) | root `Dockerfile` | 8080 | ❌ **private** (domain deleted, gitlab#92) | vol `/keys` |
+| `agent-forge-reverse-proxy` | Same-origin nginx front door (gitlab#62) | `reverse-proxy/Dockerfile` | `$PORT` (8080) | ✅ `agent-forge.marqspec.com` (custom, since 2026-07-30; the generated `…-staging.up.railway.app` still resolves) | — |
+| `agent-forge-api-staging` | .NET 10 sidecar / BFF (agent, verification, MCP tools, SignalR) | GHCR image `ghcr.io/adammarquette/agent-forge-copilot` (pinned `sha-<12>`) | 8080 | ❌ **private** (domain deleted, gitlab#92) | vol `/keys` |
 | `openemr` | OpenEMR v8 fork (PHP/Apache, `SWARM_MODE`) + `oe-module-agentforge` | fork repo | 80 | ✅ `openemr-staging-25fc.up.railway.app` (QA/admin) | vol |
 | `agentforge-prometheus` | Metrics scrape + alert-rule evaluation | `observability/prometheus/Dockerfile` | `[::]:9090` | ❌ **private** | (ephemeral) |
 | `agentforge-loki` | Log aggregation (sidecar logs via OTLP) | `observability/loki/Dockerfile` | `[::]:3100` | ❌ **private** | vol `/loki` |
