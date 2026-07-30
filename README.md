@@ -40,12 +40,27 @@ Two ways to see this working: the hosted demo below, or your own stack via
 [`docker-compose.yml`](docker-compose.yml).
 
 ```bash
-cp .env.example .env          # set OPENEMR_ADMIN_PASSWORD
 docker compose up -d          # OpenEMR + the AgentForge module + the front door
 ```
 
-Then open **<http://localhost:8080>** and log in as `admin`. That tier needs **no API key** — you get
-OpenEMR with the module installed, including the AgentForge launch button and the Daily Agenda tab.
+Then open **<http://localhost:8080>** and log in with the **default local credentials**:
+
+| Username | Password |
+|---|---|
+| `admin` | `LocalDev1!` |
+
+Zero config — that tier needs **no API key** and **no `.env`**; you get OpenEMR with the module
+installed (the AgentForge launch button + the Daily Agenda tab). `LocalDev1!` is a throwaway default
+baked into `docker-compose.yml`; it is **not** the hosted-demo password (which stays withheld), and
+it's safe to publish because this stack is ephemeral, localhost-only, and synthetic-data. Override it
+by setting `OPENEMR_ADMIN_PASSWORD` in a `.env` (`cp .env.example .env`) before exposing the stack
+beyond your machine.
+
+> **`admin` is the only login a fresh stack creates.** The `cardio1` demo cardiologist and the demo
+> patients are **not** built in — they need a seed step (create the provider in Admin → Users, run
+> `tools/SeedDemoPatients`). Automating that into the compose bring-up is tracked in
+> [#375](https://github.com/adammarquette/agent-forge-copilot/issues/375); until then, a fresh stack
+> is a bare OpenEMR + the module.
 
 The OpenEMR image is pulled from `ghcr.io/adammarquette/agent-forge`, published by the
 [fork's](https://github.com/adammarquette/agent-forge) own pipeline. The compose file pins an
@@ -90,9 +105,10 @@ loses its session cookie ("No pending SMART launch"), and `site_addr_oath` must 
 ## Hosted demo
 
 A running OpenEMR instance (synthetic data only) is deployed on Railway — see [Deployment](#deployment).
-Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issue #62) as of 2026-07-12:
+Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issue #62), on the custom
+domain as of 2026-07-30:
 
-**[agent-forge-reverse-proxy-staging.up.railway.app](https://agent-forge-reverse-proxy-staging.up.railway.app/)**
+**[agent-forge.marqspec.com](https://agent-forge.marqspec.com/)**
 
 | Role | Username | Password |
 |---|---|---|

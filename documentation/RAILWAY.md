@@ -17,7 +17,7 @@ never became available to diagnose it further — and was decommissioned
 
 | Service | Image / source | Notes |
 |---|---|---|
-| `agent-forge-api-staging` | this repo's root `Dockerfile` (.NET 10) — **transitioning to the pre-built GHCR image** `ghcr.io/adammarquette/agent-forge-copilot` (see the image-source note below) | The BFF/API. Currently deployed by CI via `railway up` (build-from-source); the image is now published on merge to `main` by the `publish-image` CI job, and the service is being repointed to pull it. Public domain → port 8080. |
+| `agent-forge-api-staging` | the **pre-built GHCR image** `ghcr.io/adammarquette/agent-forge-copilot`, pinned to an immutable `sha-<12>` tag (see the image-source note below) | The BFF/API. Deploys by **pulling** that image (no build) — the image is published on merge to `main` by the `publish-image` CI job. Reached via the front door `https://agent-forge.marqspec.com`; container listens on 8080. |
 | `openemr` | **built from the fork `adammarquette/agent-forge`** (`docker/railway/Dockerfile` via its own `railway.json`) — *not* the stock `openemr/openemr` image | OpenEMR EHR **with the `oe-module-agentforge` custom module baked in** (`COPY . /openemr`). Public domain → port 80. Deployed by the **fork's** CI on merge to the fork's `main`, not this repo's. |
 | `MySQL-gDNR` | `mysql:9.4` | OpenEMR's database. Private TCP only (port 3306). |
 
@@ -79,8 +79,10 @@ domain on port 80. Variables: `MYSQL_HOST/PORT/ROOT_PASS` (references to the MyS
 > `/apis/default/fhir/metadata`, and the `aud` the SMART `/authorize` flow
 > expects) as `http://...` unless corrected. Set the **"Site Address
 > Override"** global (Admin → Configuration → Connectors, `site_addr_oath`) to
-> the real `https://openemr-staging-25fc.up.railway.app` URL — otherwise every
-> SMART launch fails before reaching a login form.
+> the **front door** `https://agent-forge.marqspec.com` — it must equal the
+> sidecar's `OpenEmr__BaseUrl` (the `aud` both sides validate), never OpenEMR's
+> own `*-staging.up.railway.app` host. Otherwise every SMART launch fails before
+> reaching a login form.
 
 > **Why SWARM_MODE=yes matters:** Railway volumes mount empty — they do NOT
 > auto-populate from image contents the way Docker named volumes do. The
@@ -91,28 +93,37 @@ domain on port 80. Variables: `MYSQL_HOST/PORT/ROOT_PASS` (references to the MyS
 > Corollary: never trigger two overlapping deploys of openemr — the replicas
 > race for leadership and the survivor waits ~10 min as a "follower".
 
-> **Domain target port gotcha:** the Railway MCP/agent cannot reliably set a
-> public domain's *target port* — commits silently drop it. If a service 502s
-> with "connection refused" upstream errors while its container is healthy, the
-> domain is missing its target port. Fix it in the dashboard: Service →
-> Settings → Networking → set the domain's target port (80 for openemr, 8080
-> for agent-forge-api).
+> **Domain target port gotcha:** a domain whose *target port* is wrong 502s with
+> "connection refused" upstream errors while its container is healthy. This bit the
+> `agent-forge.marqspec.com` custom domain on the reverse proxy — it defaulted to
+> **443** while the nginx container listens on **8080**, so every request 502'd
+> until the port was corrected. Fix via the CLI (Railway CLI ≥ 5.26):
+> `railway domain update <domain> --port 8080 --service agent-forge-reverse-proxy`
+> — or the dashboard: Service → Settings → Networking → target port (80 for openemr,
+> 8080 for the reverse proxy and agent-forge-api). *(Older note said the agent
+> "cannot reliably set" this — no longer true; `railway domain update --port` works.)*
 
 **agent-forge-api-staging** — multi-stage .NET 10, binds Kestrel to Railway's
 `$PORT`. Public domain on port 8080.
 
-> **Image source — moving from build-from-source to a pre-built GHCR image.**
-> CI's `publish-image` job (`.github/workflows/ci.yml`) now builds this repo's
-> root `Dockerfile` once on merge to `main` and pushes
+> **Image source — DONE: the service pulls the pre-built GHCR image.**
+> CI's `publish-image` job (`.github/workflows/ci.yml`) builds this repo's root
+> `Dockerfile` once on merge to `main` and pushes
 > `ghcr.io/adammarquette/agent-forge-copilot` (`sha-<12>` + `main` + `latest`),
-> the same build-once pattern as the OpenEMR fork. **Two operator steps complete
-> the switch:** (1) after the first publish, flip the GHCR package to **public**
-> (Settings → Packages → agent-forge-copilot → Change visibility); (2) reconfigure
-> the Railway service source from the repo Dockerfile to the GHCR image, pinned to
-> the immutable `sha-<12>` tag. Until (2), Railway keeps building from source via
-> `railway up` and the published image serves local `docker-compose` only. The CI
-> **deploy** job that re-asserts the vars below and redeploys the pulled image is a
-> follow-up (needs `RAILWAY_TOKEN_STAGING` + the runtime-var secrets).
+> the same build-once pattern as the OpenEMR fork. The Railway service source is
+> now that image, **pinned to `sha-f3203a6d5f38`** (the package is public, so no
+> pull credential). This replaced build-from-source, which had silently frozen:
+> Railway kept rebuilding a months-old `railway up` snapshot that still pinned the
+> vulnerable `System.Security.Cryptography.Xml 10.0.9`, so every redeploy failed
+> `dotnet restore` on NU1903 and the last good deploy was weeks stale — pulling the
+> current, CI-verified image fixed it.
+>
+> **Deploying a new build:** `publish-image` pushes a fresh `sha-<12>` on each
+> `main` merge, but the service is pinned, so bump the pin to roll forward —
+> `serviceInstanceUpdate` `source.image` → the new tag, then `serviceInstanceDeploy`
+> (or the dashboard). The CI **deploy** job that automates the pin-bump + re-asserts
+> the vars below is the remaining follow-up (needs `RAILWAY_TOKEN_STAGING` + the
+> runtime-var secrets). To roll back, pin an earlier `sha-<12>`.
 
 Variables (Options-pattern, `__` = section separator):
 
@@ -124,15 +135,15 @@ Variables (Options-pattern, `__` = section separator):
 
 | Variable | Value |
 |---|---|
-| `OpenEmr__BaseUrl` | `https://agent-forge-reverse-proxy-staging.up.railway.app` (the reverse-proxy front door — must equal OpenEMR's `site_addr_oath`, else `aud` mismatch) |
+| `OpenEmr__BaseUrl` | `https://agent-forge.marqspec.com` (the reverse-proxy front door — must equal OpenEMR's `site_addr_oath`, else `aud` mismatch) |
 | `OpenEmr__Site` | `default` |
 | `Bff__PathBase` | `/agentforge` (the path the proxy reaches this service under; drives `UsePathBase`, the session-cookie path, and the post-launch redirect prefix) |
 | `DataProtection__KeyRingPath` | `/keys` (a mounted Railway **volume** — the session cookie carrying the pending SMART launch is DataProtection-encrypted; the default in-memory key ring can't decrypt it after a redeploy, breaking the callback with "No pending SMART launch") |
 | `OpenEmr__ClientId` | a registered **confidential** SMART client, admin-enabled (client id held in the Railway service variable, not here) |
 | `OpenEmr__ClientSecret` | the client's real secret (Railway service variable, not here — see the note below on why this is confidential, not public) |
 | `OpenEmr__Scopes__0..14` | PascalCase FHIR resource scopes, e.g. `patient/Patient.read` (see `ServerScopeListEntity::fhirResourceScopesV1()` in the OpenEMR fork for the exact catalog — casing matters, `patient/encounter.read` is rejected) |
-| `Bff__PublicBaseUrl` | `https://agent-forge-reverse-proxy-staging.up.railway.app/agentforge` (front door + path base — NOT `${{RAILWAY_PUBLIC_DOMAIN}}`, which is this service's own host and breaks the OAuth `redirect_uri`) |
-| `OpenEmrAgenda__ClientId` / `OpenEmrAgenda__ClientSecret` | the roster/agenda OAuth client (see agenda section below). Note the live var name is `OPenEmrAgenda__ClientId` (typo, works via case-insensitive .NET binding — fix when convenient). |
+| `Bff__PublicBaseUrl` | `https://agent-forge.marqspec.com/agentforge` (front door + path base — NOT `${{RAILWAY_PUBLIC_DOMAIN}}`, which is this service's own host and breaks the OAuth `redirect_uri`) |
+| `OpenEmrAgenda__ClientId` / `OpenEmrAgenda__ClientSecret` | the roster/agenda OAuth client (see agenda section below). The old `OPenEmrAgenda__ClientId` typo has been corrected to `OpenEmrAgenda__ClientId` on the service. |
 | `OpenEmrAgenda__Scopes__0..5` | `openid`, `fhirUser`, `launch`, `api:fhir`, `user/Appointment.read`, `user/Patient.read` |
 | `Llm__ApiKey` | real Anthropic key — will be **asserted from the `Llm__ApiKey` GitHub Actions secret** once the CD deploy job lands (see the CD secrets section below); until then the Railway service variable is the live value |
 | `Llm__Model` | `claude-sonnet-5` |
@@ -149,8 +160,9 @@ working launch until these are re-applied.
 deployed by the `nginx-deploy` CI job), is the public front door. It routes `/agentforge/*` to the
 sidecar and everything else to OpenEMR, so browser and server both see **one origin**. The
 invariant that bit us in three places: **every host/audience must be that front door**
-(`https://agent-forge-reverse-proxy-staging.up.railway.app`), never a service's own
-`*-staging.up.railway.app` host.
+(`https://agent-forge.marqspec.com`, the custom domain as of 2026-07-30; the generated
+`agent-forge-reverse-proxy-staging.up.railway.app` still resolves but is no longer the
+launch origin), never a service's own `*-staging.up.railway.app` host.
 
 **Auto-asserted by CI** (the retired GitLab `deploy` job did this on every deploy — self-healing
 like `Llm__ApiKey`; the pending GitHub Actions deploy job takes over the same duty): the host/path
@@ -189,7 +201,7 @@ rotate by editing them directly; once it lands, rotate the GitHub secret and pus
 3. **OpenEMR globals** (Admin → Configuration → Connectors): `site_addr_oath` = the front door;
    **"OAuth2 EHR-Launch Authorization Flow Skip"** enabled (gates the per-client skip above).
 4. **OpenEMR AgentForge module settings** (the module's own `moduleConfig.php` page — *not* the
-   standard Globals screen): **Launch URI** = `https://agent-forge-reverse-proxy-staging.up.railway.app/agentforge/agenda/launch`
+   standard Globals screen): **Launch URI** = `https://agent-forge.marqspec.com/agentforge/agenda/launch`
    (the roster endpoint — a launch on the sidecar's direct host loses the session cookie
    cross-domain), **Issuer** = `…/apis/default/fhir` (front door), **Launch Mode** = `tab`. Note: one
    Launch URI can't serve both the per-patient (`/agentforge/launch`) and roster
@@ -265,8 +277,8 @@ signal if it never comes up, rather than failing the whole suite on login timeou
 >   Connectors → `rest_system_scopes_api`) — off by default; without it every
 >   `system/*` scope is rejected as `invalid_scope` regardless of naming.
 > - The **"Site Address Override"** global (same Connectors tab,
->   `site_addr_oath`) set to this environment's real base URL (e.g.
->   `https://openemr-staging-25fc.up.railway.app`). It defaults to an
+>   `site_addr_oath`) set to the front door (`https://agent-forge.marqspec.com`).
+>   It defaults to an
 >   *empty string*, which PHP's `??` does not treat as unset — so every OAuth
 >   URL the server computes (including the token endpoint used to validate the
 >   JWT assertion's `aud` claim) comes out as a bare path with no scheme/host.
