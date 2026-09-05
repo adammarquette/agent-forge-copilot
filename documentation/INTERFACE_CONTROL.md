@@ -1,6 +1,6 @@
 # INTERFACE CONTROL — External Interfaces (OpenEMR)
 
-**Interface Control Document (ICD)** for the AgentForge Clinical Co-Pilot sidecar.
+**Interface Control Document (ICD)** for the AgentForge Clinical Copilot sidecar.
 **Scope (this version):** the **OpenEMR** integration (Interfaces A–C) **and** the sidecar-exposed interfaces
 (Interface D: HTTP surface + OpenAPI, the SignalR chat hub, `/health`+`/ready`, and the MCP tool schemas). The
 LLM provider interface is the only one still deferred to a later revision.
@@ -128,13 +128,13 @@ at authorize time. A second registered OAuth client (its own `client_id`, regist
 `user/*.read` scope set) is required; reusing the existing single-patient launch's `client_id` would
 silently omit the new scopes from the granted token rather than fail loudly.
 
-**Registered against the QA staging server 2026-07-11** (`agent-forge-copilot#56`) —
+**Registered against the QA OpenEMR 2026-07-11** (`agent-forge-copilot#56`) —
 `openid fhirUser launch api:fhir user/Patient.read user/encounter.read user/medication.read
 user/prescription.read user/drug.read user/list.read user/allergy.read user/vital.read
 user/procedure.read user/surgery.read user/document.read user/Appointment.read`, confidential
 client (`token_endpoint_auth_method: client_secret_post`), enabled via Admin → System → API
 Clients. Credentials live as the `OpenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret` GitHub
-Actions variable/secret (see `RAILWAY.md`'s CD secrets section). Casing beyond
+Actions variable/secret (see `DEPLOYMENT.md` §5). Casing beyond
 `Patient`/`Appointment` (both PascalCase, matching the one confirmed-live
 casing rule above) is still best-effort, not individually re-verified per resource — `[CONFIRM]`
 against actual QA-tier test results once they run.)*
@@ -221,7 +221,7 @@ Confirmed in this repo: `MarqSpec.AgentForge.Api` (`Program.cs`, `Launch/`, `Age
 
 **Common properties**
 - **Base path:** every route below is served under the reverse-proxy `PathBase` (`/agentforge`) when
-  `Bff:PathBase` is set (staging/prod behind the nginx front door), or at the root when unset (`ARCHITECTURE.md`
+  `Bff:PathBase` is set (behind the nginx front door, i.e. every deployed stack), or at the root when unset (`ARCHITECTURE.md`
   §16 D16). Examples show the un-prefixed path.
 - **Auth:** the browser-facing endpoints and the hub carry **no bearer token**; identity is the server-side
   session established by the SMART launch (D11). The token is held in the BFF and never sent to the browser.

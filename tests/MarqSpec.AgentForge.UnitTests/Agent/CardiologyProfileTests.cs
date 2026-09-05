@@ -13,7 +13,7 @@ public sealed class CardiologyProfileTests
 
     [Theory]
     [InlineData("cite", "grounding discipline (FR-VERIF-1) must survive any future prompt edit")]
-    [InlineData("do not diagnose", "NG1 - the co-pilot surfaces and cites, it does not diagnose or recommend treatment")]
+    [InlineData("do not diagnose", "NG1 - the copilot surfaces and cites, it does not diagnose or recommend treatment")]
     [InlineData("do not recommend", "NG1 - no treatment recommendations")]
     [InlineData("other patient", "FR-CHAT-3 - must refuse to pull a different patient's data into the conversation")]
     [InlineData("cannot verify", "UC-5 - must communicate uncertainty rather than guess when data is missing")]

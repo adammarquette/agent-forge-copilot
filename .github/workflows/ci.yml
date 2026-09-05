@@ -5,10 +5,10 @@
 #
 # The lint/build/test/evals gates run with NO secrets. The `publish-image` job
 # (bottom of this file) builds the sidecar once and pushes it to GHCR using the
-# built-in GITHUB_TOKEN - still no repo secret. What is NOT here yet is the
-# Railway DEPLOY that consumes that image (re-assert vars + redeploy): it needs
-# RAILWAY_TOKEN_STAGING + the runtime-var secrets (not set yet) and a one-time
-# console reconfig of the service to image-source, so it lands as a follow-up.
+# built-in GITHUB_TOKEN - still no repo secret. There is no deploy job: the
+# project has no hosted environment, so deploying means pulling the published
+# image into a container stack, which the operator does with docker compose
+# (documentation/DEPLOYMENT.md).
 #
 # Three things changed shape in the port rather than being copied across:
 #
@@ -144,10 +144,10 @@ jobs:
           retention-days: 7
 
   # Validates reverse-proxy/nginx.conf.template's syntax without needing real upstream hosts
-  # or a deployed environment. `nginx -t` only checks the RENDERED config, so the template's
+  # or a running stack. `nginx -t` only checks the RENDERED config, so the template's
   # ${VAR} placeholders are substituted with placeholders first (envsubst, the same mechanism
-  # nginx's docker-entrypoint uses at container start) - this never needs the real Railway
-  # upstream hostnames, and needs no secrets.
+  # nginx's docker-entrypoint uses at container start) - this never needs real upstream
+  # hostnames, and needs no secrets.
   #
   # Runs nginx via `docker run` rather than as a job `container:`. nginx:1.27-alpine is
   # musl-based, and Actions injects its own glibc-built Node into container jobs to run
@@ -162,8 +162,8 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/work" -w /work \
             -e PORT=8080 \
-            -e OPENEMR_UPSTREAM=openemr.railway.internal:80 \
-            -e SIDECAR_UPSTREAM=agent-forge-api.railway.internal:8080 \
+            -e OPENEMR_UPSTREAM=openemr:80 \
+            -e SIDECAR_UPSTREAM=agent-forge-api:8080 \
             -e DNS_RESOLVER=127.0.0.11 \
             nginx:1.27-alpine sh -c '
               envsubst "\$PORT \$OPENEMR_UPSTREAM \$SIDECAR_UPSTREAM \$DNS_RESOLVER" \
@@ -305,9 +305,9 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # PUBLISH-IMAGE — build the sidecar once and push it to GHCR, so Railway pulls
-  # a pre-built image instead of rebuilding from source on every `railway up`
-  # (ADR/RAILWAY.md). "Build once, deploy that exact artifact."
+  # PUBLISH-IMAGE — build the sidecar once and push it to GHCR, so a deployment
+  # pulls a pre-built, CI-verified image instead of rebuilding from source
+  # (documentation/DEPLOYMENT.md §5). "Build once, deploy that exact artifact."
   #
   # ON MERGE TO main ONLY. In this repo main IS the release: develop is the sole
   # integration branch, staging takes develop-only, main takes staging-only
@@ -319,17 +319,12 @@ jobs:
   # is their transitive dep), so a red suite never publishes a deployable image.
   #
   # Uses the built-in GITHUB_TOKEN (packages: write) - no secret to manage. The
-  # image carries NO secrets; runtime config comes from the Railway service's env
-  # at deploy time.
-  #
-  # NOTE: the Railway deploy that CONSUMES this image is a follow-up - it needs
-  # RAILWAY_TOKEN_STAGING (not yet set) and a one-time console reconfig of the
-  # service from build-from-source to this GHCR image. Publishing is independent
-  # and safe to land first.
+  # image carries NO secrets; runtime config comes from the environment at deploy
+  # time (documentation/DEPLOYMENT.md §3).
   #
   # FIRST-PUBLISH console step: a new GHCR package is PRIVATE; flip it to public
-  # (Settings -> Packages -> agent-forge-copilot -> Change visibility) so Railway
-  # (and anyone) can pull without a credential.
+  # (Settings -> Packages -> agent-forge-copilot -> Change visibility) so anyone
+  # can pull it without a credential.
   # ---------------------------------------------------------------------------
   publish-image:
     name: publish-image
@@ -409,5 +404,5 @@ jobs:
             echo "| Tag | |"
             echo "|---|---|"
             echo "| \`latest\` / \`main\` | move with main |"
-            echo "| \`${{ steps.tags.outputs.sha }}\` | immutable — pin the Railway deploy to this |"
+            echo "| \`${{ steps.tags.outputs.sha }}\` | immutable — pin a deployment to this |"
           } >> "$GITHUB_STEP_SUMMARY"

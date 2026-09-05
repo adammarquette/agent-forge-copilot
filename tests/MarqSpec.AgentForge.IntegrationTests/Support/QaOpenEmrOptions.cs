@@ -47,7 +47,7 @@ public sealed class QaOpenEmrOptions
     /// A second real access token, obtained the same out-of-band way as <see cref="TestAccessToken"/>
     /// but through a distinct SMART EHR launch - a different clinician identity/patient context, not
     /// a second copy of the same one. Needed to prove entitlement is per-identity, not shared
-    /// (ARCHITECTURE.md §5.3/§5.6 - "the Co-Pilot cannot exceed the user's own access"). Optional -
+    /// (ARCHITECTURE.md §5.3/§5.6 - "the Copilot cannot exceed the user's own access"). Optional -
     /// the tests that need it fail with a clear message rather than silently skipping when it's absent.
     /// </summary>
     public string? SecondTestAccessToken { get; init; }

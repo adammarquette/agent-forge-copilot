@@ -1,4 +1,4 @@
-# ENGINEERING STANDARDS — AgentForge Clinical Co-Pilot Sidecar
+# ENGINEERING STANDARDS — AgentForge Clinical Copilot Sidecar
 
 **Repo:** `agent-forge-copilot` (.NET sidecar)
 **Companion docs:** `ARCHITECTURE.md` (decisions), `INTERFACE_CONTROL.md` (external interfaces), `PRD.md`,
@@ -30,17 +30,20 @@ Managed via **Central Package Management** (`Directory.Packages.props`) so versi
 whole solution. Minimums below are floors; **note the caps** where a newer major version changes licensing or
 compatibility.
 
-| Package | Version constraint | Purpose | Notes |
+| Package | Manifest Version (`Directory.Packages.props`) | Purpose | Notes |
 |---|---|---|---|
-| **Refit** | `>= 7.0.0` | Typed REST/HTTP clients — turns the OpenEMR FHIR/REST surface into C# interfaces (see ICD) | Contracts as interfaces; pairs with `Refit.HttpClientFactory` for DI |
-| **Microsoft.AspNetCore.SignalR.Client** | `>= 9.0.0` | Real-time push to the iFrame SPA — streams the "fast core, then defer" answer (NFR-PERF-1) | 9.0.0+ is the .NET 10-compatible line |
-| **Microsoft.Extensions.Http.Resilience** | `>= 9.0.0` | Transient-fault handling: retry w/ backoff, timeout, circuit breaker on external calls | The Polly-v8-based standard for `HttpClient` pipelines — the actual package pinned in `Directory.Packages.props` (no bare `Polly` reference); underpins failure-mode behavior (`ARCHITECTURE.md` §13.1 / `PRD.md` §13.1) |
-| **OpenTelemetry** (+ `.Extensions.Hosting`, `.Instrumentation.AspNetCore`/`.Http`/`.Runtime`, `.Exporter.Prometheus.AspNetCore`, `.Exporter.Console`) | `>= 1.15.0` | Traces/metrics (latency, tool counts, tokens/cost, verification pass/fail) feeding the dashboard (FR-OBS-2/3, `ARCHITECTURE.md` §11) | Never a hard dependency on a specific backend (§7). `Exporter.Prometheus.AspNetCore` is pinned to a beta version deliberately — it has stayed in beta upstream for years (spec churn, not instability); it's the accepted, standard way to expose a `/metrics` scrape endpoint from ASP.NET Core and there is no stable release to pin to instead |
-| **Microsoft.Extensions.Options** | current w/ .NET 10 | Strongly-typed configuration (`IOptions<T>`) for credentials/endpoints | Bind from env vars / appsettings; validate on start |
-| **Microsoft.Extensions.Logging.Abstractions** | current w/ .NET 10 | `ILogger` abstraction throughout — no hard dependency on a provider | Consuming host picks Serilog/NLog/etc. (samples in §7) |
-| **xUnit** | `>= 2.9.0` | Unit test framework | See testing standards (§8) |
-| **FakeItEasy** | `>= 8.0.0` | Mocking/faking dependencies in tests | Clean OSS (MIT); chosen over Moq |
-| **FluentAssertions** | `>= 6.12.0` **and `< 8.0.0`** | Readable assertions in tests | ⚠️ **License:** v8.0+ (Jan 2025) is **commercial** ($130/dev/yr for commercial use); v7.x and earlier remain **Apache-2.0 free**. Pin **`[6.12.0,8.0.0)`** so NuGet cannot silently resolve to the paid v8 |
+| **Refit** (+ `.HttpClientFactory`) | `13.1.0` | Typed REST/HTTP clients — turns OpenEMR FHIR/REST surface into C# interfaces | Pairs with `HttpClientFactory` for DI |
+| **Microsoft.AspNetCore.SignalR.Client** | `10.0.9` | Real-time streaming push to the iFrame SPA | .NET 10 line |
+| **Microsoft.Extensions.Http.Resilience** | `10.7.0` | Transient-fault handling: retry w/ backoff, timeout, circuit breaker on external calls | Polly-v8-based standard for `HttpClient` pipelines |
+| **OpenTelemetry** (+ `.Extensions.Hosting`, `.Instrumentation.*`, `.Exporter.*`) | `1.16.0` | Traces, metrics, OTLP log exporter to Loki | Provider-agnostic observability stack (§7) |
+| **Microsoft.EntityFrameworkCore** (+ `.Design`, `Npgsql.*`) | `10.0.0` | EF Core + PostgreSQL provider for Week 2 vector/persistence store | .NET 10 EF Core major |
+| **Pgvector** (+ `.EntityFrameworkCore`) | `0.3.2` / `0.3.0` | pgvector extension bindings for hybrid RAG embeddings | SemVer 0.x; bump deliberately |
+| **PdfPig** | `0.1.15` | Digital-PDF word geometry layer for pixel-accurate click-to-source bounding boxes | Apache-2.0 read-only PDF parser |
+| **Microsoft.Playwright** | `1.61.0` | Automated browser SMART login/consent step for QA token minting | E2E QA testing |
+| **System.Security.Cryptography.Xml** | `10.0.10` | Security pin resolving NU1903 CVE in design-time Roslyn tooling | Security pin |
+| **xUnit** | `2.9.3` | Unit & eval test framework | See testing standards (§8) |
+| **FakeItEasy** | `9.0.1` | Mocking/faking dependencies in unit tests | Clean OSS (MIT); chosen over Moq |
+| **FluentAssertions** | `7.2.2` (**`< 8.0.0`**) | Readable assertions in unit tests | ⚠️ **License:** v8.0+ is commercial ($130/dev/yr); v7.x is Apache-2.0 free. Pinned **`< 8.0.0`**. |
 
 **Rule:** every third-party package must have a stated purpose and a known license. Run a license check in CI
 (e.g. `dotnet-project-licenses`) so a transitive bump into a restrictive license is caught, not discovered.
@@ -129,7 +132,7 @@ Prefer `Microsoft.Extensions.Http.Resilience` (the Polly-v8-based standard) for 
 - Use `IOptionsSnapshot<T>` where per-request refresh matters; `IOptionsMonitor<T>` for change notifications.
 - **Sensitive configuration is encrypted at rest** — platform secret store / KMS or an encrypted config
   provider; never plaintext secrets in source, `appsettings`, images, or backups (§11).
-- Per-environment config maps to the deployment split in `ARCHITECTURE.md` §13 (Railway dev / AWS prod).
+- Per-environment config maps to the deployment split in `ARCHITECTURE.md` §13 (container stack for demo/QA / HIPAA-eligible cloud for prod).
 
 ---
 

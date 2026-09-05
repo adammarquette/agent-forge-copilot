@@ -107,7 +107,7 @@ public static class McpToolCatalog
 
         new LlmToolDefinition(
             "get_document_facts",
-            "Facts the co-pilot already extracted from the patient's ingested documents (e.g. an uploaded " +
+            "Facts the copilot already extracted from the patient's ingested documents (e.g. an uploaded " +
             "lab-report PDF), each citable as [Document/<id>] so the clinician can open the source document " +
             "at the exact region. Prefer citing these for a document-sourced value rather than restating it " +
             "as a directly-recorded fact.",
