@@ -1,4 +1,4 @@
-# OpenEMR System Audit — AgentForge Clinical Co-Pilot
+# OpenEMR System Audit — AgentForge Clinical Copilot
 
 **Auditor:** Adam Marquette
 **Date:** 2026-07-07
@@ -6,7 +6,7 @@
 **Environment audited:** Local `docker/development-easy` stack (app on `https://localhost:9300` (HTTPS, container `:443`) and `http://localhost:8300` (plain HTTP, container `:80`), MySQL/MariaDB `:8320`, phpMyAdmin `:8310`)
 **Method:** Static analysis of the codebase and SQL schema, plus live probing of the running instance and demo database.
 
-> **Scope note.** This audit covers the *base OpenEMR system as it exists today*, before any AI layer is added. Its purpose is to establish the ground truth an AI agent will build on: where the trust boundaries are, where the data lives, how fast it can be read, how reliable it is, and what compliance machinery already exists. Every finding is written to be traceable to a decision the Clinical Co-Pilot will have to make.
+> **Scope note.** This audit covers the *base OpenEMR system as it exists today*, before any AI layer is added. Its purpose is to establish the ground truth an AI agent will build on: where the trust boundaries are, where the data lives, how fast it can be read, how reliable it is, and what compliance machinery already exists. Every finding is written to be traceable to a decision the Clinical Copilot will have to make.
 
 ---
 
@@ -18,7 +18,7 @@ OpenEMR is a mature, security-aware EHR — not a toy. It ships parameterized qu
 
 **Second — safety controls are opt-out, but the running instance has them ON.** Live verification confirms audit logging, forced breakglass logging, and strong passwords are enabled (`enable_auditlog=1`, `gbl_force_log_breakglass=1`, `secure_password=1`, bcrypt), with the log actively recording (18,884 rows, incl. 1,060 patient-record reads). Residual risk: these are toggleable, and breakglass users bypass capture. Critically, the base system will not auto-log a new agent service account's reads — the agent must call the disclosure/audit path explicitly, under the requesting clinician's identity.
 
-**Third — the sample clinical data is not loaded, and the data model is fragmented.** Live queries show the database is effectively empty: **1 placeholder patient ("John Doe", blank race/ethnicity), and zero medications, problems, allergies, encounters, labs, or documents.** There is nothing for a co-pilot to read; loading realistic demo data is a prerequisite to Stages 4–5 and to any meaningful evaluation. Structurally, when data *is* loaded, it will be fragmented and weakly typed: medications live in **two** tables (`prescriptions` *and* `lists[type='medication']`); allergies and problems are also `lists` rows keyed only by `type`; nearly every field is nullable `varchar(255)` with no format constraint and minimal foreign keys; and codes (`rxnorm_drugcode`, `drug_id`, ICD) are commonly blank, leaving free text as the only signal. An agent that reads one medication source, or treats a free-text drug string as a coded fact, will confidently overstate what the record supports.
+**Third — the sample clinical data is not loaded, and the data model is fragmented.** Live queries show the database is effectively empty: **1 placeholder patient ("John Doe", blank race/ethnicity), and zero medications, problems, allergies, encounters, labs, or documents.** There is nothing for a copilot to read; loading realistic demo data is a prerequisite to Stages 4–5 and to any meaningful evaluation. Structurally, when data *is* loaded, it will be fragmented and weakly typed: medications live in **two** tables (`prescriptions` *and* `lists[type='medication']`); allergies and problems are also `lists` rows keyed only by `type`; nearly every field is nullable `varchar(255)` with no format constraint and minimal foreign keys; and codes (`rxnorm_drugcode`, `drug_id`, ICD) are commonly blank, leaving free text as the only signal. An agent that reads one medication source, or treats a free-text drug string as a coded fact, will confidently overstate what the record supports.
 
 **Performance is fine for single-patient reads, weak for scans.** Core tables are InnoDB and `pid`-indexed, so "everything for one patient" — the agent's dominant pattern — is fast. But there is no app cache, no read replica, and no full-text index on notes; cross-patient or free-text search is slow and contends with clinical users on the one primary. Latency will be dominated by LLM round-trips, not OpenEMR reads.
 
@@ -47,7 +47,7 @@ OpenEMR is a mature, security-aware EHR — not a toy. It ships parameterized qu
 ### 2.4 Session Security
 - `SessionConfigurationBuilder` sets `cookie_httponly=true` and `cookie_samesite=Strict` (good) but **`cookie_secure=false` by default**; it is only raised to `true` in HTTPS/OAuth contexts. On the plain-HTTP `:8300` port, session cookies can traverse unencrypted.
   - *Update (post-audit, agent-forge#21):* the SMART EHR launch required relaxing OpenEMR's `cookie_samesite` from `Strict` → `Lax`. `Strict` drops the cookie on the cross-site **top-level** authorize hop (the launch navigates from OpenEMR's origin out to the sidecar and back), so login silently re-prompts; `Lax` sends it on that top-level navigation while still withholding it from cross-site subrequests, which is sufficient because the launch is a top-level tab, not an embedded iframe. Reverting to stock `Strict` once a same-origin reverse proxy makes SameSite moot is tracked in agent-forge#26 (see agent-forge#22 for the reverse-proxy end state).
-- **Idle timeout defaults to 7200s (2 hours)** — long for a shared clinical workstation. Portal is 1800s. Consider shortening for the co-pilot's threat model (unattended terminal between rooms).
+- **Idle timeout defaults to 7200s (2 hours)** — long for a shared clinical workstation. Portal is 1800s. Consider shortening for the copilot's threat model (unattended terminal between rooms).
 
 ### 2.5 Data Exposure Vectors
 - **PHI at rest:** encrypted blobs use AES-256-CBC + HMAC-SHA256 (`CryptoGen`), but **encryption keys are stored on the local filesystem** (`sites/default/documents/logs_and_misc/methods`) alongside the data they protect. Adequate for dev; for production, keys belong in a KMS/secret store, not on the same volume.
@@ -67,7 +67,7 @@ OpenEMR is a mature, security-aware EHR — not a toy. It ships parameterized qu
 - **No full-text index on clinical notes** (`form_*`, `lists.comments` longtext). Free-text search ("find where the patient reported chest pain") would be a slow `LIKE '%...%'` scan. Plan retrieval/embedding outside the primary DB.
 - **Wide rows:** `patient_data` has ~132 columns, mostly `varchar(255)`. `SELECT *` pulls a lot of unused PHI; the agent should select only needed columns (also minimizes PHI in prompts).
 
-### 3.3 Latency implication for the co-pilot
+### 3.3 Latency implication for the copilot
 Single-patient synthesis (demographics + active meds + recent labs + problem/allergy lists) is a handful of indexed `pid` lookups — comfortably sub-100ms at the DB. The latency budget will be dominated by **LLM tool-call round-trips**, not OpenEMR reads. Design toward parallel tool fetches and caching the assembled patient snapshot per encounter.
 
 ---
@@ -98,7 +98,7 @@ Single-patient synthesis (demographics + active meds + recent labs + problem/all
 ### 4.4 Integration points for the AI agent (ranked)
 1. **Service layer (`src/Services`)** — call existing services as agent tools; inherits their query hygiene.
 2. **REST + FHIR API** (104 standard + 80 FHIR routes, OAuth2-secured) — clean network boundary; lets the agent run as a separate process with its own credentialed identity and independent audit trail.
-3. **Custom module** (`interface/modules/custom_modules/`) — first-class extension mechanism; the co-pilot UI can ship as a module (`oe-module-*` precedent exists).
+3. **Custom module** (`interface/modules/custom_modules/`) — first-class extension mechanism; the copilot UI can ship as a module (`oe-module-*` precedent exists).
 4. **Event system** (`src/Events`, Symfony `EventDispatcher`) — hook points like `RestApiExtend`, `PatientReport`, `PatientSelect`, `Services`, `Main` for UI injection and behavior extension without core patches.
 
 **Recommendation:** run the agent as a separate service that consumes the **FHIR/REST API under its own OAuth2 client**, and surface it in the UI via a **custom module**. This gives the agent a distinct, auditable identity and keeps it off the core PHP request path.
@@ -138,7 +138,7 @@ Read-only queries were run against the live database via phpMyAdmin. **The headl
 - The audit log is healthy and actively recording: 18,884 rows spanning 2026-07-06 → 2026-07-07, 18 distinct event types, including **1,060 `patient-record-select`** and 7 `login` events — proof that audit capture works end-to-end.
 - **Live config confirmed ON** in `globals`: `enable_auditlog=1`, `gbl_force_log_breakglass=1`, `secure_password=1`, `gbl_auth_hash_algo=DEFAULT` (bcrypt), `timeout=7200`, `portal_timeout=1800`.
 
-**Implication:** there is effectively nothing for a Clinical Co-Pilot to read. Before Stages 4–5 and any agent evaluation are meaningful, load OpenEMR's demo/sample patient dataset (e.g. the official demo data, or synthetic patients via the FHIR API / `contrib` loaders). An agent evaluated against a one-patient, zero-record database cannot exercise the reconciliation, missing-data, and authorization edge cases the case study demands. This is now the top data-quality action item.
+**Implication:** there is effectively nothing for a Clinical Copilot to read. Before Stages 4–5 and any agent evaluation are meaningful, load OpenEMR's demo/sample patient dataset (e.g. the official demo data, or synthetic patients via the FHIR API / `contrib` loaders). An agent evaluated against a one-patient, zero-record database cannot exercise the reconciliation, missing-data, and authorization edge cases the case study demands. This is now the top data-quality action item.
 
 ### 5.3 Agent failure modes implied
 - Reporting an incomplete medication list (single-source read).

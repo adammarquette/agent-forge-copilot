@@ -1,6 +1,6 @@
 # USERS — Target User, Workflow & Use Cases
 
-**Product:** AgentForge Clinical Co-Pilot for Cardiology (OpenEMR fork)
+**Product:** AgentForge Clinical Copilot for Cardiology (OpenEMR fork)
 **Status:** v1.0 — source-of-truth for `ARCHITECTURE.md`. Every agent capability must trace to a use case here.
 **Companion docs:** `PRD.md` (full requirements), `AUDIT.md` (system findings), `ARCHITECTURE.md` (build plan).
 
@@ -45,7 +45,7 @@ Room B patient and recorded vitals. There is **no time** to open the chart and s
 progress notes, the lab flowsheet, and the medication list. This is a cold start under a clock.
 
 **T‑zero — one action.**
-From the hallway workstation/tablet, they open the Co-Pilot **already scoped to the Room B patient** (launched
+From the hallway workstation/tablet, they open the Copilot **already scoped to the Room B patient** (launched
 in patient context from OpenEMR). No searching, no patient-picker.
 
 **T +0 to ~75s — the brief and one follow-up.**

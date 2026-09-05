@@ -1,6 +1,6 @@
-# W2_ARCHITECTURE — AgentForge Clinical Co-Pilot (Week 2: Multimodal Evidence Agent)
+# W2_ARCHITECTURE — AgentForge Clinical Copilot (Week 2: Multimodal Evidence Agent)
 
-**Product:** AgentForge Clinical Co-Pilot — Week 2 adds *multimodal document ingestion* and a *small,
+**Product:** AgentForge Clinical Copilot — Week 2 adds *multimodal document ingestion* and a *small,
 inspectable multi-agent graph* to the Week 1 read-only conversational agent.
 **Repos:** `agent-forge` (OpenEMR v8 fork) · `agent-forge-copilot` (.NET 10 sidecar — this repo).
 **Traces to:** Week 2 Project Requirements (Multimodal Evidence Agent) · GitLab saga **#71**.
@@ -21,7 +21,7 @@ inspectable multi-agent graph* to the Week 1 read-only conversational agent.
 
 ## 1. Executive Summary (~1 page)
 
-Week 2 turns the Co-Pilot from an agent that reads *structured* OpenEMR data into one that also **sees
+Week 2 turns the Copilot from an agent that reads *structured* OpenEMR data into one that also **sees
 clinical documents** — a scanned lab PDF and a front-desk intake form — extracts structured facts from
 them **without inventing any**, retrieves **guideline evidence** to contextualize those facts, and
 returns a grounded answer where every clinical claim points back to a source. The engineering thesis is
@@ -66,7 +66,7 @@ injects a regression to confirm the gate fails.
 autoscaled services across multiple availability zones over managed, replicated data stores**, with no
 single point of failure. Document ingestion — the heaviest, spikiest path — is decoupled onto an
 **async worker pool** for backpressure and speed, and the hot paths (retrieval, model context) are cached.
-The sprint demos a runnable slice on Railway (the public-URL hard gate), but the target topology is a
+The sprint demos a runnable slice as the Docker container stack, but the target topology is a
 HIPAA-eligible cloud (AWS default, `ARCHITECTURE.md` D15) reachable by **config and replica count, not a
 rewrite** — because the redundancy seams (externalized session/token state, the ingestion queue, managed-
 store clients, `/ready`-gated health) are built now (Section 11).
@@ -195,17 +195,17 @@ present. It runs pre-visit, so the clinician turn stays fast (§11.3).
 
 **Auth is trusted private-network origin (W2-D17, supersedes W2-D16).** The ingest endpoint carries no
 clinician authority — it derives facts and makes **no** user-scoped FHIR call — so it never needed a user
-token; a token would only have proven "OpenEMR is calling." Verification against staging (2026-07-14) also
+token; a token would only have proven "OpenEMR is calling." Verification against a running deployment (2026-07-14) also
 found OpenEMR does not advertise `client_credentials`/`private_key_jwt`, so a transient backend-services token
 isn't available without enabling system scopes + registering a system client. Instead the endpoint
-authenticates by **trusted origin**, and two things must BOTH hold for that to be true: (1) the sidecar has
-**no public domain of its own**, and (2) the reverse proxy — the sole public ingress — **explicitly 404s
+authenticates by **trusted origin**, and two things must BOTH hold for that to be true: (1) the sidecar
+**publishes no port / has no ingress of its own**, and (2) the reverse proxy — the sole public ingress — **explicitly 404s
 `/agentforge/documents/`**. Point (2) is load-bearing and easy to get wrong: the endpoint lives under the
 sidecar's `/agentforge` PathBase, so without an explicit block the proxy's generic `/agentforge/` rule would
 forward `/agentforge/documents/ingest` straight to it (it did, until the block was added — the exposure that
-prompted this correction). The cron reaches the endpoint over `railway.internal`, bypassing the proxy, so the
-block costs it nothing. With both in place the route is reachable only over the Railway private network — i.e.
-the module cron. This keeps Week 1's transient-token custody intact everywhere the clinician's flow touches
+prompted this correction). The cron reaches the endpoint directly over the container network, bypassing the proxy, so the
+block costs it nothing. With both in place the route is reachable only from inside the deployment's own
+private network — i.e. the module cron. This keeps Week 1's transient-token custody intact everywhere the clinician's flow touches
 FHIR; nothing is stored here and no token is minted. A **shared-secret header** remains a deferred hardening
 option (defense-in-depth against in-project callers or a proxy misconfiguration re-exposing the path), out of
 scope for the MVP and not separately tracked. The private-origin trust model and the earlier proxy-exposure fix
@@ -421,7 +421,7 @@ Each row has a fault-injection eval case (Section 8).
 Week 2 makes the platform cloud-native and horizontally redundant: **no component is a single point of
 failure**, and the performance-critical paths (interactive answer, document ingestion, retrieval) scale
 out under load. The design center of gravity is a **stateless, autoscaled service tier over managed,
-replicated data stores**. The sprint still demos on Railway (public-URL hard gate), but the target is a
+replicated data stores**. The sprint still demos as the container stack, but the target is a
 HIPAA-eligible cloud (AWS default, `ARCHITECTURE.md` D15) and the **same container image runs both ways**
 (§13.3 principle) — scale-out is configuration and replica count, not a rewrite.
 
@@ -487,7 +487,8 @@ flowchart LR
   ingestion.
 
 ### 11.5 Scope for this sprint (narrow, seams built)
-Consistent with the "narrower is stronger" ethos: the sprint **demos a runnable slice on Railway**, but the
+Consistent with the "narrower is stronger" ethos: the sprint **demos a runnable slice as the container
+stack**, but the
 redundancy/performance design is real because the enabling **seams are built now** — stateless services +
 externalized state, the ingestion queue + worker interface, managed-store clients, and `/ready`-gated
 health. Scaling out to the multi-AZ cloud topology is then configuration and replica count. Multi-region
@@ -556,17 +557,17 @@ automated tier). Every test names the failure mode it guards (Week 1 §8 rule).
 | **W2-D4** | PR-blocking eval gate, boolean rubrics, >5% regression fails | Advisory eval report; 1–10 ratings | The graded HARD GATE; boolean = actionable; block a merge, not just report |
 | **W2-D5** | VLM extraction behind existing `ILlmProvider` | Dedicated OCR/vision service | No new service; multimodal is a provider call; keeps one model seam |
 | **W2-D6** | Schema is the source of truth; VLM output never bypasses it | Trust VLM JSON directly | "Vision extraction without invention"; NFR-CONTRACT-1 applied to vision |
-| **W2-D7** | Postgres+pgvector (dense) + Postgres FTS (sparse), Cohere rerank via Refit | Dedicated vector DB + Python RAG stack | One managed store for hybrid; REST deps not language deps; Railway-native |
+| **W2-D7** | Postgres+pgvector (dense) + Postgres FTS (sparse), Cohere rerank via Refit | Dedicated vector DB + Python RAG stack | One managed store for hybrid; REST deps not language deps; runs as one more container |
 | **W2-D8** | Critic = Week 1 Verification promoted to a graph node | New critic agent | Reuse the two-layer attribution + domain gate; strongest "Week 1 compounds" story |
 | **W2-D9** | Deterministic rubric checks where mechanical; LLM judge only for consistency/refusal | LLM judge for everything | Cheaper, less nondeterministic; mechanical checks can't drift |
 | **W2-D10** | Stateless services; externalize BFF session/token + DataProtection to a replicated cache | In-process session/token state | Enables N-replica horizontal redundancy; a replica loss drops no sessions; tokens still never reach the browser (preserves D11) |
 | **W2-D11** | Pre-visit ingestion, decoupled from the clinician turn (module cron forwards; sidecar can enqueue at scale) | Synchronous extraction inside the clinician turn | The doctor's ~90-second window reads ready facts; the cron interval keeps extraction off the hot path; the queue is the scale-out seam |
 | **W2-D12** | Managed Multi-AZ data stores (pgvector Postgres + replicated cache), no SPOF | Single-node Postgres + in-process cache | Redundancy + read-replica performance + standby failover; the sprint seams make scale-out config, not rewrite |
-| **W2-D13** | Cloud-native target (AWS default); Railway stays the sprint demo | Railway single-instance as the architecture | Redundant/performant target reconciled with the Week 1 Railway public-URL hard gate; same container image both ways |
+| **W2-D13** | Cloud-native target (AWS default); the Docker container stack stays the demo/QA deployment | A single-instance demo host as the architecture | Redundant/performant target reconciled with a demo anyone can actually run; same container images both ways |
 | **W2-D14** | Shared `MarqSpec.AgentForge.Data` project — EF Core + Pgvector.EntityFrameworkCore for entities / vector / index / KNN; raw SQL for RRF; EF Migrations for schema + scripts | Dapper / raw Npgsql only; per-project DbContexts | ORM-native for entities, migrations, and dense KNN; raw SQL only where hybrid fusion needs it; one migrations home; EF provider major pinned to the EF Core 10 line in CPM (the pgvector-EF floor won't force it) |
 | **W2-D15** | Front desk uploads via OpenEMR-native Documents; an `oe-module-agentforge` Background Service (cron) forwards new docs to the sidecar `POST /documents/ingest` | Sidecar upload form + write-back (Option 1); patch `Document::createDocument`; browser-JS trigger | Consistent OpenEMR upload path (no double-entry); OpenEMR has no document-created event, so a module cron is the module-only, upgrade-safe trigger; extraction runs pre-visit so the clinician turn stays fast |
-| **W2-D16** *(superseded by W2-D17)* | Cron authenticates to `/documents/ingest` with a transient `client_credentials` token, introspected per call | Sidecar-held/refresh-token admin identity; shared secret | Dropped: the endpoint carries no clinician authority (no user token needed) and staging OpenEMR does not advertise `client_credentials`/`private_key_jwt` |
-| **W2-D17** | `/documents/ingest` authenticates by **trusted private-network origin** — sidecar has no public domain, the reverse proxy does not route the path, so only the in-project cron can reach it | Transient `client_credentials` token (W2-D16); shared secret now | No token to mint or introspect; preserves Week 1 transient-token custody everywhere the clinician flow touches FHIR; shared-secret header is a deferred hardening option (not separately tracked), out of scope for MVP — the private-origin trust model itself shipped (gitlab#91) |
+| **W2-D16** *(superseded by W2-D17)* | Cron authenticates to `/documents/ingest` with a transient `client_credentials` token, introspected per call | Sidecar-held/refresh-token admin identity; shared secret | Dropped: the endpoint carries no clinician authority (no user token needed) and OpenEMR does not advertise `client_credentials`/`private_key_jwt` |
+| **W2-D17** | `/documents/ingest` authenticates by **trusted private-network origin** — the sidecar publishes no port, the reverse proxy does not route the path, so only the in-project cron can reach it | Transient `client_credentials` token (W2-D16); shared secret now | No token to mint or introspect; preserves Week 1 transient-token custody everywhere the clinician flow touches FHIR; shared-secret header is a deferred hardening option (not separately tracked), out of scope for MVP — the private-origin trust model itself shipped (gitlab#91) |
 
 ---
 
@@ -582,8 +583,9 @@ automated tier). Every test names the failure mode it guards (Week 1 §8 rule).
 - **[CONFIRM]** Source the small cardiology-guideline corpus (documents are not provided by the case study).
 - **[CONFIRM]** Managed data-tier + cache + queue provider choices (RDS/Aurora pgvector vs a managed vector
   service; ElastiCache/Redis for externalized state; SQS/managed queue) and the multi-AZ replica counts —
-  pinned when the deployment target is chosen; the sprint runs the same seams on Railway-hosted equivalents.
-- **[CONFIRM]** `CREATE EXTENSION vector` must be permitted on the managed Postgres (RDS/Aurora/Railway) —
+  pinned when the deployment target is chosen; the sprint runs the same seams against containerized equivalents.
+- **[CONFIRM]** `CREATE EXTENSION vector` must be permitted on the managed Postgres (RDS/Aurora, or whatever
+  the production target uses) —
   the initial migration's `HasPostgresExtension("vector")` depends on it; a locked-down instance without the
   extension breaks the whole retrieval tier. Also fix the embedding dimension (migration-bound) once the
   embeddings provider is chosen.
@@ -593,7 +595,7 @@ automated tier). Every test names the failure mode it guards (Week 1 §8 rule).
 ## Appendix A — OpenEMR ↔ Sidecar Interaction Catalog
 
 Every place the sidecar and the OpenEMR fork touch, in one list. The per-flow rationale lives in §3 / §4 /
-§7 and the physical network (public front door vs. Railway private network) in
+§7 and the physical network (public front door vs. the private container network) in
 `DEPLOYMENT_TOPOLOGY.md`; this appendix is the consolidated boundary view — direction, transport, auth, and
 what crosses — so a future agent can see the whole contact surface without reassembling it from four
 sections. The through-line is Week 1's rule, still intact: **the sidecar reads from OpenEMR and writes
@@ -603,8 +605,8 @@ the derived facts, which only *cite* back.
 | # | Flow | Direction | Transport & auth | Trigger | Crosses | Status / ref |
 |---|---|---|---|---|---|---|
 | **A** | SMART launch + FHIR read (Week 1 base) | browser → sidecar (launch); sidecar → OpenEMR (FHIR read) | Public front door; SMART OAuth authorize/token, **transient** clinician token (never reaches browser, W2-D10/D11) | Clinician opens the copilot from the `oe-module-agentforge` launcher (`launch.php` / `agenda-launch.php` / `patient-launch.php`) | Patient / Observation (labs, vitals) / Condition / MedicationRequest / DocumentReference / Binary | Live (§6; `ARCHITECTURE.md`) |
-| **B** | Document ingestion push | OpenEMR (module cron) → sidecar | **Private network only** (`railway.internal`); **trusted-origin** auth, no token — proxy 404s `/agentforge/documents/*` (W2-D17) | `oe-module-agentforge` Background Service cron scans a `documents.id` watermark, forwards each new doc | `POST /documents/ingest` `{ content, documentReferenceId, patientId, docType, mediaType }` | **Partial** (§3, §4; fork agent-forge#44 open) — sidecar `/documents/ingest` is live; the module-cron trigger is not yet built on the fork |
-| **C** | Source-document fetch for the overlay | sidecar → OpenEMR (FHIR read) | Public front door; **transient** clinician token (same custody as A) | Clinician clicks a cited derived fact in the chat SPA | sidecar `GET /evidence/document/{id}` → FHIR `GET /fhir/Binary/{id}` (source PDF / page image), rendered with the stored bbox | **Live** (§7, FR-CITE-2; gitlab#96, #109) — click-to-source verified end-to-end on staging (per-fact bbox overlay), session-gated as the launched clinician |
+| **B** | Document ingestion push | OpenEMR (module cron) → sidecar | **Private container network only**; **trusted-origin** auth, no token — proxy 404s `/agentforge/documents/*` (W2-D17) | `oe-module-agentforge` Background Service cron scans a `documents.id` watermark, forwards each new doc | `POST /documents/ingest` `{ content, documentReferenceId, patientId, docType, mediaType }` | **Partial** (§3, §4; fork agent-forge#44 open) — sidecar `/documents/ingest` is live; the module-cron trigger is not yet built on the fork |
+| **C** | Source-document fetch for the overlay | sidecar → OpenEMR (FHIR read) | Public front door; **transient** clinician token (same custody as A) | Clinician clicks a cited derived fact in the chat SPA | sidecar `GET /evidence/document/{id}` → FHIR `GET /fhir/Binary/{id}` (source PDF / page image), rendered with the stored bbox | **Live** (§7, FR-CITE-2; gitlab#96, #109) — click-to-source verified end-to-end against a running stack (per-fact bbox overlay), session-gated as the launched clinician |
 | **D** | Source-document write-back | *(none)* | — | — | — | **Intentionally absent** (W2-D3 revised / W2-D15). Documented so it is not re-introduced: the sidecar never POSTs documents or derived Observations to OpenEMR |
 
 ```mermaid
@@ -632,15 +634,15 @@ flowchart LR
 ### A.2 Document persistence (why the overlay's `Binary` fetch is durable)
 
 Flow **C** only works if the natively-uploaded source document still exists when the clinician clicks the
-citation — potentially many deploys after ingestion. On the staging OpenEMR service that holds, because a
-**Railway persistent volume is mounted at `/var/www/localhost/htdocs/openemr/sites`** (volume
-`a3573754-58bd-4813-ba59-915d868ba34d`), and `sites/default/documents` lives under it — so uploaded files
-**survive redeploys**, not just their MySQL metadata rows.
+citation — potentially many redeploys after ingestion. That holds because the `openemr` container mounts a
+**persistent volume at `/var/www/localhost/htdocs/openemr/sites`** (`openemr-sites` in `docker-compose.yml`),
+and `sites/default/documents` lives under it — so uploaded files **survive container replacement**, not just
+their MySQL metadata rows. Any other deployment target must provide the same durable mount.
 
 ```mermaid
 flowchart LR
-    U["Front desk uploads via<br/>OpenEMR Documents"] --> V["Railway persistent volume<br/>mounted at /…/openemr/sites"]
-    V --> P["sites/default/documents<br/>survives redeploys"]
+    U["Front desk uploads via<br/>OpenEMR Documents"] --> V["Persistent volume (openemr-sites)<br/>mounted at /…/openemr/sites"]
+    V --> P["sites/default/documents<br/>survives container replacement"]
     P --> B["DocumentReference → Binary stays fetchable"]
     B --> O["Click-to-source overlay can render the page<br/>(§7, agent-forge#40 → unblocked)"]
 ```

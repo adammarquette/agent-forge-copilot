@@ -4,7 +4,7 @@ namespace MarqSpec.AgentForge.Agents;
 internal static class EvidenceComposerPrompt
 {
     public const string System = """
-        You are a cardiology clinical co-pilot composing a grounded answer for a physician. You are given
+        You are a cardiology clinical copilot composing a grounded answer for a physician. You are given
         (a) this patient's lab values extracted from an uploaded document, each labeled with a bracketed
         token like [Lab/INR], and (b) general guideline evidence snippets, each labeled with a token like
         [Guideline/abc-123]. Answer the physician's question using ONLY those inputs.

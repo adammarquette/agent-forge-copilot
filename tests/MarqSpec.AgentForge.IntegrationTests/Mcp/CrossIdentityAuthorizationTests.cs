@@ -8,7 +8,7 @@ namespace MarqSpec.AgentForge.IntegrationTests.Mcp;
 /// Confirms entitlement is per-identity against two real, distinct SMART EHR launches - the exact
 /// case ARCHITECTURE.md §5.6 flags as <c>[PROVISIONAL: confirm scope granularity ... against
 /// OpenEMR's ACL model]</c>. AUDIT.md separately warns that OpenEMR's own app-level RBAC does
-/// <i>not</i> restrict reads by patient panel out of the box - so §5.3's claim that "the Co-Pilot
+/// <i>not</i> restrict reads by patient panel out of the box - so §5.3's claim that "the Copilot
 /// cannot exceed the user's own access" rests entirely on the SMART launch's OAuth
 /// <c>patient/*.read</c> scope being enforced at the FHIR API layer specifically. A unit test can't
 /// touch this: it fakes <see cref="Integration.OpenEmr.Fhir.IOpenEmrFhirClient"/>, so it can only
@@ -51,7 +51,7 @@ public sealed class CrossIdentityAuthorizationTests : IClassFixture<CrossIdentit
 
             result.Patient.Should().BeNull(
                 "OpenEMR returned identity B's real patient record to identity A's token instead of rejecting the " +
-                "read - a direct breach of ARCHITECTURE.md §5.3 (\"the Co-Pilot cannot exceed the user's own " +
+                "read - a direct breach of ARCHITECTURE.md §5.3 (\"the Copilot cannot exceed the user's own " +
                 "access\") and exactly the gap §5.6 flags PROVISIONAL");
         }
         catch (ApiException)
@@ -71,7 +71,7 @@ public sealed class CrossIdentityAuthorizationTests : IClassFixture<CrossIdentit
 
             result.Patient.Should().BeNull(
                 "OpenEMR returned identity A's real patient record to identity B's token instead of rejecting the " +
-                "read - a direct breach of ARCHITECTURE.md §5.3 (\"the Co-Pilot cannot exceed the user's own " +
+                "read - a direct breach of ARCHITECTURE.md §5.3 (\"the Copilot cannot exceed the user's own " +
                 "access\") and exactly the gap §5.6 flags PROVISIONAL");
         }
         catch (ApiException)

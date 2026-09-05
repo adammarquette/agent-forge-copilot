@@ -18,7 +18,7 @@ under load - what NFR-PERF-3/4 measures - without touching production auth surfa
 
 ## Getting a session cookie
 
-1. Open `https://agent-forge-api-staging-staging.up.railway.app/launch` in a real browser.
+1. Open `http://localhost:8080/agentforge/launch` in a real browser (adjust to your stack's front door).
 2. Log in and approve as usual - you'll land on the chat SPA once the session is established.
 3. Open DevTools → Application (Chrome) / Storage (Firefox) → Cookies, find the session cookie (default
    ASP.NET Core session cookie name: `.AspNetCore.Session`), and copy its value.
@@ -58,7 +58,7 @@ dotnet run --project tools/LoadTestChat
 | Variable | Purpose |
 |---|---|
 | `LoadTest__SessionCookies` | **Required unless the login vars below are set.** `;`-separated `Name=Value` session cookies from real browser logins |
-| `LoadTest__BaseUrl` | Deployed base URL (defaults to the staging Railway instance) |
+| `LoadTest__BaseUrl` | Deployed base URL (defaults to the local compose front door, `http://localhost:8080/agentforge`) |
 | `LoadTest__ConcurrencyLevels` | `,`-separated concurrency levels to run in sequence (default `10`) |
 | `LoadTest__DurationSeconds` | How long to hammer each concurrency level, in seconds (default `15`) |
 | `LoadTest__Question` | If set, every call is an `AskFollowUp(question)` **evidence turn** (Week-2 hybrid-RAG path, Core Req 3) instead of a `RequestBrief` brief (Week-1). Use a guideline/evidence question so the agent invokes `retrieve_evidence`. |
@@ -70,5 +70,5 @@ dotnet run --project tools/LoadTestChat
 For each concurrency level: total calls, successes/errors, error rate, and p50/p95/p99 latency in
 milliseconds, computed client-side from real round-trip timings - the numbers NFR-PERF-4 asks for. Cross-
 reference against the deployed app's own `/metrics` (`agentforge_agent_turn_duration_seconds` histogram,
-`agentforge_agent_turns_total`, `agentforge_llm_cost_usd_total`) and Railway's dashboard (CPU/memory) for
+`agentforge_agent_turns_total`, `agentforge_llm_cost_usd_total`) and `docker stats` (CPU/memory) for
 the full baseline picture.

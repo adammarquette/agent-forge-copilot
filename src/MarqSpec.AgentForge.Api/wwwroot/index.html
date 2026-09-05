@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AgentForge Clinical Co-Pilot</title>
+  <title>AgentForge Clinical Copilot</title>
   <style>
     :root {
       --bg: #f6f8fa; --surface: #ffffff; --border: #e3e8ee; --text: #1b2733;
@@ -127,7 +127,7 @@
       <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5h.01" />
       </svg>
-      <h2 id="fatal-title">Couldn’t start the co-pilot</h2>
+      <h2 id="fatal-title">Couldn’t start the copilot</h2>
       <p id="fatal-msg"></p>
       <button type="button" id="fatal-retry">Try again</button>
     </div>
@@ -598,7 +598,7 @@
           showChat();
           return connect();
         }).catch(function (err) {
-          fatal('Couldn’t start the co-pilot', 'Couldn’t reach the AgentForge service (' + ((err && err.message) || 'connection error') + '). Please try again.');
+          fatal('Couldn’t start the copilot', 'Couldn’t reach the AgentForge service (' + ((err && err.message) || 'connection error') + '). Please try again.');
         });
       }
       boot();

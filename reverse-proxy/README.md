@@ -15,35 +15,36 @@ defaults (`SameSite=Lax`/`Strict`) instead of `SameSite=None`.
 
 ## Configuration
 
-`OPENEMR_UPSTREAM` / `SIDECAR_UPSTREAM` (see `Dockerfile`) are Railway private-networking
-hostnames (`<service-name>.railway.internal`). This deploys as a new sibling service in the
-same "staging" Railway environment (project `lucid-clarity`) OpenEMR and the sidecar already
-run in - one deployment, not a duplicate/parallel copy of the stack. Both service names and
-OpenEMR's port (80) are confirmed - the sidecar's own port (8080) is a reasonable default but
-not yet confirmed as the actual private-networking port Railway assigned it.
+`OPENEMR_UPSTREAM` / `SIDECAR_UPSTREAM` (see `Dockerfile`) are the upstream host:port pairs the proxy
+routes to. In the repo-root `docker-compose.yml` they are the compose service names —
+`openemr:80` and `agent-forge-api:8080` — and in any other deployment they are whatever that
+stack's private service DNS resolves to.
 
-`DNS_RESOLVER` defaults to Railway's real internal resolver (`[fd12::10]` - fixed and documented,
-not per-deployment: see [Railway's private networking docs](https://docs.railway.com/networking/private-networking/how-it-works)).
+`DNS_RESOLVER` is the resolver nginx uses to look upstreams up **at request time** (rather than once
+at startup), which is what lets the proxy boot before its upstreams exist and follow container
+restarts without a reload. Under compose it is Docker's embedded DNS, `127.0.0.11`.
 
-`PORT` is Railway-injected at runtime, same convention as the main sidecar's own `Dockerfile`.
+`PORT` is read at container start, so the listen port is set by the environment rather than baked
+into the config — same convention as the main sidecar's own `Dockerfile`.
 
 ## Status
 
-Deployed and live at `https://agent-forge.marqspec.com` (custom domain since 2026-07-30; the
-generated `agent-forge-reverse-proxy-staging.up.railway.app` still resolves but is no longer the
-launch origin), confirmed working: `/` correctly reaches OpenEMR (a 302, its normal unauthenticated
-response).
-Not yet wired into production traffic, though: `/agentforge/*` 404s because `Bff__PathBase`
-isn't set on the real `agent-forge-api-staging` service yet, and OpenEMR's own config
-(`agent-forge#24`, `#25`, `#26` - redirect_uri, launch URI, `cookie_samesite` revert) hasn't been
-updated to route through this proxy. The full launch round-trip and OpenEMR regression pass
-(`agent-forge#28`, `#29`) still haven't been verified against it.
+**Live** — this is the `reverse-proxy` service in the repo-root `docker-compose.yml`, and the **only
+container in the stack that publishes a port** (`${DEMO_PORT:-8080}`). The full launch round-trip runs
+through it: OpenEMR at `/`, the sidecar at `/agentforge/*` (with `Bff__PathBase=/agentforge` set on the
+sidecar so its cookie path, SignalR URLs, and post-launch redirects all carry the prefix), and
+`/agentforge/documents/` explicitly `404`ed so the ingestion endpoint is unreachable from outside the
+network (W2-D17). Its config lint runs in `.github/workflows/ci.yml`.
 
 ## Dependencies
 
-This only closes the loop once paired with:
+Both prerequisites have shipped:
 
 - Sidecar path-base support (`#60` - `UsePathBase`, prefix-aware SignalR/chat URLs,
   cookie `Path=/agentforge`)
 - OpenEMR-side config (`agent-forge#24`, `#25`, `#26` - redirect_uri, launch URI,
   `cookie_samesite` revert) - config only, no fork code changes
+
+The per-environment values that still have to be set by hand (Site Address Override, the two OAuth
+clients and their redirect URIs, the module's Launch URI) are in
+[`../documentation/DEPLOYMENT.md`](../documentation/DEPLOYMENT.md) §4.

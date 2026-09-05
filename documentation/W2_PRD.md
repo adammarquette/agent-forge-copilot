@@ -1,6 +1,6 @@
-# W2_PRD — AgentForge Clinical Co-Pilot (Week 2: Multimodal Evidence Agent)
+# W2_PRD — AgentForge Clinical Copilot (Week 2: Multimodal Evidence Agent)
 
-**Product:** AgentForge Clinical Co-Pilot for Cardiology — Week 2 adds *multimodal document ingestion*, a
+**Product:** AgentForge Clinical Copilot for Cardiology — Week 2 adds *multimodal document ingestion*, a
 *small inspectable multi-agent graph*, *hybrid RAG evidence grounding*, and an *eval-driven CI gate*.
 **Codebase:** .NET 10 sidecar (`agent-forge-copilot`) over the OpenEMR v8 fork (`agent-forge`).
 **Target user:** Outpatient cardiologist (unchanged from Week 1).
@@ -27,7 +27,7 @@
 |---|---|
 | Version | 0.1 (draft) |
 | Related deliverables | `W2_ARCHITECTURE.md`, lab_pdf/intake_form schemas, 50-case eval dataset, CI eval gate, cost/latency report, demo video |
-| Deployment target | Railway (sprint public-URL hard gate); HIPAA-eligible cloud is the documented target (`ARCHITECTURE.md` D15) |
+| Deployment target | Docker container stack (`docker-compose.yml`); HIPAA-eligible cloud is the documented production target (`ARCHITECTURE.md` D15) |
 | Data policy | **Demo/synthetic data only.** No real PHI at any stage — including document images, extracted fields, traces, and screenshots. |
 | LLM/VLM data policy | Assume a signed no-training BAA with the model provider(s); PHI-minimization applies regardless. |
 | Week 1 decision kept | **No write-back (D13)** — Week 2 adds document *ingestion* (read + derive facts) with the sidecar never writing to OpenEMR; the front desk uploads source documents natively via OpenEMR (§6 / FR-DOC-3). |
@@ -37,10 +37,10 @@
 
 ## 2. Executive Summary
 
-Week 2 turns the Co-Pilot from an agent that reads *structured* OpenEMR data into one that also **sees
+Week 2 turns the Copilot from an agent that reads *structured* OpenEMR data into one that also **sees
 clinical documents**. The physician is prepping for a follow-up; the chart has structured data, but the
 information that changes today's plan is buried in a **scanned lab PDF** and a **front-desk intake form**.
-The Co-Pilot must ingest both, extract structured facts **without inventing any**, retrieve **guideline
+The Copilot must ingest both, extract structured facts **without inventing any**, retrieve **guideline
 evidence** to contextualize those facts, and return a grounded answer where every clinical claim points
 back to a source — and it must stay useful when the scan is imperfect, the record is incomplete, or the
 user asks a follow-up.
@@ -114,7 +114,7 @@ Week 1 user trust the agent even when the truth arrived as a scan.
 - **NG-W2-3.** ColQwen2 / multi-vector indexing, a third document type, a lab-trend chart widget, and
   advanced contextual retrieval (query rewriting, domain filters) — all documented as stretch, deferred.
 - **NG-W2-4.** Diagnosis, treatment recommendations, or autonomous orders (Week 1 NG1 still holds — the
-  Co-Pilot surfaces and cites; the clinician decides).
+  Copilot surfaces and cites; the clinician decides).
 - **NG-W2-5.** Real PHI. Demo/synthetic data only, end to end, including document images and screenshots.
 
 ---

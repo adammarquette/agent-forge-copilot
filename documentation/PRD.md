@@ -1,6 +1,6 @@
-# AgentForge Clinical Co-Pilot — Product Requirements Document
+# AgentForge Clinical Copilot — Product Requirements Document
 
-**Product:** AgentForge Clinical Co-Pilot for Cardiology
+**Product:** AgentForge Clinical Copilot for Cardiology
 **Codebase:** Fork of OpenEMR — see [`agent-forge`](https://github.com/adammarquette/agent-forge)
 **Target user:** Outpatient cardiologist
 **Author:** Adam Marquette
@@ -21,7 +21,7 @@
 |---|---|
 | Version | 0.1 (draft) |
 | Related deliverables | `AUDIT.md`, `USERS.md`, `ARCHITECTURE.md`, eval dataset, cost analysis |
-| Deployment target | Railway (single environment; final agent co-located with OpenEMR fork) |
+| Deployment target | Docker container stack (`docker-compose.yml`); the agent runs co-located with the OpenEMR fork behind one front door |
 | Data policy | **Demo/synthetic data only.** No real PHI at any stage of this project. |
 | LLM data policy | Assume a signed BAA with the LLM provider; no data used for training. |
 | Open decisions | Tracked in §17 |
@@ -36,7 +36,7 @@ their latest labs are in range, and what actually needs attention *today*. That 
 means manually scanning notes, flipping between the medication list, the lab flowsheet, and the problem
 list — under time pressure, with the patient already waiting.
 
-The AgentForge Clinical Co-Pilot is a conversational AI agent embedded in OpenEMR that does that
+The AgentForge Clinical Copilot is a conversational AI agent embedded in OpenEMR that does that
 reconstruction for the cardiologist and surfaces only what's relevant, with **every claim traceable to a
 source in the patient's record**. It is not a generic medical chatbot. It knows *this* patient — their
 cardiac history, their meds, their recent labs, their procedures — and it will refuse to state as fact
@@ -93,7 +93,7 @@ context-carrying — is what justifies an agent. (Every agent capability in §7 
 - **G6.** Degrade gracefully and transparently when tools fail or data is missing.
 
 ### 4.2 Non-Goals (explicitly out of scope)
-- **NG1.** Diagnosis, treatment recommendations, or autonomous orders. The Co-Pilot **surfaces and cites**;
+- **NG1.** Diagnosis, treatment recommendations, or autonomous orders. The Copilot **surfaces and cites**;
   the clinician decides. (This also keeps it clear of FDA device-software territory — see §12.4.)
 - **NG2.** Generic medical Q&A untethered to the patient record.
 - **NG3.** Inpatient rounding workflows. OpenEMR is ambulatory; we don't fight its grain.
@@ -109,7 +109,7 @@ context-carrying — is what justifies an agent. (Every agent capability in §7 
 ### 5.1 Primary user: the outpatient cardiologist — defined by a micro-workflow
 
 > "Physicians need help finding information" is not a user definition. So this section defines the *exact
-> moment* the Co-Pilot enters this clinician's day, down to the window and the data.
+> moment* the Copilot enters this clinician's day, down to the window and the data.
 
 **Who.** An established-practice outpatient cardiologist running a clinic of ~16–20 scheduled patients,
 roughly two-thirds of them longitudinal follow-ups (AFib, HFrEF, post-PCI CAD, HTN, hyperlipidemia) they last
@@ -124,8 +124,8 @@ faster at reading a chart than most tools are at loading — so the bar to earn 
   and taken vitals; the patient is waiting. The cardiologist does **not** have time to open the chart and read
   the last three progress notes, the lab flowsheet, and the med list separately.
 
-- **T-zero (opens the Co-Pilot on the Room B patient).** In one action, from the hallway workstation or
-  tablet, they open the Co-Pilot already scoped to the Room B patient.
+- **T-zero (opens the Copilot on the Room B patient).** In one action, from the hallway workstation or
+  tablet, they open the Copilot already scoped to the Room B patient.
 
 - **The 60–75 seconds of use — what exact data they need.** A single prioritized brief answering "*what
   changed and what matters today*," specifically:
@@ -199,7 +199,7 @@ These are not decorative. They exist so that "who is asking?" is a real, enforce
 
 ## 6. Product Scope
 
-The Co-Pilot is a **read-only conversational agent** surfaced inside the OpenEMR patient context, backed by
+The Copilot is a **read-only conversational agent** surfaced inside the OpenEMR patient context, backed by
 a dedicated agent service. In scope for the buildable product: the conversational interface, patient-data
 tools over OpenEMR, the verification layer, authorization enforcement, observability, and the eval suite.
 Out of scope: write-back, diagnosis/orders, non-cardiology breadth, real PHI (see §4.2).
@@ -367,7 +367,7 @@ Priority uses MoSCoW. Each FR lists acceptance criteria (AC) and the use case(s)
 *(High-level; expanded and defended in `ARCHITECTURE.md`, which must open with a ~500-word summary.)*
 
 **Shape:** a dedicated **agent service** deployed alongside the OpenEMR fork, exposing the conversational
-Co-Pilot in the patient context. The agent never talks to the database ad hoc; it goes through **typed
+Copilot in the patient context. The agent never talks to the database ad hoc; it goes through **typed
 tools** (FR-DATA-1) that encapsulate OpenEMR access, authorization checks, and source-id capture.
 
 **Core flow (per turn):**
@@ -401,20 +401,24 @@ DB-fallback per data type; state/memory model for multi-turn.
 
 ## 11. Deployment & Infrastructure
 
-- **Platform:** Railway. The OpenEMR fork and the agent service deploy to Railway; a public URL is submitted
-  with every checkpoint (hard gate). Choose the stack once and keep the final agent on the same
-  infrastructure.
-- **Environments:** at minimum a live, reachable deployment; separate build/preview from the demo environment
-  where practical.
+- **Platform:** **Docker containers.** The OpenEMR fork and the agent service ship as images and are brought
+  up together by the repo-root `docker-compose.yml`, behind one nginx front door. Choose the stack once and
+  keep the final agent on the same infrastructure — the images that run in the demo are the images that would
+  run in production.
+- **Environments:** one runnable stack that anyone can bring up from the repo. **No hosted/public instance** —
+  an earlier hosted demo was retired; reproducibility (pinned image tags, config in the compose file) replaced
+  it as the way to demonstrate the system.
 - **Ops requirements:** `/health` + `/ready` (NFR-REL-2), CI/CD for agent updates, a documented rollback path,
   and the dashboard/alerts (FR-OBS-3/4) wired to the deployed service.
-- **HIPAA posture on Railway (defensible position):**
-  - *This project:* demo/synthetic data only → **no BAA required**, consistent with the case study.
-  - *Production with real PHI:* Railway offers HIPAA BAAs **only on its Enterprise track** (minimum monthly
-    commitment, ~$1k/mo) with team access restrictions when active. Real PHI must not touch any Railway
-    environment, database, log, or backup **without a signed BAA**. State this explicitly — it's exactly the
-    kind of gap a hospital CTO probes. If enterprise commitment isn't viable at production scale, the
-    migration target is a HIPAA-eligible host (AWS/GCP/Azure under BAA) — carried into the §15.1 scale-up.
+- **HIPAA posture (defensible position):**
+  - *This project:* demo/synthetic data only → **no BAA required**, consistent with the case study. The demo
+    stack runs on a developer's own machine over plain HTTP with local-development escape hatches enabled —
+    safe only because no PHI ever touches it.
+  - *Production with real PHI:* the host, not the container, carries the compliance burden. Real PHI must not
+    touch any environment, database, log, or backup **without a signed BAA**. State this explicitly — it's
+    exactly the kind of gap a hospital CTO probes. The production target is a HIPAA-eligible host
+    (AWS/GCP/Azure under BAA, AWS default via free self-serve Artifact) running these same images, or the
+    practice's own OpenEMR environment — carried into the §15.1 scale-up.
 
 ---
 
@@ -437,7 +441,7 @@ production this must be a real, executed BAA, and that PHI-minimization (send on
 regardless.
 
 ### 12.4 Clinical-AI transparency & scope (context, not a checkbox)
-- **Scope guardrail (FDA):** the Co-Pilot **surfaces and cites existing record data and does not diagnose,
+- **Scope guardrail (FDA):** the Copilot **surfaces and cites existing record data and does not diagnose,
   recommend treatment, or place orders** (NG1). Keeping the clinician able to independently review the basis
   of each statement (source citations) is what keeps this in "clinician-in-the-loop information retrieval"
   territory rather than autonomous clinical decision-making.
@@ -460,7 +464,7 @@ regardless.
 | R5 | PHI leaks into logs/observability backend | Compliance failure | Redact/tokenize telemetry; log-inspection AC (NFR-SEC-1) |
 | R6 | Prompt injection via note/document content | Data exfiltration, safety | Treat record content as data; injection eval cases (NFR-SEC-2) |
 | R7 | Domain constraints wrong or incomplete | False reassurance | Constraints clinically validated + documented limits; flagged as illustrative until validated (FR-VERIF-2/4) |
-| R8 | Railway PHI/BAA gap at production | Legal exposure | Demo-only now; documented migration/BAA path (§11) |
+| R8 | Host PHI/BAA gap at production | Legal exposure | Demo-only now (synthetic data, no hosted instance); documented migration/BAA path (§11) |
 | R9 | LLM/tool cost scales non-linearly | Unit economics break | Cost tracking from day one; cost analysis at 100/1K/10K/100K users |
 
 ### 13.1 Failure Modes & Graceful Degradation
@@ -490,7 +494,7 @@ independent so one failure degrades one section, not the whole brief; every tool
 | **Unexpected / unparseable model output** | Schema validation fails (NFR-CONTRACT-1) | Reject the output; one repair attempt; else deterministic fallback | Core data without the malformed section | Validation error + raw output ref | NFR-CONTRACT-1, NFR-REL-1 |
 | **Claim can't be grounded** (verification fail) | FR-VERIF-0 gate | Suppress the unattributable claim; return only what passed verification | Verified statements only; suppressed items noted | Verification fail + reason (FR-VERIF-3) | FR-VERIF-1, FR-EVAL-1 |
 | **Authorization denied** | FR-AUTH gate | Refuse cleanly; return no data; no leakage via error text or timing | "You don't have access to this patient's record" | Denied access attempt (FR-AUTH-4) | UC-4, FR-EVAL-2 |
-| **Dependency down** (OpenEMR / observability) | `/ready` check (NFR-HEALTH-1) | Fail readiness so traffic isn't routed to a broken instance; surface a clear service-unavailable state | "The Co-Pilot is temporarily unavailable" — not a blank or a wrong answer | Readiness failure + which dependency | NFR-REL-2, FR-OBS-4 |
+| **Dependency down** (OpenEMR / observability) | `/ready` check (NFR-HEALTH-1) | Fail readiness so traffic isn't routed to a broken instance; surface a clear service-unavailable state | "The Copilot is temporarily unavailable" — not a blank or a wrong answer | Readiness failure + which dependency | NFR-REL-2, FR-OBS-4 |
 
 **The line we won't cross:** when the system cannot produce a *trustworthy* answer, the correct output is an
 honest "I can't verify that right now," never a plausible guess. In cardiology, a confident wrong answer is
@@ -614,7 +618,7 @@ which you'd refuse to.
 7. ~~**Latency target number** for NFR-PERF-1, fixed during baselining.~~ **Resolved** — p95 ≤ 26s for a
    single-patient `RequestBrief` turn at up to 50 concurrent users, based on real measured load-test results.
    See `PERFORMANCE_BASELINES.md`.
-8. **Production host decision** if Railway Enterprise BAA isn't pursued (§11).
+8. **Production host decision** — which HIPAA-eligible target the images are deployed to under BAA (§11).
 
 ---
 

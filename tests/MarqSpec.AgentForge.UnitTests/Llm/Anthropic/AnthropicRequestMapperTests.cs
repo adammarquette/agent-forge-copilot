@@ -11,14 +11,14 @@ public sealed class AnthropicRequestMapperTests
     public void Map_ValidRequest_MapsModelSystemPromptAndMaxTokens()
     {
         var request = new LlmRequest(
-            SystemPrompt: "You are a cardiology co-pilot.",
+            SystemPrompt: "You are a cardiology copilot.",
             Messages: [],
             MaxOutputTokens: 2048);
 
         var wire = AnthropicRequestMapper.Map(request, "claude-sonnet-5");
 
         wire.Model.Should().Be("claude-sonnet-5");
-        wire.System.Should().Be("You are a cardiology co-pilot.");
+        wire.System.Should().Be("You are a cardiology copilot.");
         wire.MaxTokens.Should().Be(2048);
     }
 

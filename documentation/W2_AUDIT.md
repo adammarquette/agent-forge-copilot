@@ -3,7 +3,7 @@
 **Audited:** the Week 2 implementation on `develop` against the requirements in [`W2_PRD.md`](W2_PRD.md)
 (FR-/NFR-W2 IDs) and [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md).
 **Re-audited:** 2026-07-17 (supersedes the 2026-07-16 pass). **Method:** code inspection of `src/`,
-`tests/`, `evals/`, `observability/`, `.gitlab/ci/`, and the deployed-config docs. **Scope:** implementation
+`tests/`, `evals/`, `observability/`, `.github/workflows/ci.yml`, and the deployed-config docs. **Scope:** implementation
 coverage, gaps, and risk — *not* a security pen-test or a performance run.
 
 > This audits *our sidecar's* Week 2 work. [`AUDIT.md`](AUDIT.md) is a separate audit of the OpenEMR fork.
@@ -12,7 +12,7 @@ coverage, gaps, and risk — *not* a security pen-test or a performance run.
 marks items asserted from a single reference rather than end-to-end verification.
 
 > **What changed since the 2026-07-16 pass.** Three things moved — verified against the code, and for (2)
-> exercised live on staging:
+> exercised live against a running stack:
 > **(1) The per-encounter story is now real** — the 2026-07-16 pass's *top* risk was "metered but not traced:
 > you can't reconstruct one encounter." A turn now emits one correlation-scoped **`encounter.telemetry`** line
 > carrying all seven FR-OBS-W2-1 signals, surfaced by a **"Per-encounter story"** Grafana/Loki panel, so a past
@@ -123,7 +123,7 @@ polish, most of it "Should"-tier:
 ### 2.4 FR-CITE — Citation contract + click-to-source — ✅ Met (headline gap now closed)
 - **FR-CITE-1 (machine-readable citation):** `Citation` carries `SourceType/SourceId/PageOrSection/
   FieldOrChunkId/QuoteOrValue` and a normalized `BoundingBox`. ✅
-- **FR-CITE-2 (bbox overlay UI):** built **and now verified working end-to-end on staging**. The box is computed
+- **FR-CITE-2 (bbox overlay UI):** built **and now verified working end-to-end against a running stack**. The box is computed
   from the PDF's own glyph geometry (PdfPig), not a VLM estimate. Two paths ship: the demo upload path (#96) and
   the **production read path** (#109) that reads a persisted `DerivedFact`, fetches the OpenEMR `Binary` over
   FHIR, and overlays the exact region — now also in the main chat SPA (`wwwroot/index.html`), where each cited
@@ -277,7 +277,7 @@ telemetry" — are resolved and dropped.)*
 
 | Base finding (AUDIT.md §) | Status | Where it stands now |
 |---|---|---|
-| §1/§2.1 Dev-compose weak creds + exposed side-channels | 🔀 Superseded | Railway staging behind a reverse proxy replaced the dev compose; sidecar on the private network, public domain removed. No longer the deployment path. |
+| §1/§2.1 Dev-compose weak creds + exposed side-channels | 🔀 Superseded | The compose stack now runs behind the reverse-proxy front door: the sidecar publishes no port and is reachable only under `/agentforge`. The exposed side-channels are gone; the remaining weak credential is a deliberate, documented localhost-only default (`DEPLOYMENT.md` §3). |
 | §2.2 No per-patient authorization | ✅ Addressed | Sidecar is patient-scoped by construction — a session binds one `PatientSessionContext`, cross-patient asks refused (FR-CHAT-3). The agent inherits no blanket "read all patients" capability. |
 | §2.3 Injection | ➖ Unchanged | Base posture holds; the sidecar adds no SQL path into OpenEMR (FHIR/REST only). |
 | §2.4 `cookie_samesite` Strict→Lax for SMART launch | 🟡 Partial | Fork default is back to `Strict`, with `Lax`/`None` used per-context for the OAuth2/SMART session. *Open:* confirm agent-forge#26 formally closed (tracked as sidecar #63). |
@@ -285,7 +285,7 @@ telemetry" — are resolved and dropped.)*
 | §3.1–3.3 Perf (no cache/replica/FT index; retrieval off the primary DB) | ✅ Followed | Retrieval + embeddings live in the sidecar's own Postgres (pgvector + HNSW), not OpenEMR's MySQL — exactly the §3.2 recommendation. Latency is LLM-dominated as predicted. |
 | §4.4 Separate OAuth2 FHIR client + custom module | ✅ Followed | Sidecar consumes SMART/OAuth FHIR under a scoped token; the UI ships as the `oe-module-agentforge` custom module. |
 | §5.1 Fragmented meds (two-table model) | 🟡 Partial | Agent reads FHIR `MedicationRequest`/`MedicationDispense`; the legacy `lists[type=medication]` source is not separately read. The schema fragmentation itself is unchanged. |
-| §5.2 Empty demo DB | ✅ Addressed | 7 synthetic cardiology patients seeded with problems/allergies/meds/encounters/labs (`seed_cardiology_demo.php`). *Not re-measured:* a fresh live staging row-count. |
+| §5.2 Empty demo DB | ✅ Addressed | 7 synthetic cardiology patients seeded with problems/allergies/meds/encounters/labs (`seed_cardiology_demo.php`). *Not re-measured:* a fresh row-count on a freshly seeded stack. |
 | §5.3 Failure modes (single-source meds, free-text-as-coded, null DOB, orphans) | 🟡 Mitigated | Source-attribution gate + critic/verifier target these; they remain verification problems by design, not eliminated. |
 | §6.1 Audit config-gated; base won't auto-log a service account's reads | ✅ Addressed | `AuditingMcpToolServer` + `AccessAuditLog` record clinician + patient + tool + correlation id on every tool call; the agent reads under the clinician's own SMART token, so OpenEMR's native audit attributes the reads too. |
 | §6.2 No automated retention/purge | ➖ **Still open** | HIPAA retention schedule undefined; out of the agent build's scope. |
@@ -301,7 +301,7 @@ base toggles.
 ---
 
 *Re-audit reflects `develop` as of 2026-07-17 (supersedes 2026-07-16, which superseded 2026-07-15). Status is
-from code inspection, plus **live verification on staging** for FR-CITE-2 (which is how three defects behind a
+from code inspection, plus **live verification against a running stack** for FR-CITE-2 (which is how three defects behind a
 code-inspection ✅ were found — see §2.4). **Independently re-verified 2026-07-17 (post-early-submission):**
 FR-RAG (all four stages — dense pgvector(1536)+HNSW, sparse FTS, RRF, Cohere rerank — live and DI-wired from
 both `/evidence/ask` and the chat `retrieve_evidence` tool, not orphaned), FR-OBS-W2-1 (seven-signal line

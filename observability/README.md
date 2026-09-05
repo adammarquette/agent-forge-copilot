@@ -18,7 +18,7 @@ docker compose -f observability/docker-compose.yml up
 ```
 
 - Grafana: <http://localhost:3000> (`admin`/`admin` - change on first login). The **AgentForge
-  Clinical Co-Pilot** dashboard is pre-provisioned (`grafana/dashboards/agentforge.json`):
+  Clinical Copilot** dashboard is pre-provisioned (`grafana/dashboards/agentforge.json`):
   agent-turn rate, error rate, p50/p95 latency, tool-call rate + failure rate by tool,
   verification pass/fail rate, LLM tokens/cost, and a raw Polly (resilience/retry) panel.
 - Prometheus: <http://localhost:9090> - scrapes `host.docker.internal:5113/metrics` every 15s
@@ -29,33 +29,30 @@ docker compose -f observability/docker-compose.yml up
   `http://localhost:3100/otlp/v1/logs`); if Loki isn't running, the sidecar just logs to console
   (fail-open). Config in `loki/loki-config.yaml`.
 
-Pointing at a deployed instance (e.g. Railway) instead of local `dotnet run`: edit the `targets`
-list in `prometheus/prometheus.yml`.
+## Pointing it at the containerized sidecar
 
-## Staging (deployed on Railway)
+The default `prometheus/prometheus.yml` scrapes `host.docker.internal:5113` — the sidecar run locally with
+`dotnet run`. To watch the sidecar **container** from the main stack
+([`../docker-compose.yml`](../docker-compose.yml), `--profile copilot`) instead, edit the `targets` list to
+that container's address and put both stacks on the same Docker network. Set the sidecar's
+`Observability__LokiOtlpEndpoint` to this Loki so its logs land here too.
 
-The same stack runs on the `staging` environment (project `lucid-clarity`, issue #57) as two services
-alongside the sidecar, so the panels are viewable without running anything locally:
+## Deploying it alongside the sidecar
 
-- **`agentforge-grafana`** — public, login-gated. Credentials + URL are in the root
-  [`README.md`](../README.md#observability-dashboard-grafana). Built from `grafana/Dockerfile` (bakes the
-  same provisioning + dashboards; `grafana/staging/datasource.yml` overrides the datasource to the private
-  Prometheus).
-- **`agentforge-prometheus`** — **private only** (`agentforge-prometheus.railway.internal:9090`, no public
-  domain). Built from `prometheus/Dockerfile` (bakes `prometheus/prometheus.staging.yml`, which scrapes
-  `agent-forge-api-staging.railway.internal:8080/metrics` over the project's private network, and binds
-  `[::]` because Railway private networking is IPv6-only).
-- **`agentforge-loki`** — **private only** (`agentforge-loki.railway.internal:3100`, no public domain; it
-  has no auth of its own). Built from `loki/Dockerfile` (shares `loki/loki-config.yaml` with local compose;
-  the image overrides the HTTP bind to `[::]` via a CLI flag, same IPv6-only reason as Prometheus). The
-  sidecar pushes logs here via `Observability__LokiOtlpEndpoint` (set on the API service in
-  `deploy.yml`); Grafana's `grafana/staging/loki-datasource.yml` overrides the Loki datasource to this
-  private address. **One-time operator step:** attach a Railway volume at `/loki` so ingested logs survive
-  restarts (like the sidecar's `/keys` volume) - not config-as-code.
+Each of the three has its own `Dockerfile` (`prometheus/`, `loki/`, `grafana/`) with the build context at the
+repo root, so the same images that back this compose file deploy anywhere containers do — the compose file is
+the reference wiring, not a special local-only mode. Two things travel with them wherever they go:
 
-All three build via Railway's `RAILWAY_DOCKERFILE_PATH` with the context at the repo root (same mechanism as
-`reverse-proxy/`), and deploy manually pending the GitHub Actions deploy job (see `documentation/RAILWAY.md`), which will use `RAILWAY_TOKEN_STAGING`. Grafana admin
-credentials come from the `GF_SECURITY_ADMIN_*` Railway variables — never baked into the image.
+- **Grafana is the only surface that should ever be reachable.** Prometheus and Loki have **no auth of their
+  own**; keep them on the private network. Grafana's admin credentials come from `GF_SECURITY_ADMIN_USER` /
+  `GF_SECURITY_ADMIN_PASSWORD` in the environment — **never baked into the image**, and never left at the
+  `admin`/`admin` default outside a local run.
+- **Loki needs a durable mount at `/loki`** so ingested logs survive a container restart, the same way the
+  sidecar needs one at `/keys`.
+
+See [`../documentation/DEPLOYMENT.md`](../documentation/DEPLOYMENT.md) for the stack this sits beside and
+[`../documentation/DEPLOYMENT_TOPOLOGY.md`](../documentation/DEPLOYMENT_TOPOLOGY.md) for where it lands in the
+network picture.
 
 ## Alerts
 

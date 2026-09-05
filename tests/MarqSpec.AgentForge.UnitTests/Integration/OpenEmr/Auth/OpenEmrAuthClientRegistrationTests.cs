@@ -10,7 +10,7 @@ public sealed class OpenEmrAuthClientRegistrationTests
     public async Task RegisterPublicClientAsync_ValidRequest_RegistersAsPublicClientWithPkceAuthMethod()
     {
         var api = A.Fake<IOpenEmrAuthApi>();
-        var expected = new ClientRegistrationResponse("generated-client-id", null, "AgentForge Co-Pilot", ["https://sidecar.example.org/callback"]);
+        var expected = new ClientRegistrationResponse("generated-client-id", null, "AgentForge Copilot", ["https://sidecar.example.org/callback"]);
         ClientRegistrationRequest? captured = null;
         A.CallTo(() => api.RegisterClientAsync("default", A<ClientRegistrationRequest>._, A<CancellationToken>._))
             .Invokes((string _, ClientRegistrationRequest req, CancellationToken _) => captured = req)
@@ -19,13 +19,13 @@ public sealed class OpenEmrAuthClientRegistrationTests
 
         var result = await client.RegisterPublicClientAsync(
             "default",
-            "AgentForge Co-Pilot",
+            "AgentForge Copilot",
             ["https://sidecar.example.org/callback"],
             ["launch", "patient/patient.read", "openid", "fhirUser"],
             CancellationToken.None);
 
         result.Should().Be(expected);
-        captured!.ClientName.Should().Be("AgentForge Co-Pilot");
+        captured!.ClientName.Should().Be("AgentForge Copilot");
         captured.RedirectUris.Should().Equal("https://sidecar.example.org/callback");
         captured.GrantTypes.Should().Equal("authorization_code", "refresh_token");
         captured.ResponseTypes.Should().Equal("code");

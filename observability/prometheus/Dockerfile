@@ -1,18 +1,16 @@
 # syntax=docker/dockerfile:1
-# Staging Prometheus for the deployed sidecar (gitlab#57). Built via Railway's
-# RAILWAY_DOCKERFILE_PATH service variable so the build context stays at the repo
-# root — COPY paths below are root-relative, exactly like reverse-proxy/Dockerfile.
-# reference: documentation/RAILWAY.md, gitlab#57
+# Prometheus image for a DEPLOYED sidecar (gitlab#57) — as opposed to observability/docker-compose.yml,
+# which mounts the local config and scrapes a `dotnet run` sidecar on the host. Build context is the repo
+# root, so the COPY paths below are root-relative, exactly like reverse-proxy/Dockerfile.
+# reference: documentation/DEPLOYMENT.md, gitlab#57
 FROM prom/prometheus:v3.1.0
 
-COPY observability/prometheus/prometheus.staging.yml /etc/prometheus/prometheus.yml
+COPY observability/prometheus/prometheus.deployed.yml /etc/prometheus/prometheus.yml
 COPY observability/alerts/agentforge-alerts.yml /etc/prometheus/alerts/agentforge-alerts.yml
 
-# Railway private networking is IPv6-only: a service is only reachable at
-# <name>.railway.internal if its process binds [::]. Prometheus defaults to
-# 0.0.0.0:9090 (IPv4 only), which Grafana could never reach — so bind [::] here.
-# Fixed :9090 keeps the Grafana datasource URL stable (this service stays private,
-# no public domain).
+# Bind [::] rather than the default 0.0.0.0:9090 (IPv4 only): some container networks resolve service
+# names to IPv6 addresses, and an IPv4-only bind is unreachable there. Fixed :9090 keeps the Grafana
+# datasource URL stable. This service must stay private — it has no auth of its own.
 ENTRYPOINT ["/bin/prometheus"]
 CMD ["--config.file=/etc/prometheus/prometheus.yml", \
      "--storage.tsdb.path=/prometheus", \

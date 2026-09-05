@@ -1,16 +1,15 @@
 # Performance Baselines
 
-Epic 12 (issue #20) load/stress-test results — PRD.md NFR-PERF-2/3/4. Run against the real deployed
-`agent-forge-api` (`development` environment, `agent-forge-api-development.up.railway.app`) with real OpenEMR
-and real Anthropic LLM calls — nothing mocked, nothing synthetic. Generated with `tools/LoadTestChat`
+Epic 12 (issue #20) load/stress-test results — PRD.md NFR-PERF-2/3/4. Run against a real deployed
+`agent-forge-api` container with real OpenEMR and real Anthropic LLM calls — nothing mocked, nothing synthetic. Generated with `tools/LoadTestChat`
 (README.md there explains the harness: a small pool of real, browser-obtained session cookies multiplexed
 across many concurrent SignalR connections, each repeatedly invoking `ChatHub.RequestBrief`).
 
-> **Note:** the `development` Railway environment used for this run was decommissioned 2026-07-10 after an
-> unrecoverable deploy hang; `staging` is now the sole environment (see `documentation/RAILWAY.md`). The
-> numbers below remain valid as a compute/latency baseline — the run measured `agent-forge-api`'s own
-> processing characteristics, which aren't environment-specific — but the URL and deployment id are
-> historical, not live.
+> **Note:** this run predates the retirement of the project's hosted environments — it was measured on a
+> managed host that no longer exists, and the project now deploys only as the Docker container stack
+> (`documentation/DEPLOYMENT.md`). The numbers below remain valid as a compute/latency baseline — the run
+> measured `agent-forge-api`'s own processing characteristics, which aren't environment-specific — but the
+> URLs and deployment ids in this document are **historical, not live**.
 
 **Run date:** 2026-07-10. **Deployment:** `fdf1f7ea` (post issue #39 AsyncLocal fix + issue #41 partial scope
 fix — see Known limitation below). **Session pool:** 3 real sessions, bootstrapped via Playwright against
@@ -52,7 +51,7 @@ in v1.
 
 ## CPU / memory / throughput baselines (NFR-PERF-2 AC)
 
-Pulled from Railway's own resource metrics for `agent-forge-api`, covering the full load-test window
+Pulled from the host's own resource metrics for the `agent-forge-api` container, covering the full load-test window
 (18:29–18:59 UTC, includes both concurrency phases plus a short warm-up probe):
 
 | Metric | Average | Max | Limit |
@@ -62,7 +61,7 @@ Pulled from Railway's own resource metrics for `agent-forge-api`, covering the f
 
 CPU and memory headroom is enormous at this scale — confirms the service is I/O-bound (waiting on the LLM
 and OpenEMR) rather than compute-bound. 50 concurrent SignalR connections with real streaming LLM calls cost
-under 1% of a single vCPU. Railway's HTTP-layer request count (79, p50 18ms) undercounts real work because
+under 1% of a single vCPU. The host's HTTP-layer request count (79, p50 18ms) undercounts real work because
 SignalR upgrades to WebSocket after the initial handshake — the 163 real chat turns ride over those
 persistent connections, not as separate HTTP requests.
 
@@ -86,8 +85,8 @@ separately). The actual figure below is computed directly from real consumed tok
 
 This covers the full session since the last deploy restart (both concurrency phases plus a small warm-up
 probe beforehand), not exclusively the two big runs in isolation. Follow-up: set the two `Llm__*Price*`
-Railway variables so `agentforge_llm_cost_usd_total` reflects this automatically going forward instead of
-requiring a manual token-count calculation.
+variables on the sidecar so `agentforge_llm_cost_usd_total` reflects this automatically going forward instead
+of requiring a manual token-count calculation. (`docker-compose.yml` now defaults them to real prices.)
 
 ## Known limitation: partial FHIR tool availability during this run
 
@@ -126,11 +125,11 @@ Week 2 cost/latency baseline for the multimodal-evidence graph (saga #71, epic E
 NFR-PERF-W2). Traces to `W2_ARCHITECTURE.md` §6 and the Week 2 deliverables (cost + latency report, baselines
 vs Week 1).
 
-**Run date:** 2026-07-17. **Target:** the live `staging` deployment (`agent-forge-api-staging`, Railway
-project `lucid-clarity`), reached through the same-origin reverse-proxy front door under the `/agentforge`
-PathBase (`reverse-proxy/nginx.conf.template`, issue #62) — the sidecar's own public domain is retired, so
-`https://agent-forge.marqspec.com/agentforge` is the only external entry (this run predated the custom
-domain and used the generated `…-staging.up.railway.app` host; the numbers are hostname-independent). `/ready`
+**Run date:** 2026-07-17. **Target:** a deployed `agent-forge-api` container, reached through the
+same-origin reverse-proxy front door under the `/agentforge` PathBase
+(`reverse-proxy/nginx.conf.template`, issue #62) — the sidecar has no ingress of its own, so the front door is
+the only entry. The measurements are hostname-independent; the specific host this ran on has since been
+retired (see the note at the top of this document). `/ready`
 was 200 (dependencies healthy) at run time. **Flow:** `POST /evidence/ask` — the stateless supervisor→worker
 graph (intake-extractor / evidence-retriever / answer-composer / critic), question-only (no document upload),
 so the hybrid-RAG guideline path runs but vision extraction does not. **Question:** a fixed guideline query
@@ -205,8 +204,8 @@ negligible Cohere embed/rerank. Treat as an estimate, not a measurement.
 **Fixed in this change.** `EvidenceAgentSupervisor.ComposeAsync` now records the composer's usage via
 `IAgentForgeMetrics.RecordLlmUsage` (mirroring `AgentOrchestrator`), so `/evidence/ask` tokens and cost reach
 `agentforge_llm_tokens_total` / `_cost_usd_total`. The figures above are the **pre-instrumentation** run
-(metrics were blind to the evidence LLM call); the metered dollar figure replaces the estimate once this
-deploys to staging and a short pass is re-run. One smaller residual remains: the intake-extractor's
+(metrics were blind to the evidence LLM call); the metered dollar figure replaces the estimate once a
+stack running this build is stood up and a short pass is re-run. One smaller residual remains: the intake-extractor's
 `DocumentExtractor.CompleteAsync` — exercised only on document-upload turns, which this question-only run did
 not hit — is still unmetered.
 

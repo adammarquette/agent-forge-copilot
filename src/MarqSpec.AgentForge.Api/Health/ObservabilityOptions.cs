@@ -21,7 +21,7 @@ public sealed class ObservabilityOptions
 
     /// <summary>
     /// Full OTLP/HTTP logs endpoint of a self-hosted Loki instance (Epic 107), e.g.
-    /// <c>http://agentforge-loki.railway.internal:3100/otlp/v1/logs</c>. When set, the sidecar adds an
+    /// <c>http://agentforge-loki:3100/otlp/v1/logs</c>. When set, the sidecar adds an
     /// OTLP log exporter alongside the console one (<c>Program.cs</c>) so structured logs are queryable
     /// in Grafana. Optional and fail-open: unset -> console-only logging, and a wrong/unreachable value
     /// never blocks the app (the exporter batches and drops on failure). Include the full
