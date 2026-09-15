@@ -143,8 +143,8 @@ no browser caller — is blocked at the proxy:
 | [`documentation/`](documentation/) | All specs & design docs (the substance today — see index below) |
 | [`docker-compose.yml`](docker-compose.yml) · `.env.example` | **The deployment** — OpenEMR + module + front door (keyless) and, behind `--profile copilot`, the sidecar + pgvector. See [Run it](#run-it) |
 | [`observability/`](observability/) | Second compose stack: Prometheus + Loki + Grafana, with the AgentForge dashboard and alert rules pre-provisioned |
-| `MarqSpec.AgentForge.slnx` | Solution file (repo root) |
-| `src/` | Production projects (`MarqSpec.AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
+| `AgentForge.slnx` | Solution file (repo root) |
+| `src/` | Production projects (`AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
 | `tests/` | Four test projects: `…UnitTests` (mocked), `…IntegrationTests` (real deps in QA), `…EvalTests` (deterministic rubric checks), and `…Evals` (golden-set eval runner; cases in top-level `evals/`) |
 | `reverse-proxy/` | Nginx front-door container/config for the same-origin front door (issue #62, closed; agent-forge#22) — the `reverse-proxy` service in `docker-compose.yml` and the only published port; its config lint runs in `.github/workflows/ci.yml`; see its own README |
 | `AGENTS.md` · `src/AGENTS.md` · `tests/AGENTS.md` | Instructions for AI coding agents (root + per-role) |
@@ -237,19 +237,19 @@ Details and rationale: [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md). Exter
 Prerequisites: **.NET 10 SDK** (or later). Build and test from the repo root:
 
 ```bash
-dotnet build MarqSpec.AgentForge.slnx
+dotnet build AgentForge.slnx
 
 # Unit tests — fully mocked, fast, no external deps
-dotnet test tests/MarqSpec.AgentForge.UnitTests
+dotnet test tests/AgentForge.UnitTests
 
 # Integration tests — run against real OpenEMR/MySQL in the QA environment (see ENGINEERING_STANDARDS.md §8.2)
-dotnet test tests/MarqSpec.AgentForge.IntegrationTests
+dotnet test tests/AgentForge.IntegrationTests
 
 # Eval rubric checks — deterministic, offline (xUnit)
-dotnet test tests/MarqSpec.AgentForge.EvalTests
+dotnet test tests/AgentForge.EvalTests
 
 # Golden-set eval gate — 50 cases in evals/, boolean rubrics; fails on regression (see W2_ARCHITECTURE.md §8)
-dotnet run --project tests/MarqSpec.AgentForge.Evals -- evals
+dotnet run --project tests/AgentForge.Evals -- evals
 ```
 
 Configuration (OpenEMR base URL / site, OAuth client, LLM keys) is supplied via the **Options pattern** —
@@ -323,7 +323,7 @@ them, so they are kept as source documents rather than edited.
 Everything else — the architecture, the sidecar design, the implementation, and the docs in
 [`documentation/`](documentation/) — is original work. The codebase was formerly namespaced
 `GauntletAI.AgentForge.*` and hosted on a Gauntlet-run GitLab; both have been retired in favour of
-`MarqSpec.AgentForge.*` on GitHub.
+`AgentForge.*` on GitHub.
 
 ---
 

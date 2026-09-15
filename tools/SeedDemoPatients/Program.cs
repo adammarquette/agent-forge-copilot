@@ -1,4 +1,4 @@
-using MarqSpec.AgentForge.SeedDemoPatients;
+using AgentForge.SeedDemoPatients;
 
 var baseUrl = Environment.GetEnvironmentVariable("SeedDemo__BaseUrl") ?? "http://localhost:8080";
 var site = Environment.GetEnvironmentVariable("SeedDemo__Site") ?? "default";

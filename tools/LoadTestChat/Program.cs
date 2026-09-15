@@ -1,5 +1,5 @@
 using System.Globalization;
-using MarqSpec.AgentForge.LoadTestChat;
+using AgentForge.LoadTestChat;
 
 // The sidecar's own public domain was retired; it is reached only through the same-origin reverse-proxy
 // front door under the /agentforge PathBase (reverse-proxy/nginx.conf.template). reference: gitlab#62

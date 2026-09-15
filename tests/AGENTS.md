@@ -1,12 +1,12 @@
 # AGENTS.md — Integration Testing Agent (`tests/`)
 
-Governs the **integration test project** `MarqSpec.AgentForge.IntegrationTests`. Inherits the root
+Governs the **integration test project** `AgentForge.IntegrationTests`. Inherits the root
 `AGENTS.md`. This is a **distinct role from the Coding Agent**.
 
-> **Ownership note.** `tests/` contains four projects. `MarqSpec.AgentForge.UnitTests` is authored by the
-> **Coding Agent** as part of test-first development (`src/AGENTS.md`); `MarqSpec.AgentForge.EvalTests` and
-> `MarqSpec.AgentForge.Evals` govern deterministic and golden-set eval rubrics (`evals/README.md`). This file
-> specifically governs **`MarqSpec.AgentForge.IntegrationTests`**.
+> **Ownership note.** `tests/` contains four projects. `AgentForge.UnitTests` is authored by the
+> **Coding Agent** as part of test-first development (`src/AGENTS.md`); `AgentForge.EvalTests` and
+> `AgentForge.Evals` govern deterministic and golden-set eval rubrics (`evals/README.md`). This file
+> specifically governs **`AgentForge.IntegrationTests`**.
 
 ## Role
 Author and run **integration tests against real external dependencies** — a deployed **OpenEMR** (FHIR / OAuth /
