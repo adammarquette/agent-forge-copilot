@@ -1,4 +1,4 @@
-# ENGINEERING STANDARDS — AgentForge Clinical Co-Pilot Sidecar
+# ENGINEERING STANDARDS — AgentForge Clinical Copilot Sidecar
 
 **Repo:** `agent-forge-copilot` (.NET sidecar)
 **Companion docs:** `ARCHITECTURE.md` (decisions), `INTERFACE_CONTROL.md` (external interfaces), `PRD.md`,
@@ -30,17 +30,20 @@ Managed via **Central Package Management** (`Directory.Packages.props`) so versi
 whole solution. Minimums below are floors; **note the caps** where a newer major version changes licensing or
 compatibility.
 
-| Package | Version constraint | Purpose | Notes |
+| Package | Manifest Version (`Directory.Packages.props`) | Purpose | Notes |
 |---|---|---|---|
-| **Refit** | `>= 7.0.0` | Typed REST/HTTP clients — turns the OpenEMR FHIR/REST surface into C# interfaces (see ICD) | Contracts as interfaces; pairs with `Refit.HttpClientFactory` for DI |
-| **Microsoft.AspNetCore.SignalR.Client** | `>= 9.0.0` | Real-time push to the iFrame SPA — streams the "fast core, then defer" answer (NFR-PERF-1) | 9.0.0+ is the .NET 10-compatible line |
-| **Microsoft.Extensions.Http.Resilience** | `>= 9.0.0` | Transient-fault handling: retry w/ backoff, timeout, circuit breaker on external calls | The Polly-v8-based standard for `HttpClient` pipelines — the actual package pinned in `Directory.Packages.props` (no bare `Polly` reference); underpins failure-mode behavior (`ARCHITECTURE.md` §13.1 / `PRD.md` §13.1) |
-| **OpenTelemetry** (+ `.Extensions.Hosting`, `.Instrumentation.AspNetCore`/`.Http`/`.Runtime`, `.Exporter.Prometheus.AspNetCore`, `.Exporter.Console`) | `>= 1.15.0` | Traces/metrics (latency, tool counts, tokens/cost, verification pass/fail) feeding the dashboard (FR-OBS-2/3, `ARCHITECTURE.md` §11) | Never a hard dependency on a specific backend (§7). `Exporter.Prometheus.AspNetCore` is pinned to a beta version deliberately — it has stayed in beta upstream for years (spec churn, not instability); it's the accepted, standard way to expose a `/metrics` scrape endpoint from ASP.NET Core and there is no stable release to pin to instead |
-| **Microsoft.Extensions.Options** | current w/ .NET 10 | Strongly-typed configuration (`IOptions<T>`) for credentials/endpoints | Bind from env vars / appsettings; validate on start |
-| **Microsoft.Extensions.Logging.Abstractions** | current w/ .NET 10 | `ILogger` abstraction throughout — no hard dependency on a provider | Consuming host picks Serilog/NLog/etc. (samples in §7) |
-| **xUnit** | `>= 2.9.0` | Unit test framework | See testing standards (§8) |
-| **FakeItEasy** | `>= 8.0.0` | Mocking/faking dependencies in tests | Clean OSS (MIT); chosen over Moq |
-| **FluentAssertions** | `>= 6.12.0` **and `< 8.0.0`** | Readable assertions in tests | ⚠️ **License:** v8.0+ (Jan 2025) is **commercial** ($130/dev/yr for commercial use); v7.x and earlier remain **Apache-2.0 free**. Pin **`[6.12.0,8.0.0)`** so NuGet cannot silently resolve to the paid v8 |
+| **Refit** (+ `.HttpClientFactory`) | `13.1.0` | Typed REST/HTTP clients — turns OpenEMR FHIR/REST surface into C# interfaces | Pairs with `HttpClientFactory` for DI |
+| **Microsoft.AspNetCore.SignalR.Client** | `10.0.9` | Real-time streaming push to the iFrame SPA | .NET 10 line |
+| **Microsoft.Extensions.Http.Resilience** | `10.7.0` | Transient-fault handling: retry w/ backoff, timeout, circuit breaker on external calls | Polly-v8-based standard for `HttpClient` pipelines |
+| **OpenTelemetry** (+ `.Extensions.Hosting`, `.Instrumentation.*`, `.Exporter.*`) | `1.16.0` | Traces, metrics, OTLP log exporter to Loki | Provider-agnostic observability stack (§7) |
+| **Microsoft.EntityFrameworkCore** (+ `.Design`, `Npgsql.*`) | `10.0.0` | EF Core + PostgreSQL provider for Week 2 vector/persistence store | .NET 10 EF Core major |
+| **Pgvector** (+ `.EntityFrameworkCore`) | `0.3.2` / `0.3.0` | pgvector extension bindings for hybrid RAG embeddings | SemVer 0.x; bump deliberately |
+| **PdfPig** | `0.1.15` | Digital-PDF word geometry layer for pixel-accurate click-to-source bounding boxes | Apache-2.0 read-only PDF parser |
+| **Microsoft.Playwright** | `1.61.0` | Automated browser SMART login/consent step for QA token minting | E2E QA testing |
+| **System.Security.Cryptography.Xml** | `10.0.10` | Security pin resolving NU1903 CVE in design-time Roslyn tooling | Security pin |
+| **xUnit** | `2.9.3` | Unit & eval test framework | See testing standards (§8) |
+| **FakeItEasy** | `9.0.1` | Mocking/faking dependencies in unit tests | Clean OSS (MIT); chosen over Moq |
+| **FluentAssertions** | `7.2.2` (**`< 8.0.0`**) | Readable assertions in unit tests | ⚠️ **License:** v8.0+ is commercial ($130/dev/yr); v7.x is Apache-2.0 free. Pinned **`< 8.0.0`**. |
 
 **Rule:** every third-party package must have a stated purpose and a known license. Run a license check in CI
 (e.g. `dotnet-project-licenses`) so a transitive bump into a restrictive license is caught, not discovered.
@@ -129,7 +132,7 @@ Prefer `Microsoft.Extensions.Http.Resilience` (the Polly-v8-based standard) for 
 - Use `IOptionsSnapshot<T>` where per-request refresh matters; `IOptionsMonitor<T>` for change notifications.
 - **Sensitive configuration is encrypted at rest** — platform secret store / KMS or an encrypted config
   provider; never plaintext secrets in source, `appsettings`, images, or backups (§11).
-- Per-environment config maps to the deployment split in `ARCHITECTURE.md` §13 (Railway dev / AWS prod).
+- Per-environment config maps to the deployment split in `ARCHITECTURE.md` §13 (container stack for demo/QA / HIPAA-eligible cloud for prod).
 
 ---
 
@@ -196,7 +199,7 @@ Rules that make this checkable:
   the expected external contract up front — but the strict test-first gate is enforced on unit tests.
 - **When a bug is found, reproduce it with a failing test first,** then fix (regression-first).
 
-### 8.1 Unit tests — `GauntletAI.AgentForge.UnitTests`
+### 8.1 Unit tests — `AgentForge.UnitTests`
 - **Fully mocked.** **FakeItEasy** fakes *every* external dependency — `IOpenEmrFhirApi`, `ILlmProvider`,
   clock, config, etc. **No network, no database, no file I/O.** The unit tier tests **expectations and behavior
   in isolation**, deterministically.
@@ -220,7 +223,7 @@ public async Task GetLabs_WhenFhirReturns500_RetriesThenDegrades()
 }
 ```
 
-### 8.2 Integration tests — `GauntletAI.AgentForge.IntegrationTests`
+### 8.2 Integration tests — `AgentForge.IntegrationTests`
 - **Run against real external dependencies** — a deployed **OpenEMR** (FHIR / OAuth / SMART), **MySQL**, and any
   other real service — in the **QA testing environment** (not a developer laptop, not mocks).
 - **Nothing under test is mocked** — that is the point of this tier. These exercise the real **Refit** clients,
@@ -236,30 +239,30 @@ public async Task GetLabs_WhenFhirReturns500_RetriesThenDegrades()
 
 ## 9. Solution Layout
 
-**Base namespace / assembly prefix: `GauntletAI.AgentForge`.** The **solution sits at the repo root**
-(`GauntletAI.AgentForge.slnx`) with `src/` and `tests/` as siblings — the conventional .NET layout. **Exactly
+**Base namespace / assembly prefix: `AgentForge`.** The **solution sits at the repo root**
+(`AgentForge.slnx`) with `src/` and `tests/` as siblings — the conventional .NET layout. **Exactly
 two test projects** — one unit, one integration (§8).
 
 ```
-GauntletAI.AgentForge.slnx                   // solution (repo root)
+AgentForge.slnx                   // solution (repo root)
 src/
-  GauntletAI.AgentForge.Api/                 // ASP.NET Core host: BFF, SignalR hub, /health + /ready
-  GauntletAI.AgentForge.Agent/               // orchestrator: multi-turn loop, tool chaining
-  GauntletAI.AgentForge.Mcp/                 // MCP tool server: contracts, audit log, read-only FHIR tools
-  GauntletAI.AgentForge.Verification/        // source attribution + cardiology domain-constraint rules
-  GauntletAI.AgentForge.Integration.OpenEmr/ // Refit clients, OAuth/SMART, FHIR mappers (see ICD)
-  GauntletAI.AgentForge.Llm/                 // ILlmProvider abstraction + one implementation
-  GauntletAI.AgentForge.Observability/       // OTel activity source + metrics (FR-OBS-2/3)
-  GauntletAI.AgentForge.Data/                // (Week 2) EF Core + pgvector: entities, DbContext, migrations
-                                             //   for the hybrid-RAG corpus + DerivedFactStore (W2_ARCHITECTURE.md §5, W2-D14)
+  AgentForge.Api/                 // ASP.NET Core host: BFF, SignalR hub, /health + /ready
+  AgentForge.Agent/               // orchestrator: multi-turn loop, tool chaining
+  AgentForge.Mcp/                 // MCP tool server: contracts, audit log, read-only FHIR tools
+  AgentForge.Verification/        // source attribution + cardiology domain-constraint rules
+  AgentForge.Integration.OpenEmr/ // Refit clients, OAuth/SMART, FHIR mappers (see ICD)
+  AgentForge.Llm/                 // ILlmProvider abstraction + one implementation
+  AgentForge.Observability/       // OTel activity source + metrics (FR-OBS-2/3)
+  AgentForge.Data/                // (Week 2) EF Core + pgvector: entities, DbContext, migrations
+                                  //   for the hybrid-RAG corpus + DerivedFactStore (W2_ARCHITECTURE.md §5, W2-D14)
 tests/
-  GauntletAI.AgentForge.UnitTests/           // §8.1 — fully mocked (FakeItEasy); expectations only; no I/O
-  GauntletAI.AgentForge.IntegrationTests/    // §8.2 — real OpenEMR/MySQL in the QA environment; synthetic data only
+  AgentForge.UnitTests/           // §8.1 — fully mocked (FakeItEasy); expectations only; no I/O
+  AgentForge.IntegrationTests/    // §8.2 — real OpenEMR/MySQL in the QA environment; synthetic data only
 ```
 
 Notes:
-- The MCP tool server is its own project (`GauntletAI.AgentForge.Mcp`), consumed by the host
-  (`GauntletAI.AgentForge.Api`). (Name the host as you prefer — `.Api` is the placeholder; the earlier
+- The MCP tool server is its own project (`AgentForge.Mcp`), consumed by the host
+  (`AgentForge.Api`). (Name the host as you prefer — `.Api` is the placeholder; the earlier
   `.Copilot` template project is removed.)
 - The two test projects stay fixed regardless of how many `src/` projects exist — unit tests reference the
   projects they fake; integration tests reference the host.

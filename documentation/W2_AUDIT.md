@@ -3,7 +3,7 @@
 **Audited:** the Week 2 implementation on `develop` against the requirements in [`W2_PRD.md`](W2_PRD.md)
 (FR-/NFR-W2 IDs) and [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md).
 **Re-audited:** 2026-07-17 (supersedes the 2026-07-16 pass). **Method:** code inspection of `src/`,
-`tests/`, `evals/`, `observability/`, `.gitlab/ci/`, and the deployed-config docs. **Scope:** implementation
+`tests/`, `evals/`, `observability/`, `.github/workflows/ci.yml`, and the deployed-config docs. **Scope:** implementation
 coverage, gaps, and risk — *not* a security pen-test or a performance run.
 
 > This audits *our sidecar's* Week 2 work. [`AUDIT.md`](AUDIT.md) is a separate audit of the OpenEMR fork.
@@ -12,7 +12,7 @@ coverage, gaps, and risk — *not* a security pen-test or a performance run.
 marks items asserted from a single reference rather than end-to-end verification.
 
 > **What changed since the 2026-07-16 pass.** Three things moved — verified against the code, and for (2)
-> exercised live on staging:
+> exercised live against a running stack:
 > **(1) The per-encounter story is now real** — the 2026-07-16 pass's *top* risk was "metered but not traced:
 > you can't reconstruct one encounter." A turn now emits one correlation-scoped **`encounter.telemetry`** line
 > carrying all seven FR-OBS-W2-1 signals, surfaced by a **"Per-encounter story"** Grafana/Loki panel, so a past
@@ -89,12 +89,12 @@ polish, most of it "Should"-tier:
   Observation write-back — matches the E2 pivot. ✅
 - **FR-DOC-4/5 (required fields + confidence):** extraction schemas carry the required fields and per-fact
   citations; `DerivedFact.ExtractionConfidence` is a real `double?`
-  ([DerivedFact.cs:29](../src/GauntletAI.AgentForge.Data/Entities/DerivedFact.cs)). The 2026-07-16 "*confirm the
+  ([DerivedFact.cs:29](../src/AgentForge.Data/Entities/DerivedFact.cs)). The 2026-07-16 "*confirm the
   extractor actually populates it*" caveat has been **checked and closed**: it did **not** — the column was
   always null in practice — and it now **is** populated. `DerivedFactMapper` sets it at all four fact sites via
   `ConfidenceFrom(citation)`: **1.0** when the extractor located the exact quote in the source PDF (a resolved
   bounding box), **0.5** when only page-level
-  ([DerivedFactMapper.cs:109](../src/GauntletAI.AgentForge.Agents/Ingestion/DerivedFactMapper.cs)). Note this is
+  ([DerivedFactMapper.cs:109](../src/AgentForge.Agents/Ingestion/DerivedFactMapper.cs)). Note this is
   a *grounding/locatability* confidence, not a model-reported one — the extraction schema does not ask the model
   for a confidence value. ✅
 
@@ -105,14 +105,14 @@ polish, most of it "Should"-tier:
   and a **sparse** half (`FtsEvidenceRetriever`, Postgres FTS) via **`ReciprocalRankFusion`**, then applies a
   **cross-encoder rerank** (`CohereReranker`, rerank-v3.5) with embeddings from `CohereEmbeddingProvider`
   (embed-v4). On any stage failure it degrades deterministically and continues — recorded via
-  `RecordRetrievalDegradation(stage)` ([HybridEvidenceRetriever.cs](../src/GauntletAI.AgentForge.Retrieval/HybridEvidenceRetriever.cs)).
+  `RecordRetrievalDegradation(stage)` ([HybridEvidenceRetriever.cs](../src/AgentForge.Retrieval/HybridEvidenceRetriever.cs)).
   ✅
 - **FR-RAG-3 (evidence vs record facts):** `CitationSourceType` separates `guideline` from `fhir`/`derived`. ✅
 
 ### 2.3 FR-GRAPH — Supervisor + workers — ✅ Met
 - `EvidenceAgentSupervisor` routes over typed state through **four** workers —
   `intake-extractor → evidence-retriever → answer-composer → critic` — logging **and metering** every handoff
-  (`RecordRoutingDecision`) ([EvidenceAgentSupervisor.cs](../src/GauntletAI.AgentForge.Agents/EvidenceAgentSupervisor.cs)).
+  (`RecordRoutingDecision`) ([EvidenceAgentSupervisor.cs](../src/AgentForge.Agents/EvidenceAgentSupervisor.cs)).
   Contract-tested (`EvidenceAgentSupervisorTests`). ✅
 - **FR-GRAPH-3 (critic gate):** the critic **is** the Week 1 `IClinicalResponseVerifier`, reused as a node; it
   suppresses uncited claims and surfaces domain-constraint flags. `BuildToolResults` projects lab, derived, and
@@ -123,7 +123,7 @@ polish, most of it "Should"-tier:
 ### 2.4 FR-CITE — Citation contract + click-to-source — ✅ Met (headline gap now closed)
 - **FR-CITE-1 (machine-readable citation):** `Citation` carries `SourceType/SourceId/PageOrSection/
   FieldOrChunkId/QuoteOrValue` and a normalized `BoundingBox`. ✅
-- **FR-CITE-2 (bbox overlay UI):** built **and now verified working end-to-end on staging**. The box is computed
+- **FR-CITE-2 (bbox overlay UI):** built **and now verified working end-to-end against a running stack**. The box is computed
   from the PDF's own glyph geometry (PdfPig), not a VLM estimate. Two paths ship: the demo upload path (#96) and
   the **production read path** (#109) that reads a persisted `DerivedFact`, fetches the OpenEMR `Binary` over
   FHIR, and overlays the exact region — now also in the main chat SPA (`wwwroot/index.html`), where each cited
@@ -140,8 +140,8 @@ polish, most of it "Should"-tier:
 - **FR-EVAL-W2-1:** exactly **50** golden cases (`evals/golden/*.json`). ✅
 - **FR-EVAL-W2-2:** all five boolean rubrics present (`RubricEvaluator`): `schema_valid`, `citation_present`,
   `factually_consistent`, `safe_refusal`, `no_phi_in_logs`; deterministic ones also run as xUnit theories
-  (`.gitlab/ci/test.yml`). ✅
-- **FR-EVAL-W2-3:** the `evals` job (`.gitlab/ci/evals.yml`) fails the pipeline on a threshold/regression breach
+  (the `eval-tests` job in `.github/workflows/ci.yml`). ✅
+- **FR-EVAL-W2-3:** the `evals` job (`.github/workflows/ci.yml`) fails the pipeline on a threshold/regression breach
   vs `evals/baseline.json` — verified by injecting a regression. ✅
 - **FR-EVAL-W2-4:** refusal / missing-data / not-JSON cases are in the set. ✅
 - ⚠️ **Coverage caveat (still open — see R2):** the golden set is entirely `intake-*` / `lab-*` extraction
@@ -162,11 +162,11 @@ polish, most of it "Should"-tier:
     input/output tokens, cost, retrieval hits (from `retrieve_evidence` results), extraction confidence (from
     `get_document_facts`), and the **eval outcome** = the runtime verification result (passed + suppressed
     claims). No PHI: tool names and numbers only; the correlation id (not a patient id) is the encounter key
-    ([AgentOrchestratorLog.cs](../src/GauntletAI.AgentForge.Agent/AgentOrchestratorLog.cs)).
+    ([AgentOrchestratorLog.cs](../src/AgentForge.Agent/AgentOrchestratorLog.cs)).
     <br>*Interpretation note:* the golden-set **eval is a CI-only offline gate**, so the per-encounter runtime
     analog of "eval outcome" is the verification/grounding gate — confirmed with the product owner.
     <br>*Coverage caveats (added by the 2026-07-17 re-verification pass):* (a) the line is emitted **only on the
-    verified-final-answer path** ([AgentOrchestrator.cs:232-244](../src/GauntletAI.AgentForge.Agent/AgentOrchestrator.cs)) —
+    verified-final-answer path** ([AgentOrchestrator.cs:232-244](../src/AgentForge.Agent/AgentOrchestrator.cs)) —
     every deterministic-fallback exit (LLM failure, turn-deadline, tool-round-budget exceeded, still-malformed
     output) returns via `BuildDeterministicFallback` **without** emitting it, so a **degraded/failed encounter
     leaves no per-encounter record**. Against the FR-OBS-W2-1 "answerable for *any* past encounter" wording this
@@ -193,7 +193,7 @@ polish, most of it "Should"-tier:
   **Newly confirmed (closing the 2026-07-16 "confirm the OTel tracer exports" question): it does not.**
   `WithTracing(...)` is wired to **`AddConsoleExporter()` only** — there is no OTLP trace exporter and no traces
   backend (the stack is Prometheus + Loki; no Tempo)
-  ([Program.cs](../src/GauntletAI.AgentForge.Api/Program.cs)). So even the spans that *are* opened go to stdout
+  ([Program.cs](../src/AgentForge.Api/Program.cs)). So even the spans that *are* opened go to stdout
   and are never collected or queryable.
   <br>**What this no longer blocks:** "reconstruct one encounter" is now answered by the per-encounter
   `encounter.telemetry` line + its Grafana panel (FR-OBS-W2-1 ✅). The residual gap is the **span waterfall** —
@@ -206,7 +206,7 @@ polish, most of it "Should"-tier:
   control, but note it's not a runtime alert. No explicit ingestion/retrieval-latency SLO alert yet.
 - **NFR-HEALTH-W2 — 🟡** `/ready` aggregates `OpenEmrHealthCheck`, `LlmProviderHealthCheck`,
   `ObservabilityHealthCheck` (degraded-aware) — but **still no vector-index (Postgres/pgvector) readiness
-  check** ([Program.cs:241](../src/GauntletAI.AgentForge.Api/Program.cs)). The reranker has no check but degrades
+  check** ([Program.cs:241](../src/AgentForge.Api/Program.cs)). The reranker has no check but degrades
   gracefully, so its absence is non-fatal.
 - **NFR-CI-W2 — ✅** evals gate + deterministic rubric theories in the pipeline. *Not fully traced:*
   dependency-audit + security-scan on every PR (confirm present in CI).
@@ -277,7 +277,7 @@ telemetry" — are resolved and dropped.)*
 
 | Base finding (AUDIT.md §) | Status | Where it stands now |
 |---|---|---|
-| §1/§2.1 Dev-compose weak creds + exposed side-channels | 🔀 Superseded | Railway staging behind a reverse proxy replaced the dev compose; sidecar on the private network, public domain removed. No longer the deployment path. |
+| §1/§2.1 Dev-compose weak creds + exposed side-channels | 🔀 Superseded | The compose stack now runs behind the reverse-proxy front door: the sidecar publishes no port and is reachable only under `/agentforge`. The exposed side-channels are gone; the remaining weak credential is a deliberate, documented localhost-only default (`DEPLOYMENT.md` §3). |
 | §2.2 No per-patient authorization | ✅ Addressed | Sidecar is patient-scoped by construction — a session binds one `PatientSessionContext`, cross-patient asks refused (FR-CHAT-3). The agent inherits no blanket "read all patients" capability. |
 | §2.3 Injection | ➖ Unchanged | Base posture holds; the sidecar adds no SQL path into OpenEMR (FHIR/REST only). |
 | §2.4 `cookie_samesite` Strict→Lax for SMART launch | 🟡 Partial | Fork default is back to `Strict`, with `Lax`/`None` used per-context for the OAuth2/SMART session. *Open:* confirm agent-forge#26 formally closed (tracked as sidecar #63). |
@@ -285,7 +285,7 @@ telemetry" — are resolved and dropped.)*
 | §3.1–3.3 Perf (no cache/replica/FT index; retrieval off the primary DB) | ✅ Followed | Retrieval + embeddings live in the sidecar's own Postgres (pgvector + HNSW), not OpenEMR's MySQL — exactly the §3.2 recommendation. Latency is LLM-dominated as predicted. |
 | §4.4 Separate OAuth2 FHIR client + custom module | ✅ Followed | Sidecar consumes SMART/OAuth FHIR under a scoped token; the UI ships as the `oe-module-agentforge` custom module. |
 | §5.1 Fragmented meds (two-table model) | 🟡 Partial | Agent reads FHIR `MedicationRequest`/`MedicationDispense`; the legacy `lists[type=medication]` source is not separately read. The schema fragmentation itself is unchanged. |
-| §5.2 Empty demo DB | ✅ Addressed | 7 synthetic cardiology patients seeded with problems/allergies/meds/encounters/labs (`seed_cardiology_demo.php`). *Not re-measured:* a fresh live staging row-count. |
+| §5.2 Empty demo DB | ✅ Addressed | 7 synthetic cardiology patients seeded with problems/allergies/meds/encounters/labs (`seed_cardiology_demo.php`). *Not re-measured:* a fresh row-count on a freshly seeded stack. |
 | §5.3 Failure modes (single-source meds, free-text-as-coded, null DOB, orphans) | 🟡 Mitigated | Source-attribution gate + critic/verifier target these; they remain verification problems by design, not eliminated. |
 | §6.1 Audit config-gated; base won't auto-log a service account's reads | ✅ Addressed | `AuditingMcpToolServer` + `AccessAuditLog` record clinician + patient + tool + correlation id on every tool call; the agent reads under the clinician's own SMART token, so OpenEMR's native audit attributes the reads too. |
 | §6.2 No automated retention/purge | ➖ **Still open** | HIPAA retention schedule undefined; out of the agent build's scope. |
@@ -301,7 +301,7 @@ base toggles.
 ---
 
 *Re-audit reflects `develop` as of 2026-07-17 (supersedes 2026-07-16, which superseded 2026-07-15). Status is
-from code inspection, plus **live verification on staging** for FR-CITE-2 (which is how three defects behind a
+from code inspection, plus **live verification against a running stack** for FR-CITE-2 (which is how three defects behind a
 code-inspection ✅ were found — see §2.4). **Independently re-verified 2026-07-17 (post-early-submission):**
 FR-RAG (all four stages — dense pgvector(1536)+HNSW, sparse FTS, RRF, Cohere rerank — live and DI-wired from
 both `/evidence/ask` and the chat `retrieve_evidence` tool, not orphaned), FR-OBS-W2-1 (seven-signal line

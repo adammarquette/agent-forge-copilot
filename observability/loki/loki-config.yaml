@@ -2,9 +2,9 @@
 # sidecar's logs over its native OTLP/HTTP endpoint (/otlp/v1/logs, on by default in Loki 3.x) and
 # serves them to Grafana. Filesystem storage, in-memory ring - one instance, no clustering.
 #
-# Local compose uses this as-is (default 0.0.0.0 bind). The staging image (Dockerfile) overrides the
-# HTTP bind to [::] via a CLI flag because Railway private networking is IPv6-only - same reason the
-# Prometheus staging image binds [::]:9090. reference: documentation/DEPLOYMENT_TOPOLOGY.md
+# Local compose uses this as-is (default 0.0.0.0 bind). The deployed image (Dockerfile) overrides the
+# HTTP bind to [::] via a CLI flag, for container networks that resolve service names to IPv6 - same
+# reason the deployed Prometheus image binds [::]:9090. reference: documentation/DEPLOYMENT_TOPOLOGY.md
 auth_enabled: false
 
 server:

@@ -1,4 +1,4 @@
-# Alert rules for AgentForge Clinical Co-Pilot (ARCHITECTURE.md §11, FR-OBS-4 - at least 3 alerts,
+# Alert rules for AgentForge Clinical Copilot (ARCHITECTURE.md §11, FR-OBS-4 - at least 3 alerts,
 # each with documented meaning + on-call response). Metric names verified against a real running
 # instance's /metrics output, not assumed from the OTel naming convention.
 groups:

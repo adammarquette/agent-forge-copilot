@@ -1,6 +1,6 @@
-using GauntletAI.AgentForge.Integration.OpenEmr.Auth;
+using AgentForge.Integration.OpenEmr.Auth;
 
-namespace GauntletAI.AgentForge.MintQaIdentityToken;
+namespace AgentForge.MintQaIdentityToken;
 
 /// <summary>
 /// Mints a second, real patient-scoped OpenEMR access token via a genuine SMART standalone-launch

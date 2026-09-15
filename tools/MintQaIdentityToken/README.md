@@ -48,7 +48,7 @@ Needs one interactive step: the script registers (or reuses, via `MintToken__Cli
 URL; open it, log in as (or select) the target patient identity, approve, and paste back the resulting
 address-bar URL (the redirect target doesn't resolve - that's expected, the `code` is still in the URL).
 
-Before printing the values to paste into GitLab, it runs two checks against the real server using the
+Before printing the values to store in CI, it runs two checks against the real server using the
 freshly minted token:
 - **Self-check** - can the token read the patient it claims to be scoped to?
 - **Isolation check** - if `OpenEmrQa__TestPatientId` is set in the environment and differs from the
@@ -61,7 +61,7 @@ The access token this produces lives only in the process's memory - never logged
 
 | Variable | Purpose |
 |---|---|
-| `MintToken__BaseUrl` | OpenEMR base URL (defaults to the staging Railway instance) |
+| `MintToken__BaseUrl` | OpenEMR base URL (defaults to the local compose front door, `http://localhost:8080`) |
 | `MintToken__Site` | OpenEMR multi-site segment (defaults to `default`) |
 | `MintToken__ClientId` / `MintToken__ClientSecret` | Reuse an already-registered, already-enabled client instead of registering a new one |
 | `OpenEmrQa__TestPatientId` | Identity A's patient id, read only to run the isolation check above |
@@ -69,7 +69,7 @@ The access token this produces lives only in the process's memory - never logged
 ## Output
 
 Prints the granted scope, token lifetime, resolved `patient` claim, and whether a refresh token came back,
-then which GitLab CI/CD variables to paste it into (Settings -> CI/CD -> Variables, protected + masked):
+then which GitHub Actions secrets to store it in (`gh secret set <NAME>`, or Settings -> Secrets and variables -> Actions):
 
 ```
 # If a refresh token was granted (preferred - durable, issue #29):

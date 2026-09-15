@@ -1,6 +1,6 @@
-# AgentForge Clinical Co-Pilot — Sidecar
+# AgentForge Clinical Copilot — Sidecar
 
-A .NET sidecar service that embeds an **AI clinical co-pilot into OpenEMR** for the **outpatient cardiologist**.
+A .NET sidecar service that embeds an **AI clinical copilot into OpenEMR** for the **outpatient cardiologist**.
 It gives a physician the context they need in the ~90 seconds between patient rooms — *what changed since the
 last visit and what matters today* — as a **grounded, source-cited, conversational agent**, not a chatbot and
 not a dashboard.
@@ -34,52 +34,105 @@ For the full picture, read the docs below in order.
 
 ---
 
-## Live demo
+## Run it
 
-A running OpenEMR instance (synthetic data only) is deployed on Railway — see [Deployment](#deployment).
-Reached through the same-origin reverse-proxy front door (`reverse-proxy/`, issue #62) as of 2026-07-12:
+**The Docker stack is the way to see this working.** There is no hosted instance — the containers in
+[`docker-compose.yml`](docker-compose.yml) *are* the system: OpenEMR (this project's fork, module baked in),
+its database, the nginx front door, and — behind a profile — the sidecar and its pgvector store.
 
-**[agent-forge-reverse-proxy-staging.up.railway.app](https://agent-forge-reverse-proxy-staging.up.railway.app/)**
+```bash
+docker compose up -d          # OpenEMR + the AgentForge module + the front door
+```
 
-| Role | Username | Password |
-|---|---|---|
-| Administrator | `admin` | `P@ssw0rd1` |
-| Cardiologist (demo provider — the patients' attending) | `cardio1` | `P@ssw0rd1` |
+Then open **<http://localhost:8080>** and log in with the **default local credentials**:
+
+| Username | Password |
+|---|---|
+| `admin` | `LocalDev1!` |
+
+Zero config — that tier needs **no API key** and **no `.env`**; you get OpenEMR with the module
+installed (the AgentForge launch button + the Daily Agenda tab). `LocalDev1!` is a throwaway default
+baked into `docker-compose.yml`; it's safe to publish because this stack is ephemeral, localhost-only,
+and synthetic-data. Override it by setting `OPENEMR_ADMIN_PASSWORD` in a `.env` (`cp .env.example .env`)
+before exposing the stack beyond your machine.
+
+> **`admin` is the only login a fresh stack creates.** The `cardio1` demo cardiologist and the demo
+> patients are **not** built in — they need a seed step (create the provider in Admin → Users, run
+> `tools/SeedDemoPatients`). Automating that into the compose bring-up is tracked in
+> [#375](https://github.com/adammarquette/agent-forge-copilot/issues/375); until then, a fresh stack
+> is a bare OpenEMR + the module.
+
+The OpenEMR image is pulled from `ghcr.io/adammarquette/agent-forge`, published by the
+[fork's](https://github.com/adammarquette/agent-forge) own pipeline. The compose file pins an
+immutable `sha-` tag (not `:latest`) so this demo stays reproducible; set `OPENEMR_IMAGE` in `.env`
+to `:latest`/`:main` to follow the newest build. It is **not** stock OpenEMR: the SMART launch
+depends on core patches in that fork (the `SessionUtil` launch-bridge cookie, `AuthorizationController`,
+`library/auth.inc.php`), so stock OpenEMR with the module dropped on top will not reproduce a working
+launch.
+
+### Adding the copilot
+
+The sidecar needs two things the EHR tier doesn't, so it sits behind a profile rather than
+crash-looping for anyone without them:
+
+1. **An Anthropic API key.** `Llm:ApiKey` is `[Required]` and validated at startup — the sidecar
+   cannot boot without one. Put it in `.env` as `ANTHROPIC_API_KEY`.
+2. **A registered SMART client.** In OpenEMR: **Admin → System → API Clients**, register a
+   *confidential* client with redirect URI `http://localhost:8080/agentforge/callback`, then
+   **enable it** — freshly-registered clients land disabled. Put its id/secret in `.env` as
+   `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET`. (`dotnet run --project tools/RegisterSmartClients`
+   automates the registration.)
+
+Also set **Admin → Configuration → Connectors → Site Address Override** to `http://localhost:8080`.
+Without it OpenEMR advertises its own container hostname as the FHIR base, and every launch fails the
+SMART `aud` check before reaching a login form.
+
+```bash
+docker compose --profile copilot up -d
+```
+
+Everything is reached through the one origin on port 8080 — OpenEMR at `/`, the sidecar under
+`/agentforge`. That is not cosmetic: a launch whose `/launch` and `/callback` land on different hosts
+loses its session cookie ("No pending SMART launch"), and `site_addr_oath` must equal the sidecar's
+`OpenEmr:BaseUrl` or the `aud` check fails. It is also why no service but the proxy publishes a port.
+
+> **Demo data only.** This stack is for evaluation on synthetic data — never real PHI. It runs over
+> plain HTTP with local-development escape hatches enabled
+> (`AllowInsecureHttpForLocalDevelopment`), which are not safe for anything else.
 
 ### Observability dashboard (Grafana)
 
-The Prometheus + Grafana stack (Epic 9, issue #57) is deployed on staging alongside the sidecar, with a
-**Loki** log backend added by Epic 107 (issue #107). Grafana requires a login (anonymous access is disabled);
-Prometheus and Loki are both private (no public URL). Sidecar **logs** are searchable in **Grafana → Explore →
-Loki** (`{service_name="agentforge-api"}`); OpenEMR's own logs are not shipped yet (backlog #108). Metrics and
-logs are **operational only — no PHI** (see `NFR-SEC-W2-1`).
+The Prometheus + Loki + Grafana stack (Epic 9, issue #57; Loki added by Epic 107, issue #107) is a **second
+container stack**, in [`observability/docker-compose.yml`](observability/):
 
-**[agentforge-grafana-staging.up.railway.app](https://agentforge-grafana-staging.up.railway.app/)**
+```bash
+docker compose -f observability/docker-compose.yml up -d
+```
 
-| Service | Username | Password |
-|---|---|---|
-| Grafana (demo) | `admin` | `P@ssw0rd1` |
+Grafana comes up on **<http://localhost:3000>** (`admin`/`admin` — change on first login) with the
+**AgentForge Clinical Copilot** dashboard pre-provisioned: agent-turn rate, error rate, p50/p95 latency,
+tool-call rate + failure rate by tool, verification pass/fail rate, LLM tokens/cost, and a raw Polly panel.
+Sidecar **logs** are searchable in **Grafana → Explore → Loki** (`{service_name="agentforge-api"}`); OpenEMR's
+own logs are not shipped (backlog #108). Metrics and logs are **operational only — no PHI** (see
+`NFR-SEC-W2-1`). Details, alert rules, and how to repoint Prometheus at a containerized sidecar are in
+[`observability/README.md`](observability/README.md).
 
-> **Staging/demo only — not for production.** These are throwaway credentials for a synthetic-data, non-PHI
-> dashboard (same posture as the OpenEMR logins above), published here purely so a reviewer can open the demo.
-> A production deployment **must** replace them: set a strong, unique `GF_SECURITY_ADMIN_PASSWORD` (and rotate
-> `GF_SECURITY_ADMIN_USER`) on the `agentforge-grafana` service, keep the value out of source, and remove this
-> table. The real value lives in that Railway variable, not here. Prometheus and Loki stay reachable only over
-> the project's private network (`agentforge-prometheus.railway.internal:9090`,
-> `agentforge-loki.railway.internal:3100`).
+> Prometheus and Loki have **no auth of their own** — Grafana is the single login-gated surface. Never front
+> them on an untrusted network, and replace the default Grafana credential
+> (`GF_SECURITY_ADMIN_USER`/`GF_SECURITY_ADMIN_PASSWORD`, kept out of source) for anything beyond a local run.
 
 ### Front-door surface (what's reachable, and how it's protected)
 
 The sidecar is a browser-facing SMART app, so its launch and session routes are reachable through the
-public front door and secured by **auth**, not by hiding them. Only the document-ingestion path — which has
+front door and secured by **auth**, not by hiding them. Only the document-ingestion path — which has
 no browser caller — is blocked at the proxy:
 
-| Path | Public? | How it's protected |
+| Path | Reachable? | How it's protected |
 |---|---|---|
 | `/agentforge/launch`, `/callback` (+ agenda variants) | Yes | SMART OAuth flow (state / `aud` / token exchange) — the browser must reach these for the embedded launch |
 | `/agentforge/agenda`, `/patient` | Yes | `401` — BFF session cookie required |
 | `/agentforge/evidence/ask` | Yes | `401` — BFF session cookie required, **same gate as `/agenda`/`/patient`**. It burns LLM + retrieval quota, so it authenticates for access even though its flow makes no user-scoped FHIR call. The click-to-source overlay (`evidence.html`, FR-CITE-2 / #96) calls it from within the launched app. This replaced an earlier proxy-layer `404` (#105) — gating it in the sidecar removed the reason it was ever an unauthenticated outlier. |
-| `/agentforge/documents/*` | **No — `404`** | Private-network only; ingestion authenticates by trusted origin (W2-D17) |
+| `/agentforge/documents/*` | **No — `404`** | Blocked at the proxy; ingestion is called only from inside the compose network and authenticates by trusted origin (W2-D17) |
 
 ---
 
@@ -88,10 +141,12 @@ no browser caller — is blocked at the proxy:
 | Path | What's there |
 |---|---|
 | [`documentation/`](documentation/) | All specs & design docs (the substance today — see index below) |
-| `GauntletAI.AgentForge.slnx` | Solution file (repo root) |
-| `src/` | Production projects (`GauntletAI.AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
+| [`docker-compose.yml`](docker-compose.yml) · `.env.example` | **The deployment** — OpenEMR + module + front door (keyless) and, behind `--profile copilot`, the sidecar + pgvector. See [Run it](#run-it) |
+| [`observability/`](observability/) | Second compose stack: Prometheus + Loki + Grafana, with the AgentForge dashboard and alert rules pre-provisioned |
+| `AgentForge.slnx` | Solution file (repo root) |
+| `src/` | Production projects (`AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
 | `tests/` | Four test projects: `…UnitTests` (mocked), `…IntegrationTests` (real deps in QA), `…EvalTests` (deterministic rubric checks), and `…Evals` (golden-set eval runner; cases in top-level `evals/`) |
-| `reverse-proxy/` | Nginx front-door container/config for the same-origin reverse-proxy front door (issue #62, closed; agent-forge#22) — deployed on staging as `agent-forge-reverse-proxy` (the live-demo front door above); CI lives inline in `.gitlab/ci/`; see its own README |
+| `reverse-proxy/` | Nginx front-door container/config for the same-origin front door (issue #62, closed; agent-forge#22) — the `reverse-proxy` service in `docker-compose.yml` and the only published port; its config lint runs in `.github/workflows/ci.yml`; see its own README |
 | `AGENTS.md` · `src/AGENTS.md` · `tests/AGENTS.md` | Instructions for AI coding agents (root + per-role) |
 | `CLAUDE.md` (each level) | One-line shims so Claude Code honors the same `AGENTS.md` rules |
 
@@ -107,12 +162,13 @@ no browser caller — is blocked at the proxy:
 | [`W2_ARCHITECTURE.md`](documentation/W2_ARCHITECTURE.md) | **(Week 2)** Multimodal Evidence Agent — document ingestion, the supervisor/worker graph, hybrid RAG, cloud redundancy, the eval gate, and the Week 2 decision log (W2-D1..D14) |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | Stack, dependencies, coding/testing/security/logging standards |
-| [`supporting/`](documentation/supporting/) | Source requirement PDFs (Week 1 & 2) and the 5-minute architecture-defense decks (`Architecture_Defense.pptx`, `W2_Architecture_Defense.pptx`) |
+| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) · [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
+| [`supporting/`](documentation/supporting/) | The original Week 1 & 2 requirement briefs as issued (see [Origin](#origin)) and the 5-minute architecture-defense decks (`Architecture_Defense.pptx`, `W2_Architecture_Defense.pptx`) |
 
 ### Why so much cross-referencing
 
 You'll notice heavy cross-referencing throughout `documentation/` and this README — FR-/NFR- IDs, `USERS.md`
-use cases, GitLab issue numbers, doc-section pointers. That's deliberate, not noise: most of the code in this
+use cases, legacy GitLab issue numbers (INDEX.md §5), doc-section pointers. That's deliberate, not noise: most of the code in this
 repo is written by LLM coding agents, and this web of references is the index they traverse to reconstruct
 context quickly instead of re-deriving it each session. If it reads as excessive to you, that's fair — it's
 optimized for a different reader. **C# is an example of a lower level of abstraction I'm comfortable working
@@ -130,9 +186,10 @@ software engineering, it's simply *another* layer of abstraction above the code,
 layer of abstraction above IL/machine instructions. `documentation/` is written at that higher layer on
 purpose - a knowledge base meant to be read and maintained by models, not just humans, favoring dense
 cross-links and explicit context over prose that assumes a reader who already remembers yesterday's session.
-The wiki isn't only that folder, either - it extends into GitLab issues/epics and MR descriptions too, which
-is why those get cited as heavily as doc sections. Together they're the wiki this project's agents read to
-reconstruct state.
+The wiki isn't only that folder, either - it extends into the GitHub issues and PR descriptions too, which
+is why those get cited as heavily as doc sections. (Citations of the form `gitlab#N` address the retired
+pre-migration tracker — historical context, not links; see `INDEX.md` §5.) Together they're the wiki this
+project's agents read to reconstruct state.
 
 ---
 
@@ -180,19 +237,19 @@ Details and rationale: [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md). Exter
 Prerequisites: **.NET 10 SDK** (or later). Build and test from the repo root:
 
 ```bash
-dotnet build GauntletAI.AgentForge.slnx
+dotnet build AgentForge.slnx
 
 # Unit tests — fully mocked, fast, no external deps
-dotnet test tests/GauntletAI.AgentForge.UnitTests
+dotnet test tests/AgentForge.UnitTests
 
 # Integration tests — run against real OpenEMR/MySQL in the QA environment (see ENGINEERING_STANDARDS.md §8.2)
-dotnet test tests/GauntletAI.AgentForge.IntegrationTests
+dotnet test tests/AgentForge.IntegrationTests
 
 # Eval rubric checks — deterministic, offline (xUnit)
-dotnet test tests/GauntletAI.AgentForge.EvalTests
+dotnet test tests/AgentForge.EvalTests
 
 # Golden-set eval gate — 50 cases in evals/, boolean rubrics; fails on regression (see W2_ARCHITECTURE.md §8)
-dotnet run --project tests/GauntletAI.AgentForge.Evals -- evals
+dotnet run --project tests/AgentForge.Evals -- evals
 ```
 
 Configuration (OpenEMR base URL / site, OAuth client, LLM keys) is supplied via the **Options pattern** —
@@ -216,15 +273,18 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 ## Deployment
 
-- **Dev / demo:** Railway (synthetic data only → no BAA required).
-- **Production:** a HIPAA-eligible cloud under a signed BAA (default **AWS**, free self-serve via Artifact);
-  the sidecar is also portable into a practice's own OpenEMR environment. See `ARCHITECTURE.md` §13.
+- **Demo / QA:** the Docker stack above — synthetic data only, so no BAA is required. There is **no hosted
+  instance**; the containers are the deployment. Runbook: [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md);
+  network view: [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md).
+- **Production:** the **same container images** on a HIPAA-eligible cloud under a signed BAA (default **AWS**,
+  free self-serve via Artifact); the sidecar is also portable into a practice's own OpenEMR environment. See
+  `ARCHITECTURE.md` §13.
 
 ---
 
 ## Roadmap (high level)
 
-- **vMVP** (the first release): the conversational, cardiology-only co-pilot — interval-change brief + grounded follow-up, with
+- **vMVP** (the first release): the conversational, cardiology-only copilot — interval-change brief + grounded follow-up, with
   verification, authorization, observability, and an eval suite.
 - **Week 2 — Multimodal Evidence Agent (current):** document ingestion (lab PDF + intake form) with cited
   extraction, a supervisor + two-worker graph, hybrid RAG + rerank, and an eval-gated CI gate that blocks
@@ -236,7 +296,7 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 ## Related repositories
 
-- **OpenEMR fork — [`agent-forge`](https://labs.gauntletai.com/adammarquette/agent-forge)** — the audited EHR
+- **OpenEMR fork — [`agent-forge`](https://github.com/adammarquette/agent-forge)** — the audited EHR
   base + the thin custom module (`oe-module-agentforge`) that originates the SMART EHR launch of this sidecar.
   The module adds two in-EHR entry points — an **AgentForge launch button** on the patient demographics page
   and a top-nav **Daily Agenda** tab — and on click performs a SMART EHR launch of the sidecar, opening it as
@@ -254,4 +314,17 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 ---
 
-*Gauntlet AI — AgentForge Clinical Co-Pilot. Internal project; docs are living and versioned (`v0.1`).*
+## Origin
+
+This project began as a case study issued by **Gauntlet AI**. The original requirement briefs are preserved
+unaltered in [`documentation/supporting/`](documentation/supporting/) — `PRD.md`'s FR-/NFR- IDs trace back to
+them, so they are kept as source documents rather than edited.
+
+Everything else — the architecture, the sidecar design, the implementation, and the docs in
+[`documentation/`](documentation/) — is original work. The codebase was formerly namespaced
+`GauntletAI.AgentForge.*` and hosted on a Gauntlet-run GitLab; both have been retired in favour of
+`AgentForge.*` on GitHub.
+
+---
+
+*AgentForge Clinical Copilot — a personal student project (see [Origin](#origin)); docs are living and versioned (`v0.1`).*

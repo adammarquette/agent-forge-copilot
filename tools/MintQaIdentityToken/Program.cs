@@ -1,8 +1,8 @@
-using GauntletAI.AgentForge.Integration.OpenEmr.Auth;
-using GauntletAI.AgentForge.MintQaIdentityToken;
+using AgentForge.Integration.OpenEmr.Auth;
+using AgentForge.MintQaIdentityToken;
 using Refit;
 
-var baseUrl = Environment.GetEnvironmentVariable("MintToken__BaseUrl") ?? "https://openemr-staging-25fc.up.railway.app";
+var baseUrl = Environment.GetEnvironmentVariable("MintToken__BaseUrl") ?? "http://localhost:8080";
 var site = Environment.GetEnvironmentVariable("MintToken__Site") ?? "default";
 var identityAPatientUuid = Environment.GetEnvironmentVariable("OpenEmrQa__TestPatientId");
 var identityBPatientUuid = Environment.GetEnvironmentVariable("OpenEmrQa__SecondTestPatientId");

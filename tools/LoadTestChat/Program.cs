@@ -1,10 +1,10 @@
 using System.Globalization;
-using GauntletAI.AgentForge.LoadTestChat;
+using AgentForge.LoadTestChat;
 
 // The sidecar's own public domain was retired; it is reached only through the same-origin reverse-proxy
 // front door under the /agentforge PathBase (reverse-proxy/nginx.conf.template). reference: gitlab#62
 var baseUrl = Environment.GetEnvironmentVariable("LoadTest__BaseUrl")
-    ?? "https://agent-forge-reverse-proxy-staging.up.railway.app/agentforge";
+    ?? "http://localhost:8080/agentforge";
 var durationSeconds = int.Parse(
     Environment.GetEnvironmentVariable("LoadTest__DurationSeconds") ?? "15", CultureInfo.InvariantCulture);
 var concurrencyLevels = (Environment.GetEnvironmentVariable("LoadTest__ConcurrencyLevels") ?? "10")

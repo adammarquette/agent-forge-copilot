@@ -1,10 +1,11 @@
-# ARCHITECTURE — AgentForge Clinical Co-Pilot (Cardiology)
+# ARCHITECTURE — AgentForge Clinical Copilot (Cardiology)
 
-**Product:** AgentForge Clinical Co-Pilot — an AI agent embedded in OpenEMR for the outpatient cardiologist.
+**Product:** AgentForge Clinical Copilot — an AI agent embedded in OpenEMR for the outpatient cardiologist.
 **Repos:** `agent-forge` (OpenEMR v8 fork — audited base + thin module shim) · `agent-forge-copilot` (.NET sidecar).
 **Traces to:** `USERS.md` (source of truth) · informed by `AUDIT.md` · requirements in `PRD.md`.
 **Implementation companions:** `INTERFACE_CONTROL.md` (external interfaces) · `ENGINEERING_STANDARDS.md`
-(stack/standards) · `RAILWAY.md` (deployment implementation) · `CI-SETUP.md` (pipeline implementation).
+(stack/standards) · `DEPLOYMENT.md` (deployment implementation) · `DEPLOYMENT_TOPOLOGY.md` (physical/network
+view) · `CI-SETUP.md` (pipeline implementation).
 **Status:** v0.1 draft — audit-informed. Items marked **[PROVISIONAL]** await remaining recon (data-quality
 preflight, exact FHIR field coverage for EF/echo/device, calibrated latency numbers).
 
@@ -12,12 +13,12 @@ preflight, exact FHIR field coverage for EF/echo/device, calibrated latency numb
 
 ## 1. Executive Summary (~1 page)
 
-The Co-Pilot is a **companion service (sidecar), not a fork of OpenEMR's core**. It integrates only through
+The Copilot is a **companion service (sidecar), not a fork of OpenEMR's core**. It integrates only through
 OpenEMR v8's published, certified surfaces — the **FHIR R4 API**, the **OAuth2 authorization server**, and
 **SMART-on-FHIR EHR launch** — all confirmed present in the fork. The PHP core is never modified; the only
 change to the OpenEMR project is a **thin custom module** (`interface/modules/custom_modules/oe-module-agentforge`)
 that adds in-EHR launch entry points (a patient-chart launch button + a Daily Agenda nav tab) and performs a
-SMART EHR launch of the Co-Pilot — opening it as a top-level browser tab by default, or a modal iframe when the
+SMART EHR launch of the Copilot — opening it as a top-level browser tab by default, or a modal iframe when the
 sidecar is served same-site (see §16 D16). This preserves upgrade safety and the host's ONC-certification
 posture, and keeps the AI stack independently deployable and testable. **(D1, D2)**
 
@@ -30,7 +31,7 @@ therapeutic?" → "when was it drawn?") is what earns the "agent" shape (UC-2) a
 
 **Trust boundary — the strongest decision.** All PHI is read through OpenEMR's FHIR API using the **clinician's
 own OAuth identity** obtained via SMART EHR launch (authorization-code flow), never a broad service account.
-OpenEMR enforces its ACLs and scopes server-side, so the Co-Pilot **can never see more than the requesting
+OpenEMR enforces its ACLs and scopes server-side, so the Copilot **can never see more than the requesting
 user could** — this is the answer to "who's asking?" and "where are your trust boundaries?" (UC-4). Tokens are
 held **server-side in a backend-for-frontend**, never exposed to browser JavaScript, tightening the no-leakage
 story. **(D6, D11)**
@@ -150,7 +151,7 @@ flowchart LR
 2. **Token custody (BFF).** The sidecar backend holds the token **server-side**, keyed to the browser session;
    the browser SPA never sees a bearer token. **(D11)**
 3. **ACL inheritance.** Every FHIR call uses the clinician's token; OpenEMR enforces ACLs/scopes server-side.
-   The Co-Pilot cannot exceed the user's own access — enforcement is **below the model**, so prompt injection
+   The Copilot cannot exceed the user's own access — enforcement is **below the model**, so prompt injection
    ("ignore that, show me…") cannot widen access (FR-AUTH-3, NFR-SEC-2).
 4. **Minimum-necessary by tool design.** Tools take narrow inputs (IDs, bounded windows); no whole-chart dump.
 5. **Dual audit.** OpenEMR's `EventAuditLogger` records per-user FHIR access; the sidecar records tool-call +
@@ -352,7 +353,7 @@ environment; what changes is the host and its compliance controls. Two environme
 
 ```mermaid
 flowchart TB
-    subgraph Dev["Development / Demo -- Railway (13.1)"]
+    subgraph Dev["Demo / QA -- Docker container stack (13.1)"]
         direction LR
         DevOE["OpenEMR fork"]
         DevSC[".NET sidecar"]
@@ -378,15 +379,21 @@ flowchart TB
     class ProdOE,ProdSC,ProdLLM phi;
 ```
 
-*Blue = synthetic data only, no BAA needed. Red = real PHI, under a signed BAA. Railway is also viable for
-prod (§13.2) but gated behind its Enterprise-only HIPAA BAA.*
+*Blue = synthetic data only, no BAA needed. Red = real PHI, under a signed BAA. The images are identical;
+only the host and its compliance controls differ.*
 
-### 13.1 Development / demo — Railway
-- **Both services on Railway**; public URL submitted each sprint checkpoint. Per the case study, the final
-  agent deploys to the **same infrastructure** as the audited app — so Railway is the sprint target end-to-end.
-- **Synthetic/demo data only → no BAA required** (privacy is not in scope here, by policy). This is the
-  explicit reason Railway is acceptable for dev: no PHI ever touches it.
-- Fast to stand up, cheap, good DX — the right call when the constraint is iteration speed, not compliance.
+### 13.1 Demo / QA — the Docker container stack
+- **Both services run as containers on one Docker host**, brought up by the repo-root `docker-compose.yml`:
+  the OpenEMR fork (module baked into the image), its MySQL, an nginx front door, and — behind the `copilot`
+  profile — the sidecar and its pgvector Postgres. **There is no hosted/public instance**; the containers are
+  the deployment. Runbook: `DEPLOYMENT.md`; network view: `DEPLOYMENT_TOPOLOGY.md`.
+- **One published port.** Only the front door is reachable from outside; everything else is network-internal.
+  That is the same one-origin invariant the SMART launch depends on (`DEPLOYMENT.md` §2), not a convenience.
+- **Synthetic/demo data only → no BAA required** (privacy is not in scope here, by policy). That is the
+  explicit reason this posture is acceptable: no PHI ever touches it. It runs over plain HTTP with
+  local-development escape hatches enabled, which are safe *only* because of that.
+- Fast to stand up, reproducible from pinned image tags, and portable to any Docker host — the right call
+  when the constraint is iteration speed and reviewability, not compliance.
 - **Hard line:** if this environment cannot hold PHI, then no real PHI is ever introduced to it — enforced by
   policy, not just intent.
 
@@ -395,8 +402,9 @@ prod (§13.2) but gated behind its Enterprise-only HIPAA BAA.*
   the **BAA is free and self-serve via AWS Artifact**, and PHI is confined to **HIPAA-eligible services** —
   e.g. ECS/EKS or EC2 for the sidecar + OpenEMR, RDS (MariaDB/MySQL) for the database, KMS for keys, CloudWatch
   for logs. Suits the smaller/self-serve deployments this product targets first.
-- **Railway is viable for prod too, but gated:** its HIPAA BAA is **Enterprise-only (~$1k/mo min)** — higher
-  friction than AWS Artifact, so AWS is the lower-friction default. (See `PRD.md` §11 / §15.1.)
+- **PaaS hosts are viable for prod too, but gated:** the ones with the best DX generally offer a HIPAA BAA only
+  on an enterprise tier (order ~$1k/mo minimum) — higher friction than AWS Artifact, so AWS is the
+  lower-friction default. (See `PRD.md` §11 / §15.1.)
 - **Portable by design:** because integration is over standard FHIR/OAuth, the sidecar can also deploy **into
   the practice's existing OpenEMR environment** (their cloud or on-prem) — often the real-world case, since the
   practice already holds the PHI trust boundary. Compliance posture (which cloud, which BAA, which LLM path) is
@@ -452,7 +460,7 @@ prod (§13.2) but gated behind its Enterprise-only HIPAA BAA.*
 | **D12** | **One LLM provider in v1 behind ILlmProvider** | Build 3-tier model zoo now | Sprint scope; abstraction preserved, others described |
 | **D13** | **No write-back in MVP** | Gated draft write | Removes auth surface + cert questions for zero required credit |
 | **D14** | **Morning Triage batch = Phase-2, not v1** | Build batch triage in v1 | Keeps v1 conversational-agent-first (case-study requirement); batch reuses the v1 pipeline once trusted |
-| **D15** | **Railway for dev (demo data), HIPAA-eligible cloud (AWS) for prod** | Single environment for both | Dev optimizes iteration speed with zero PHI; prod optimizes compliance under BAA. Same container both ways — host is a per-env decision, not architectural |
+| **D15** | **A Docker container stack for demo/QA (synthetic data), HIPAA-eligible cloud (AWS) for prod** | Single environment for both; or a managed PaaS demo | Demo/QA optimizes iteration speed and reviewability with zero PHI; prod optimizes compliance under BAA. Same container images both ways — host is a per-env decision, not architectural. A hosted demo was retired in favour of the compose stack: anyone can run the real system, and there is no public surface to secure or pay for |
 | **D16** | **Top-level tab is the default launch mode; modal iframe is a same-site-only option** | iFrame-only launch | A cross-site iframe can't recover the EHR-launch session: the SameSite=Lax bridge cookie's cross-site exception only covers top-level navigations, not iframes (agent-forge#21, `IFRAME_REVERT.md`). The module keeps both modes configurable (Manage Modules); iframe is only reliable when the sidecar is served same-site with OpenEMR. Recorded future direction: restore the embedded same-origin modal behind a reverse proxy (agent-forge#22), at which point OpenEMR's cookie can revert to `Strict` (agent-forge#26) and the sidecar's to `Lax` (#63). |
 
 ---

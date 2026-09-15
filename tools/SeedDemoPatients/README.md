@@ -37,7 +37,8 @@ dotnet run --project tools/SeedDemoPatients
 Needs one interactive step: the script registers (or reuses, via `SeedDemo__ClientId`/
 `SeedDemo__ClientSecret`) a confidential OAuth client, prints its client_id, and pauses for you to
 enable it (Admin → System → API Clients) — freshly-registered clients land disabled. It then prints
-an authorize URL; open it, log in as `admin`/`P@ssw0rd1`, approve, and paste back the resulting
+an authorize URL; open it, log in as `admin` (password withheld from source — ask the maintainer, or
+read the `OE_PASS` service variable on `openemr`), approve, and paste back the resulting
 address-bar URL (the redirect target doesn't resolve — that's expected, the `code` is still in the
 URL). The access token this produces lives only in the process's memory — never logged, never
 written to disk.
@@ -46,7 +47,7 @@ written to disk.
 
 | Variable | Purpose |
 |---|---|
-| `SeedDemo__BaseUrl` | OpenEMR base URL (defaults to the staging Railway instance) |
+| `SeedDemo__BaseUrl` | OpenEMR base URL (defaults to the local compose front door, `http://localhost:8080`) |
 | `SeedDemo__Site` | OpenEMR multi-site segment (defaults to `default`) |
 | `SeedDemo__ClientId` / `SeedDemo__ClientSecret` | Reuse an already-registered, already-enabled client instead of registering a new one |
 | `SeedDemo__AccessToken` | Skip the whole login flow entirely and use a token you already have (for quick reruns within that token's lifetime) |

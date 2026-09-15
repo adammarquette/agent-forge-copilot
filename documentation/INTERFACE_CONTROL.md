@@ -1,6 +1,6 @@
 # INTERFACE CONTROL — External Interfaces (OpenEMR)
 
-**Interface Control Document (ICD)** for the AgentForge Clinical Co-Pilot sidecar.
+**Interface Control Document (ICD)** for the AgentForge Clinical Copilot sidecar.
 **Scope (this version):** the **OpenEMR** integration (Interfaces A–C) **and** the sidecar-exposed interfaces
 (Interface D: HTTP surface + OpenAPI, the SignalR chat hub, `/health`+`/ready`, and the MCP tool schemas). The
 LLM provider interface is the only one still deferred to a later revision.
@@ -108,6 +108,7 @@ Confirmed available scopes relevant to the cardiology read paths. Request **only
 | Vitals | `patient/Observation.read` | casing confirmed PascalCase (GitLab issue #41) |
 | Procedures | `patient/Procedure.read` | casing confirmed PascalCase (GitLab issue #41) |
 | Documents (echo/EF, device narrative) | `patient/DocumentReference.read` | casing confirmed PascalCase (GitLab issue #41) |
+| Source document bytes for click-to-source | `patient/Binary.read` (single-patient) · `user/Binary.read` (agenda) | required for the `Binary` fetch behind `GET /evidence/document/{id}`; registered by `tools/RegisterSmartClients` — gitlab#128, #109 |
 | Launch/identity | `openid`, `fhirUser`, `launch`, `launch/patient` | |
 | FHIR API companion | `api:fhir` | **required alongside every `patient/*` FHIR-resource scope above** — confirmed against the live server; requesting a resource scope without it is rejected as `invalid_scope` |
 
@@ -127,13 +128,14 @@ at authorize time. A second registered OAuth client (its own `client_id`, regist
 `user/*.read` scope set) is required; reusing the existing single-patient launch's `client_id` would
 silently omit the new scopes from the granted token rather than fail loudly.
 
-**Registered against the QA staging server 2026-07-11** (`agent-forge-copilot#56`) —
+**Registered against the QA OpenEMR 2026-07-11** (`agent-forge-copilot#56`) —
 `openid fhirUser launch api:fhir user/Patient.read user/encounter.read user/medication.read
 user/prescription.read user/drug.read user/list.read user/allergy.read user/vital.read
 user/procedure.read user/surgery.read user/document.read user/Appointment.read`, confidential
 client (`token_endpoint_auth_method: client_secret_post`), enabled via Admin → System → API
-Clients. Credentials live as `OpenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret` GitLab CI
-variables. Casing beyond `Patient`/`Appointment` (both PascalCase, matching the one confirmed-live
+Clients. Credentials live as the `OpenEmrAgenda__ClientId`/`OpenEmrAgenda__ClientSecret` GitHub
+Actions variable/secret (see `DEPLOYMENT.md` §5). Casing beyond
+`Patient`/`Appointment` (both PascalCase, matching the one confirmed-live
 casing rule above) is still best-effort, not individually re-verified per resource — `[CONFIRM]`
 against actual QA-tier test results once they run.)*
 
@@ -214,12 +216,12 @@ the sidecar's own provenance logging. Both trails carry the correlation ID (FR-A
 
 ## Interface D — Sidecar-Exposed Surface (BFF)
 
-Confirmed in this repo: `GauntletAI.AgentForge.Api` (`Program.cs`, `Launch/`, `Agenda/`, `Patient/`, `Chat/`,
-`Health/`) and `GauntletAI.AgentForge.Mcp` / `GauntletAI.AgentForge.Agent/McpToolCatalog.cs`.
+Confirmed in this repo: `AgentForge.Api` (`Program.cs`, `Launch/`, `Agenda/`, `Patient/`, `Chat/`,
+`Health/`) and `AgentForge.Mcp` / `AgentForge.Agent/McpToolCatalog.cs`.
 
 **Common properties**
 - **Base path:** every route below is served under the reverse-proxy `PathBase` (`/agentforge`) when
-  `Bff:PathBase` is set (staging/prod behind the nginx front door), or at the root when unset (`ARCHITECTURE.md`
+  `Bff:PathBase` is set (behind the nginx front door, i.e. every deployed stack), or at the root when unset (`ARCHITECTURE.md`
   §16 D16). Examples show the un-prefixed path.
 - **Auth:** the browser-facing endpoints and the hub carry **no bearer token**; identity is the server-side
   session established by the SMART launch (D11). The token is held in the BFF and never sent to the browser.
@@ -237,6 +239,7 @@ Confirmed in this repo: `GauntletAI.AgentForge.Api` (`Program.cs`, `Launch/`, `A
 | POST | `/agenda/select-patient` | Drill-down: scope a roster row to a patient | 200 | 401 |
 | GET | `/patient` | Launched patient's context (id, name, demographics, problems, meds, allergies) | 200 (JSON) | 401 (no session) |
 | POST | `/evidence/ask` | Week-2 multimodal evidence agent (**only mapped when the data tier is configured**) | 200 | — |
+| GET | `/evidence/document/{documentId}` | Stream a source document's `Binary` bytes for the click-to-source overlay (FR-CITE-2), fetched as the launched clinician | 200 (file) | 401 (no session) / 404 (not found) |
 | GET | `/health` | Liveness — process is up; **no** dependency checks (can't flap on a transient blip) | 200 | — |
 | GET | `/ready` | Readiness — OpenEMR + LLM + observability checks (NFR-HEALTH-1) | 200 | 503 (a dependency unreachable) |
 | GET | `/metrics` | Prometheus scrape (Epic 9) | 200 (text) | — |
@@ -270,7 +273,7 @@ patient session (complete the SMART launch first).
 
 ### D.3 MCP tool catalog
 
-Six read-only, patient-scoped tools (`ARCHITECTURE.md` §8.1, D2). Every tool **validates its input contract
+Eight read-only tools (`McpToolCatalog.AllTools`): the six patient-scoped Week-1 FHIR tools (`ARCHITECTURE.md` §8.1, D2) plus two Week-2 tools — `get_document_facts` (facts from the patient's ingested documents) and `retrieve_evidence` (clinical-guideline corpus). Every tool **validates its input contract
 first** (`McpToolContract.Validate`, NFR-CONTRACT-1). **`patientId` and `site` are never tool arguments** —
 they are session-bound, resolved by the orchestrator from the authenticated launch context and forced by the
 dispatcher regardless of any model-supplied value (the schema-level + dispatch-level halves of FR-CHAT-3).
@@ -283,12 +286,14 @@ dispatcher regardless of any model-supplied value (the schema-level + dispatch-l
 | `get_vitals` | `since_date` (optional) | `{ vitals[] }` — `ObservationRecord`; **null-valued placeholder observations are dropped** (#78) |
 | `get_recent_encounters` | `count` (int 1–20, default 3) | `{ encounters[] }` — thin list (date, type, reason) |
 | `get_documents` | `document_type` (case-insensitive substring, optional) | `{ documents[] }` — DiagnosticReport + DocumentReference narratives |
+| `get_document_facts` | *(none)* | facts already extracted from the patient's ingested documents, each citable as `[Document/<id>]` |
+| `retrieve_evidence` | `query` (**required**) | grounded clinical-guideline snippets for the query, each citable as `[Guideline/<id>]` |
 
 The authoritative model-facing JSON schemas are in `McpToolCatalog.AllTools`; the result record shapes are the
 `*Result` types on `IMcpToolServer`.
 
 > **Definition of done for future changes (per this issue):** any MR that adds, removes, or changes an HTTP
-> endpoint in `GauntletAI.AgentForge.Api`, a `ChatHub` message contract, or an MCP tool's request/result shape
+> endpoint in `AgentForge.Api`, a `ChatHub` message contract, or an MCP tool's request/result shape
 > **must update this Interface D section (and the OpenAPI wiring) in the same MR** — an undocumented change to
 > Interface D is treated as incomplete, exactly like an undocumented breaking change to Interface A/B.
 

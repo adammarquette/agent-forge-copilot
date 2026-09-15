@@ -1,8 +1,8 @@
 using System.Net.Http.Json;
-using GauntletAI.AgentForge.Integration.OpenEmr.Auth;
+using AgentForge.Integration.OpenEmr.Auth;
 using Refit;
 
-namespace GauntletAI.AgentForge.SeedDemoPatients;
+namespace AgentForge.SeedDemoPatients;
 
 /// <summary>
 /// Gets a real user-role OpenEMR access token for this one-time seeding run, via a genuine
