@@ -216,8 +216,8 @@ the sidecar's own provenance logging. Both trails carry the correlation ID (FR-A
 
 ## Interface D — Sidecar-Exposed Surface (BFF)
 
-Confirmed in this repo: `MarqSpec.AgentForge.Api` (`Program.cs`, `Launch/`, `Agenda/`, `Patient/`, `Chat/`,
-`Health/`) and `MarqSpec.AgentForge.Mcp` / `MarqSpec.AgentForge.Agent/McpToolCatalog.cs`.
+Confirmed in this repo: `AgentForge.Api` (`Program.cs`, `Launch/`, `Agenda/`, `Patient/`, `Chat/`,
+`Health/`) and `AgentForge.Mcp` / `AgentForge.Agent/McpToolCatalog.cs`.
 
 **Common properties**
 - **Base path:** every route below is served under the reverse-proxy `PathBase` (`/agentforge`) when
@@ -293,7 +293,7 @@ The authoritative model-facing JSON schemas are in `McpToolCatalog.AllTools`; th
 `*Result` types on `IMcpToolServer`.
 
 > **Definition of done for future changes (per this issue):** any MR that adds, removes, or changes an HTTP
-> endpoint in `MarqSpec.AgentForge.Api`, a `ChatHub` message contract, or an MCP tool's request/result shape
+> endpoint in `AgentForge.Api`, a `ChatHub` message contract, or an MCP tool's request/result shape
 > **must update this Interface D section (and the OpenAPI wiring) in the same MR** — an undocumented change to
 > Interface D is treated as incomplete, exactly like an undocumented breaking change to Interface A/B.
 

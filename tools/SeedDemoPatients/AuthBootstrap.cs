@@ -1,8 +1,8 @@
 using System.Net.Http.Json;
-using MarqSpec.AgentForge.Integration.OpenEmr.Auth;
+using AgentForge.Integration.OpenEmr.Auth;
 using Refit;
 
-namespace MarqSpec.AgentForge.SeedDemoPatients;
+namespace AgentForge.SeedDemoPatients;
 
 /// <summary>
 /// Gets a real user-role OpenEMR access token for this one-time seeding run, via a genuine

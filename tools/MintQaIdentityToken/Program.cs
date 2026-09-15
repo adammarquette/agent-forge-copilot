@@ -1,5 +1,5 @@
-using MarqSpec.AgentForge.Integration.OpenEmr.Auth;
-using MarqSpec.AgentForge.MintQaIdentityToken;
+using AgentForge.Integration.OpenEmr.Auth;
+using AgentForge.MintQaIdentityToken;
 using Refit;
 
 var baseUrl = Environment.GetEnvironmentVariable("MintToken__BaseUrl") ?? "http://localhost:8080";

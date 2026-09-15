@@ -176,7 +176,7 @@ Supplied as GitHub Actions secrets/variables (see [`CI-SETUP.md`](CI-SETUP.md)):
   value as environment state, not a constant
 - `OpenEmrQa__SecondTestPatientId` — a second seeded demo patient, for cross-identity scope tests
 - `OpenEmrQa__TestAccessToken` — deliberately unset; when absent, `OpenEmrQaFixture` mints one itself via a
-  Playwright login fallback (`tests/MarqSpec.AgentForge.IntegrationTests/Support/OpenEmrQaFixture.cs`)
+  Playwright login fallback (`tests/AgentForge.IntegrationTests/Support/OpenEmrQaFixture.cs`)
 - `OpenEmrQa__System__ClientId`, `OpenEmrQa__System__PrivateKeyPath`, `OpenEmrQa__System__KeyId`,
   `OpenEmrQa__System__Scope` — the faster JWT-bearer path, see below
 - `LlmQa__ApiKey`, `LlmQa__Model` — a real Anthropic key + model for test runs

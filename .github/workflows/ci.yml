@@ -67,7 +67,7 @@ permissions:
   contents: read
 
 env:
-  SOLUTION: MarqSpec.AgentForge.slnx
+  SOLUTION: AgentForge.slnx
   BUILD_CONFIG: Release
   UNIT_TEST_PATTERN: "*UnitTests.csproj"
   DOTNET_NOLOGO: "true"
@@ -260,7 +260,7 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
       - name: Run eval tests
         run: |
-          dotnet test "tests/MarqSpec.AgentForge.EvalTests/MarqSpec.AgentForge.EvalTests.csproj" \
+          dotnet test "tests/AgentForge.EvalTests/AgentForge.EvalTests.csproj" \
             -c "$BUILD_CONFIG" \
             --results-directory "$GITHUB_WORKSPACE/TestResults" \
             --logger "junit;LogFileName={assembly}.junit.xml" \
@@ -296,7 +296,7 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
       - name: Run golden-set eval gate
-        run: dotnet run --project "tests/MarqSpec.AgentForge.Evals" -c "$BUILD_CONFIG" -- evals
+        run: dotnet run --project "tests/AgentForge.Evals" -c "$BUILD_CONFIG" -- evals
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -369,8 +369,8 @@ jobs:
       - name: Verify the image is the sidecar
         run: |
           set -euo pipefail
-          if docker run --rm --entrypoint sh "${IMAGE}:ci-candidate" -c "test -f /app/MarqSpec.AgentForge.Api.dll"; then
-            echo "OK: MarqSpec.AgentForge.Api.dll present in the runtime image."
+          if docker run --rm --entrypoint sh "${IMAGE}:ci-candidate" -c "test -f /app/AgentForge.Api.dll"; then
+            echo "OK: AgentForge.Api.dll present in the runtime image."
           else
             echo "::error::Built image is missing the sidecar entrypoint assembly; refusing to publish."
             exit 1
