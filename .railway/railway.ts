@@ -15,8 +15,10 @@
 //
 // WHAT THIS FILE CANNOT EXPRESS: the first-run bootstrap (DEPLOYMENT.md §4) is
 // live state in OpenEMR's DATABASE - Site Address Override, both SMART OAuth
-// clients, the module Launch URI, demo seeding. Applying this file yields a
-// stack that boots but cannot complete a SMART launch until that bootstrap runs.
+// clients, the module launch URIs, demo seeding. Applying this file yields a
+// stack that boots but cannot complete a SMART launch until that bootstrap runs:
+// tools/RegisterSmartClients (API half) then tools/BootstrapOpenEmr (database
+// half), both idempotent and both taking the front door as their argument.
 // -----------------------------------------------------------------------------
 
 import { defineRailway, github, image, preserve, project, service, volume } from "railway/iac";

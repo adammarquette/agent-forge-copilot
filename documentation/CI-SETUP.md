@@ -4,6 +4,11 @@ CI runs on **GitHub Actions**. The pipeline entry point is
 `.github/workflows/ci.yml`, which GitHub auto-discovers — no repository setting
 required.
 
+> **`origin` and CI are both GitHub.** The GitLab remote was dropped after its
+> project was recreated empty by a restore (`INDEX.md` §5), so there is no second
+> host and no `.gitlab-ci.yml` in the tree: every branch pushed to `origin` gets
+> the full pipeline below. Nothing has to be mirrored anywhere first.
+
 ```
 .github/
 ├── workflows/
