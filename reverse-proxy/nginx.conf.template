@@ -13,9 +13,11 @@ client_max_body_size 64m;
 # load. A literal hostname makes `nginx -t`/startup fail hard the moment that
 # name isn't resolvable yet (confirmed locally - a sibling container starting
 # slower than nginx hits exactly this) instead of just failing the individual
-# request. DNS_RESOLVER defaults to Docker's own embedded DNS (127.0.0.11 - see
-# the Dockerfile); override it for a stack whose resolver lives elsewhere.
-resolver ${DNS_RESOLVER} valid=10s;
+# request. DNS_RESOLVER is detected from /etc/resolv.conf at container start by
+# docker-entrypoint.d/10-resolver.envsh (set it explicitly to override), and
+# ipv6=off keeps nginx on A records because both upstreams are IPv4-only - see
+# the Dockerfile for both.
+resolver ${DNS_RESOLVER} valid=10s ipv6=${RESOLVER_IPV6};
 
 server {
     listen ${PORT};
