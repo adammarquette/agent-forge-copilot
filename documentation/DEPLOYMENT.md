@@ -66,8 +66,9 @@ client must be registered with **that flow's** redirect URI (`/agentforge/callba
 
 ## 3. Sidecar configuration
 
-Options-pattern; `__` is the section separator. The compose file sets all of these — this table is the
-reference for standing the sidecar up anywhere else.
+Options-pattern; `__` is the section separator. This table is the reference for standing the sidecar up
+anywhere. **The compose file sets most but not all of it** — the rows marked **not in compose** are the
+exceptions, and the agenda pair is the one that costs a feature (see the note under the table).
 
 | Variable | Value |
 |---|---|
@@ -78,13 +79,23 @@ reference for standing the sidecar up anywhere else.
 | `DataProtection__KeyRingPath` | `/keys`, backed by a **volume**. The cookie carrying the pending SMART launch is DataProtection-encrypted; an in-memory key ring can't decrypt it after a restart, which surfaces as "No pending SMART launch" on the callback |
 | `OpenEmr__ClientId` / `OpenEmr__ClientSecret` | the patient-launch **confidential** SMART client, admin-enabled (redirect `/agentforge/callback`) |
 | `OpenEmr__Scopes__0..14` | FHIR resource scopes — **casing matters**; `patient/encounter.read` is rejected. See `ServerScopeListEntity::fhirResourceScopesV1()` in the OpenEMR fork for the exact catalog. The list is 0-based and **contiguous** — a gap truncates the bound array at the first missing index |
-| `OpenEmrAgenda__ClientId` / `OpenEmrAgenda__ClientSecret` | the roster/agenda OAuth client (redirect `/agentforge/agenda/callback`) |
-| `OpenEmrAgenda__Scopes__0..5` | `openid`, `fhirUser`, `launch`, `api:fhir`, `user/Appointment.read`, `user/Patient.read` |
+| `OpenEmrAgenda__ClientId` / `OpenEmrAgenda__ClientSecret` | **not in compose.** The roster/agenda OAuth client (redirect `/agentforge/agenda/callback`) |
+| `OpenEmrAgenda__Scopes__0..5` | **not in compose.** `openid`, `fhirUser`, `launch`, `api:fhir`, `user/Appointment.read`, `user/Patient.read` |
 | `Llm__ApiKey` | Anthropic key. **Never in source** — supply from the environment / `.env` |
 | `Llm__Model` | `claude-sonnet-5` |
 | `Llm__InputPricePerMillionTokensUsd` / `Output…` | real per-million prices, so `agentforge_llm_cost_usd_total` reports actual cost rather than 0 |
 | `AgentForgeData__ConnectionString` | Postgres/pgvector. Optional — the Week 2 flows are additive, and the host boots without it |
-| `Observability__LokiOtlpEndpoint` | OTLP/HTTP log push. Fail-open: unset (or unreachable) means console-only logging |
+| `Observability__LokiOtlpEndpoint` | **not in compose.** OTLP/HTTP log push. Fail-open: unset (or unreachable) means console-only logging, so the omission costs nothing until you run the observability stack ([`observability/README.md`](../observability/)) |
+
+> **The Daily Agenda is not wired in the reference compose stack.** `docker-compose.yml` passes no
+> `OpenEmrAgenda__*` at all — not even a `${...}` passthrough — so putting an agenda client id/secret in `.env`
+> has no effect. `AgendaOpenEmrOptions` has no defaults and no fallback to the patient client (deliberately:
+> the fork's `finalizeScopes()` would silently narrow the token instead of failing loudly), and it is validated
+> **lazily**, not at startup — so the sidecar boots fine and the single-patient flow works, but the first
+> roster launch throws `OptionsValidationException` on `agendaOptions.Value`. Registering the agenda client
+> (§4) is therefore necessary but **not sufficient** on compose; the variables have to reach the container
+> too. Everything else about the agenda — the module's `agentforge_agenda_launch_uri`, the nav tab, the
+> `/agenda/*` endpoints — is live, which is what makes this easy to miss.
 
 **Local-development escape hatches.** `OpenEmr__AllowInsecureHttpForLocalDevelopment` and
 `Bff__AllowInsecureHttpForLocalDevelopment` let the stack run over plain HTTP. They exist precisely for this
@@ -142,7 +153,10 @@ What the two tools write, and why each value matters:
    POSTs both clients against the **front door** with the correct scope lists, crucially including
    **`patient/Binary.read`** on the patient client. Without that scope on the *registered* client, OpenEMR's
    `finalizeScopes` silently drops the Binary scope the launch requests, the source-document fetch 401s, and
-   click-to-source shows a misleading 404 (reference: gitlab#128). Freshly-registered clients then land
+   click-to-source shows a misleading 404 (reference: gitlab#128). The registration lists are a deliberate
+   **superset** of the scopes a launch requests (§3), since `finalizeScopes` only grants what the client
+   registered for — which is why the patient client is also registered for `api:oemr`, a scope no current flow
+   requests. Freshly-registered clients then land
    **disabled** (the agenda client especially), so registration alone is not enough —
 
    ```sql
@@ -151,8 +165,10 @@ What the two tools write, and why each value matters:
 
    is what `BootstrapOpenEmr` issues for every `AgentForge%` client. The **ids and secrets are the one thing
    neither tool can carry across** — they are generated at registration and consumed as sidecar config, so put
-   them in `.env` as `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET` and the agenda pair before bringing the
-   `copilot` profile up.
+   the patient pair in `.env` as `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET` before bringing the `copilot`
+   profile up. The **agenda** pair has nowhere to go on compose today — nothing reads it (§3) — so the agenda
+   client is registered and enabled but its launch stays unconfigured until the container is given
+   `OpenEmrAgenda__*`.
 
 3. **The AgentForge module's own settings** — *written by `BootstrapOpenEmr`*, as the four globals the
    module's `moduleConfig.php` page saves: **Launch URI** (`agentforge_launch_uri`) =

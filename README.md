@@ -81,9 +81,10 @@ crash-looping for anyone without them:
    cannot boot without one. Put it in `.env` as `ANTHROPIC_API_KEY`.
 2. **A registered SMART client.** `dotnet run --project tools/RegisterSmartClients -- http://localhost:8080`
    registers both *confidential* clients with the right redirect URIs and scopes, and prints their
-   ids/secrets — put them in `.env` as `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET` and the agenda
-   pair. (By hand it is **Admin → System → API Clients**, and freshly-registered clients land
-   disabled.)
+   ids/secrets — put the patient pair in `.env` as `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET`.
+   (By hand it is **Admin → System → API Clients**, and freshly-registered clients land disabled.)
+   The agenda client is registered too, but compose passes no `OpenEmrAgenda__*`, so the Daily Agenda
+   launch stays unconfigured on this stack — see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §3.
 
 Then run the database half of the bootstrap, which sets the Site Address Override, enables the clients
 it just registered, and writes the module's launch URIs. It connects to MySQL, which the default stack
