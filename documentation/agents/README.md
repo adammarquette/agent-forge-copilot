@@ -16,8 +16,10 @@ right moment.
 | **Code Reviewer** — reviewing changes anywhere; **reads and reports only, never edits**, and leaves an approve / request-changes verdict on the MR | [`code-reviewer.md`](code-reviewer.md) | 2.1K | **on demand** — open it when you take the hat. Claude Code: the `code-reviewer` skill, or the [`code-reviewer` subagent](../../.claude/agents/code-reviewer.md) when an author spawns its own reviewer |
 | **Platform Agent** — CI, the image, compose, the proxy, deploy | [`platform.md`](platform.md) | 1.3K | **on demand**. Claude Code: the `platform` skill |
 
-Universal rules that bind all four: the root [`AGENTS.md`](../../AGENTS.md). The role model is also recorded in
-[`ENGINEERING_STANDARDS.md` §15](../ENGINEERING_STANDARDS.md).
+Universal rules that bind all four: the root [`AGENTS.md`](../../AGENTS.md). **This file is the role model's
+one home** — [`ENGINEERING_STANDARDS.md` §15](../ENGINEERING_STANDARDS.md) keeps only what is a *standard*
+rather than a routing fact: the `CLAUDE.md` shim bridge, and the rule that when an `AGENTS.md` and a doc
+disagree, the doc wins.
 
 ## Why they are not all in this folder
 

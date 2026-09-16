@@ -562,11 +562,23 @@ principal (backend-services or offline token) alongside the interactive SMART to
 
 ---
 
-## 19. Post-v1 Extension — On-Demand Daily Agenda
+## 19. On-Demand Daily Agenda — shipped
 
 A doctor-facing button (fork-side, tracked as `agent-forge#19`, `SMARTLaunchToken::INTENT_MAIN_TAB`) that
 lists every not-yet-seen patient on the current provider's schedule today, each with a short independent
 summary, ordered by appointment time. Traces to **UC-6** (`USERS.md`).
+
+> **Status: built, not a proposal.** This section was written as a post-v1 extension and is kept at §19 with
+> its subsection numbering intact because docs *and code* cite it (`AgendaEndpoints.cs`, `AgendaOptions.cs`,
+> `INTERFACE_CONTROL.md`). What exists today: the `/agenda/launch` → `/agenda/callback` pair and
+> `/agenda/select-patient`, `AgendaOpenEmrOptions` with its own registered OAuth client, the fork module's
+> `agentforge_agenda_launch_uri` global and its nav tab. Read it as the design of a live feature.
+>
+> **One gap, and it is configuration rather than design:** grep
+> [`docker-compose.yml`](../docker-compose.yml) — it passes no `OpenEmrAgenda__*` at all, so on the reference
+> stack the roster launch is unconfigured and throws on first use (`AgendaOpenEmrOptions` is validated
+> lazily, so the host still boots and the single-patient flow still works). `DEPLOYMENT.md` §3 carries the
+> operator-facing version. §18 below is the one that genuinely is not built, and says so.
 
 **Design principle — a sibling to §18, not a variant of it.** Same underlying idea (enumerate the panel,
 run the per-patient pipeline, one failure never kills the run) but simpler in the one place §18 is hardest:
