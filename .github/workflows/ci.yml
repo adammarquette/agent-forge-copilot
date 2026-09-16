@@ -143,6 +143,85 @@ jobs:
           path: licenses-report.json
           retention-days: 7
 
+  # The routing tables price every document they route to, so a reader sees the cost before paying it. That
+  # column is a claim a document makes about itself, and nothing in an ordinary change has a reason to look
+  # at it - so it goes stale, and a stale price sends readers the wrong way while looking authoritative.
+  # scripts/check-doc-sizes.sh measures the files and fails on drift. It needs no toolchain.
+  doc-sizes:
+    name: doc-sizes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Priced routing tables match their files
+        run: bash scripts/check-doc-sizes.sh
+      - name: The gate can still go red
+        run: bash scripts/check-doc-sizes-selftest.sh
+  # ---------------------------------------------------------------------------
+  # DOCS-SYNC - companion to doc-sizes above. That job keeps the prices honest;
+  # this one keeps the docs themselves from rotting behind the code (root
+  # AGENTS.md, "Docs stay in sync with the code").
+  #
+  # It detects the ABSENCE of doc edits, never their correctness: touching one
+  # doc turns it green even if three others now lie. It is the floor the
+  # author-side rule stands on, not a substitute for reading the diff.
+  #
+  # PATHS is deliberately narrow - code whose behaviour/topology the wiki
+  # documents. tests/ and .github/ are excluded so routine test and pipeline
+  # churn does not train everyone to reach for the escape hatch.
+  #
+  # PR_BODY arrives as an env var and is never interpolated into the script as
+  # an expression: the body is attacker-controlled text and would execute.
+  # ---------------------------------------------------------------------------
+  docs-sync:
+    name: docs-sync
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check documentation/ against the change
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          PATHS='^(src/|reverse-proxy/|docker-compose[.]yml|[.]env[.]example)'
+
+          CHANGED=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          CODE=$(echo "$CHANGED" | grep -E "$PATHS" || true)
+          DOCS=$(echo "$CHANGED" | grep -E '^documentation/' || true)
+
+          if [ -z "$CODE" ]; then
+            echo "No documented-code paths touched - nothing to check."
+            exit 0
+          fi
+
+          if [ -n "$DOCS" ]; then
+            echo "documentation/ updated alongside the code:"
+            echo "$DOCS" | sed 's/^/  /'
+            exit 0
+          fi
+
+          if echo "${PR_BODY:-}" | grep -qiE '^[[:space:]]*docs:[[:space:]]*n/a[[:space:]]*[-:][[:space:]]*[^[:space:]].{2,}'; then
+            echo "Opt-out found in the PR body - accepted."
+            exit 0
+          fi
+
+          echo "::error::Code changed but documentation/ did not, and the PR body has no opt-out."
+          echo ""
+          echo "Changed code:"
+          echo "$CODE" | sed 's/^/  /'
+          echo ""
+          echo "Route via documentation/INDEX.md section 1 (doc -> what it owns) and section 2"
+          echo "(code -> project -> spec), then update every doc this change invalidates, in THIS PR."
+          echo ""
+          echo "If genuinely nothing went stale, add a line to the PR body:"
+          echo "    docs: n/a - <why nothing went stale>"
+          exit 1
+
+
   # Validates reverse-proxy/nginx.conf.template's syntax without needing real upstream hosts
   # or a running stack. `nginx -t` only checks the RENDERED config, so the template's
   # ${VAR} placeholders are substituted with placeholders first (envsubst, the same mechanism

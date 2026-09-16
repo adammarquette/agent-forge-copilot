@@ -45,6 +45,8 @@ required.
 |---|---|---|
 | `format` | lint | `dotnet format --verify-no-changes` |
 | `license-scan` | lint | fails on a dependency outside `allowed-licenses.json` |
+| `doc-sizes` | lint | `scripts/check-doc-sizes.sh` — every `~tok` price in a routing table matches its file, and the gate's own self-test still reddens |
+| `docs-sync` | lint | **PRs only.** Fails when `src/`, `reverse-proxy/`, `docker-compose.yml` or `.env.example` changed but `documentation/` did not. Opt out with a `docs: n/a - <reason>` line in the PR body — a bare `docs: n/a` is rejected. Detects *absent* doc edits, not wrong ones; see root `AGENTS.md`, “Docs stay in sync with the code”. Companion to `doc-sizes`: that one keeps prices honest, this one keeps the prose honest. |
 | `nginx-config-lint` | lint | renders `nginx.conf.template` and runs `nginx -t` |
 | `build` | build | compile under warnings-as-errors |
 | `unit-tests` | test | fully mocked suite |
@@ -88,7 +90,7 @@ PR stays mergeable.
 On **Settings → Branches → Branch protection rules** for `develop` and `main`:
 
 - ✅ **Require status checks to pass before merging**, selecting: `format`,
-  `license-scan`, `nginx-config-lint`, `build`, `unit-tests`, `eval-tests`,
+  `docs-sync`, `license-scan`, `nginx-config-lint`, `build`, `unit-tests`, `eval-tests`,
   `evals`
 - ✅ **Require branches to be up to date before merging** (see §3)
 
@@ -156,10 +158,56 @@ its own container. Uploading tens of thousands of small files through the
 artifact API is slow and loses the executable bit; caching the packages is both
 faster and removes the whole bug class.
 
-## 7. Day-to-day flow
+## 7. The automated code reviewer (currently unhosted)
 
-1. Dev opens a PR → `format`, `license-scan`, `nginx-config-lint`, `build` run in
-   parallel, then `unit-tests`, `eval-tests`, `evals`. Red run = merge button
+> **Dormant.** This reviewer was built to run on GitLab. That project was recreated empty by a restore and
+> the remote has been dropped (`INDEX.md` §5), so [`.gitlab-ci.yml`](../.gitlab-ci.yml) and
+> [`.gitlab/ci/`](../.gitlab/ci/) **do not run anywhere today.** They are kept because the reviewer itself
+> (`review.sh`, `render_review.py` and its tests) is host-agnostic and worth porting to a GitHub Actions
+> job. Until that port happens, treat this section as a design record, not a live gate.
+
+The split it describes: everything above is GitHub Actions — lint, build, test, evals, image. The reviewer
+was a separate pipeline whose only job was `code-review`. **A green reviewer meant "nothing blocking to
+say", not "this builds and its tests pass."** Do not read one for the other.
+
+| | GitHub Actions | GitLab |
+|---|---|---|
+| Trigger | PR, and pushes to `main`/`develop` | **MR pipelines only** (`merge_request_event`) |
+| Runs | lint · build · unit · eval · evals · image | the Code Reviewer, and nothing else |
+| Green means | it compiles and the suites pass | no blocking findings |
+
+**How the verdict is expressed.** GitLab's REST API can approve and unapprove a merge request but has **no
+endpoint for "request changes"**, so the job does not pretend otherwise: it posts its findings as an MR note
+and **fails the job** when any finding is blocking. Where merging requires a green pipeline, that is exactly a
+change request. It **never approves** — a bot approval could satisfy an approval rule a human was meant to,
+and [`documentation/agents/code-reviewer.md`](agents/code-reviewer.md) is explicit that the reviewer changes
+nothing and merges nothing.
+
+**What it needs, one time, before the first run:**
+
+1. **A runner.** The job carries no `tags:`, so an untagged runner picks it up. The workstation runner is a
+   *shell* executor, which means the job uses whatever is on that machine's `PATH` — `claude`, `git`, `curl`
+   and `python`. It must also be running: a runner that only exists in a terminal reviews nothing overnight.
+2. **Two masked CI variables** (Settings → CI/CD → Variables):
+   - `ANTHROPIC_API_KEY` — the model call. Every push to an open MR spends tokens; `interruptible: true`
+     means a superseded review is cancelled rather than paid for twice.
+   - `REVIEW_BOT_TOKEN` — a PAT or project access token with **`api`** scope. `CI_JOB_TOKEN` **cannot create
+     notes**, so there is no substitute, and the job fails with that message rather than half-working.
+3. Nothing else. Draft MRs are skipped by a rule, so a work-in-progress does not get reviewed at you.
+
+**The moving parts.** [`.gitlab/ci/review.sh`](../.gitlab/ci/review.sh) supplies the diff and carries the
+verdict; it picks neither the persona nor the rules — those are the `code-reviewer` subagent and its contract,
+so review rules keep one home. The tool allowlist passed to the CLI (`Read`, `Grep`, `Glob`, `Bash(git *)`,
+with `Edit`/`Write` denied) is what *enforces* "never edits code"; the contract is the explanation.
+[`render_review.py`](../.gitlab/ci/render_review.py) turns the verdict into the note and rejects a malformed
+one — a verdict nobody can parse fails the job rather than leaving an MR that merely looks reviewed. Its
+self-test (`render_review_test.py`) covers both directions, including the case where the model returns
+`approve` while reporting a blocking finding.
+
+## 8. Day-to-day flow
+
+1. Dev opens a PR → `format`, `license-scan`, `doc-sizes`, `docs-sync`,
+   `nginx-config-lint`, `build` run in parallel, then `unit-tests`, `eval-tests`, `evals`. Red run = merge button
    locked (given §2).
 2. Dev pushes more commits → the run re-triggers and the superseded one cancels.
 3. Someone merges to the target branch → "require branches to be up to date"

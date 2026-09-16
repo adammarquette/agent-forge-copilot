@@ -504,6 +504,10 @@ debug-*.png
 # reach GitHub or any other remote. The agent-forge fork ignores this too.
 gitlab-export/
 
-# Claude Code local agent config - per-developer permission allowlists and
-# machine-specific paths, not shared project configuration.
-.claude/
+# Claude Code. Per-developer config stays out — permission allowlists, machine-specific
+# paths, local worktrees. The role skills and the reviewer subagent are shared project
+# configuration: they are the trigger layer over documentation/agents/ and are useless to
+# anyone who does not get them with the repo, so they are tracked.
+.claude/*
+!.claude/skills/
+!.claude/agents/
