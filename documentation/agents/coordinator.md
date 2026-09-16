@@ -17,8 +17,8 @@ Concretely, you:
 
 - read the verdict on an MR and turn it into work items, each with a **size tier** named
 - dispatch a Coding Agent per item, at the tier the rubric gives
-- make sure the local gates ran before the branch is pushed again — GitLab runs no build (`CI-SETUP.md` §7)
-- let the review job re-run, and repeat until it is clean
+- make sure the local gates ran before the branch is pushed again, ahead of CI (`CI-SETUP.md` §1)
+- spawn the reviewer again and block on its verdict, and repeat until it is clean
 - keep the tracking issue current: what changed, what is still open, what was decided
 - **stop, and say what is left** — the merge is a human's
 
