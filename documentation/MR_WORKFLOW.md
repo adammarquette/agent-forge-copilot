@@ -4,7 +4,8 @@ The lifecycle every change moves through, and who acts at each step. Written dow
 [Coordinator](agents/coordinator.md) drives it, and a role that drives an undocumented process is inventing
 one.
 
-**The live tracker is GitLab** (`INDEX.md` §5): issues are `#N`, merge requests are `!N`.
+**The live tracker is GitHub** (`INDEX.md` §5): issues and pull requests are both `#N`. Legacy `gitlab#N`
+and `!N` citations are historical context, not links.
 
 ## The states
 
@@ -24,13 +25,14 @@ one.
 ## The rules that are not obvious
 
 - **Green CI means the gates ran.** Every branch pushed to `origin` gets the full pipeline — lint, build,
-  test, evals, and both doc gates (`CI-SETUP.md`). The automated reviewer is a separate concern and is
-  currently dormant (§7), so a green run says the gates passed, not that anything reviewed the change.
+  test, evals, and both doc gates (`CI-SETUP.md`). **No CI job reviews code** (§7) — the reviewer is spawned
+  by the author — so a green run says the gates passed, not that anything reviewed the change. The
+  `review-verdict` gate is what keeps an unreviewed PR from looking done (§8).
 - **An approval is about one revision.** A push after a verdict makes the MR unreviewed again; the reviewer
   names the head SHA for exactly this reason.
-- **Nothing automated merges, and nothing automated approves.** The review job cannot approve — GitLab has no
-  "request changes" endpoint, so a red job *is* the change request, and a bot approval could satisfy an
-  approval rule a human was meant to.
+- **Nothing automated merges, and nothing automated approves.** The reviewer's ruling is posted as a review
+  whose state is `COMMENTED` (`CI-SETUP.md` §8): `review-verdict` reads the verdict *line*, while GitHub never
+  counts it as an approval — so a bot can never satisfy an approval rule a human was meant to.
 - **`develop` is the integration branch.** `main` trails it and is advanced by a promotion MR, not by feature
   branches.
 - **Docs move in the same change**, and not only the nearest file: grep the concept and update every doc that

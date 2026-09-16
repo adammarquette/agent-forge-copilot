@@ -182,10 +182,10 @@ no browser caller — is blocked at the proxy:
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
 | [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 8.9K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
 | [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 2.6K | Physical/network view of the container stack — what is published vs internal (mermaid) |
-| [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.5K | The GitHub build/test/eval gates, plus the dormant automated reviewer (§7) |
+| [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.6K | The GitHub build/test/eval gates and the `review-verdict` gate — including why no CI job reviews code (§7) |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
 | [`MR_WORKFLOW.md`](documentation/MR_WORKFLOW.md) | 0.8K | How a change gets from a branch to `main` — the states, and who acts at each |
-| [`agents/README.md`](documentation/agents/README.md) | 1.8K | **Agent role contracts** — which contract governs which hat, and whether it auto-loads |
+| [`agents/README.md`](documentation/agents/README.md) | 1.9K | **Agent role contracts** — which contract governs which hat, and whether it auto-loads |
 | [`supporting/`](documentation/supporting/) |  | The original Week 1 & 2 requirement briefs as issued (see [Origin](#origin)) and the 5-minute architecture-defense decks (`Architecture_Defense.pptx`, `W2_Architecture_Defense.pptx`) |
 
 ### Why so much cross-referencing

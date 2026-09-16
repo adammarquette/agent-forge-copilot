@@ -6,8 +6,9 @@ required.
 
 > **`origin` and CI are both GitHub.** The GitLab remote was dropped after its
 > project was recreated empty by a restore (`INDEX.md` §5). Every branch pushed to
-> `origin` gets the full pipeline below, plus the automated reviewer (§7) on every
-> pull request. Nothing has to be mirrored anywhere first.
+> `origin` gets the full pipeline below. **No CI job reviews code** (§7): the
+> reviewer is spawned by the authoring agent, and the `review-verdict` gate waits
+> for its ruling (§8). Nothing has to be mirrored anywhere first.
 
 ```
 .github/
@@ -16,6 +17,10 @@ required.
 │   └── railway-config.yml          <- Railway IaC: plan on PR, apply on merge,
 │                                      scheduled drift check (DEPLOYMENT.md §9)
 ├── scripts/
+│   ├── verdict-state.sh            <- the single verdict reader (see §8)
+│   ├── post-verdict.sh             <- how the reviewer posts a readable ruling
+│   ├── watch-verdict.sh            <- what the authoring agent blocks on
+│   ├── verdict-state-selftest.sh   <- the accepted verdict shapes
 │   └── verify-test-results.sh      <- shared false-green guard (see §5)
 └── licenses/
     ├── allowed-licenses.json       <- license allowlist for the license gate
@@ -34,7 +39,7 @@ required.
 > `railway-config.yml` workflow now exist in source but have **not** been applied
 > — `DEPLOYMENT.md` §9. The retired `.gitlab-ci.yml` and `.gitlab/ci/`
 > have been **deleted from the tree** (the code reviewer that briefly lived there
-> was ported to `.github/`, §7 — it moved, it did not die); the originals — including `deploy.yml`,
+> was ported to `.github/` and then deleted outright, §7); the originals — including `deploy.yml`,
 > whose comments encode the deploy incidents any future CD job should honor (the
 > `Llm__ApiKey` drift, the deploy-log-stream false positive, the scope-array
 > truncation) — live in git history at `fbbf07d`
@@ -161,7 +166,7 @@ its own container. Uploading tens of thousands of small files through the
 artifact API is slow and loses the executable bit; caching the packages is both
 faster and removes the whole bug class.
 
-## 7. The automated code reviewer
+## 7. Why no CI job reviews code
 
 **The reviewer is spawned, not scheduled.** The agent that authored the change opens its PR, waits for the
 gates to go green, then starts a Code Reviewer with its own context and blocks on the ruling
@@ -169,8 +174,8 @@ gates to go green, then starts a Code Reviewer with its own context and blocks o
 
 That is deliberate, and it was tried the other way first. A CI reviewer existed briefly (gh#395) and never
 completed a single review: it needed `ANTHROPIC_API_KEY` as a repository secret, failed on workspace
-scoping, then on billing, and sat red on every PR in between. It was removed in gh#402. Two reasons it is
-not coming back on a timer:
+scoping, then on billing, and sat red on every PR in between. It was removed in gh#403, which closes the
+tracking issue gh#402. Two reasons it is not coming back on a timer:
 
 - **A spawned reviewer needs no API key.** It runs in the operator's own session, so there is no credential
   in a repository secret — on a public repo — for a job that can silently stop working when a balance runs out.

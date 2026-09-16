@@ -54,11 +54,14 @@ it, so a rule keeps one home and deleting a skill loses the prompt rather than t
 fix: the trigger is a *match*, not a guarantee, and other tools read `AGENTS.md` and see no skills at all.
 Opening the contract yourself remains the thing you are accountable for.
 
-**The reviewer has a third delivery route, and it is the only one that needs no one to remember it:** the
-authoring agent, which spawns this contract and blocks on its verdict (`src/AGENTS.md`) runs this contract against every push to an open
-MR, posts its findings as a note, and fails when one is blocking ([`CI-SETUP.md`](../CI-SETUP.md) §7). That is
-the floor. It does not retire the hat — a job reviews the diff it was handed, while a human reviewer can ask
-whether the change should exist at all.
+**Neither route starts on its own, and nothing schedules one.** The CI job that used to review every push was
+deleted and is not coming back ([`CI-SETUP.md`](../CI-SETUP.md) §7): the authoring agent spawns this contract
+itself and blocks on its verdict (`src/AGENTS.md`). What needs no one to remember it is the **gate** —
+`review-verdict` runs on every pull request and waits for a ruling, so a PR nobody reviewed stalls instead of
+merging quietly (§8). Post the verdict as a **review body**: a PR comment or an inline note is plainly visible
+to a human and invisible to the gate, which leaves the author's watcher waiting out its deadline next to a
+ruling that does not count. That is the floor, and it is a floor about *whether* anyone ruled — it does not
+retire the hat, because only a reviewer asks whether the change should exist at all.
 
 ## The reviewer is the one role that is also a boundary
 
