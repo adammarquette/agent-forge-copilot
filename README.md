@@ -171,7 +171,7 @@ no browser caller — is blocked at the proxy:
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
 | [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 7.0K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
 | [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 2.6K | Physical/network view of the container stack — what is published vs internal (mermaid) |
-| [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.0K | Both pipelines — the GitHub build/test/eval gates, and the GitLab job that reviews every MR |
+| [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.1K | Both pipelines — the GitHub build/test/eval gates, and the GitLab job that reviews every MR |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
 | [`MR_WORKFLOW.md`](documentation/MR_WORKFLOW.md) | 0.7K | How a change gets from a branch to `main` — the states, and who acts at each |
 | [`agents/README.md`](documentation/agents/README.md) | 1.8K | **Agent role contracts** — which contract governs which hat, and whether it auto-loads |

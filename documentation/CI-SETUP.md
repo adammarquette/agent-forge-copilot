@@ -152,12 +152,17 @@ its own container. Uploading tens of thousands of small files through the
 artifact API is slow and loses the executable bit; caching the packages is both
 faster and removes the whole bug class.
 
-## 7. The GitLab side — automated code review
+## 7. The automated code reviewer (currently unhosted)
 
-**Two pipelines now exist, and they do different jobs.** Everything above is GitHub Actions: lint, build,
-test, evals, image. GitLab runs exactly one thing — [`.gitlab-ci.yml`](../.gitlab-ci.yml), whose only job is
-`code-review`. **A green GitLab pipeline means "the reviewer had nothing blocking to say", not "this builds
-and its tests pass."** Do not read one for the other.
+> **Dormant.** This reviewer was built to run on GitLab. That project was recreated empty by a restore and
+> the remote has been dropped (`INDEX.md` §5), so [`.gitlab-ci.yml`](../.gitlab-ci.yml) and
+> [`.gitlab/ci/`](../.gitlab/ci/) **do not run anywhere today.** They are kept because the reviewer itself
+> (`review.sh`, `render_review.py` and its tests) is host-agnostic and worth porting to a GitHub Actions
+> job. Until that port happens, treat this section as a design record, not a live gate.
+
+The split it describes: everything above is GitHub Actions — lint, build, test, evals, image. The reviewer
+was a separate pipeline whose only job was `code-review`. **A green reviewer meant "nothing blocking to
+say", not "this builds and its tests pass."** Do not read one for the other.
 
 | | GitHub Actions | GitLab |
 |---|---|---|

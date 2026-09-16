@@ -35,7 +35,7 @@ these AGENTS files summarize and point to it.
   methods describe behavior/contract only.
 - **Reference comments:** Must be prefixed `reference:` (e.g. `// reference: documentation/ARCHITECTURE.md §9` or `// reference: labs.gauntletai.com#140`). A bare `#N`/`!N` and legacy `gitlab#N` citations both mean the **live GitLab tracker** (`labs.gauntletai.com`, project `1464`) and still resolve; `gh#N` means the **GitHub mirror**, which numbers its issues independently. Never cite a GitHub issue as a bare `#N`. See `documentation/INDEX.md` §5.
 - **Commits:** Conventional Commits; add `Assisted-by:` trailer when authored by an AI agent.
-- **No orphaned MRs:** Every merge request references a tracking issue (`Closes #N` / `Related to #N`) opened *before* it.
+- **No orphaned PRs:** Every pull request references a tracking issue (`Closes #N` / `Related to #N`) opened *before* it.
 
 ## Routing — find your contract, then open it
 
@@ -61,6 +61,6 @@ the index, and explains the design and the tooling that narrows the gap.
 - Eval rubric tests (xUnit): `dotnet test tests/AgentForge.EvalTests`
 - Eval console gate: `dotnet run --project tests/AgentForge.Evals -- evals`
 - Integration tests (QA env, real deps): `dotnet test tests/AgentForge.IntegrationTests`
-- Before opening an MR: `dotnet format --verify-no-changes` + unit & eval tests green. GitLab runs **only**
-  the automated Code Reviewer (`documentation/CI-SETUP.md` §7); the build and test gates live on the GitHub
-  mirror, so on a GitLab-only branch they are on you.
+- Before opening a PR: `dotnet format --verify-no-changes` + unit & eval tests green. Every branch pushed to
+  `origin` gets the full pipeline (`documentation/CI-SETUP.md`), so these are a fast local pre-check rather
+  than the only gate.
