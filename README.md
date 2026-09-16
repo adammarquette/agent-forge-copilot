@@ -200,9 +200,9 @@ layer of abstraction above IL/machine instructions. `documentation/` is written 
 purpose - a knowledge base meant to be read and maintained by models, not just humans, favoring dense
 cross-links and explicit context over prose that assumes a reader who already remembers yesterday's session.
 The wiki isn't only that folder, either - it extends into the issue tracker and merge-request descriptions
-too, which is why those get cited as heavily as doc sections. (A bare `#N`/`!N` - and legacy `gitlab#N` -
-addresses the live GitLab tracker; `gh#N` addresses the GitHub mirror, which numbers issues independently.
-See `INDEX.md` §5.) Together they're the wiki this project's agents read to reconstruct state.
+too, which is why those get cited as heavily as doc sections. (A bare `#N` addresses the GitHub tracker; legacy
+`gitlab#N`/`!N` citations point at a GitLab project that a restore recreated empty, so they no longer
+resolve. See `INDEX.md` §5.) Together they're the wiki this project's agents read to reconstruct state.
 
 ---
 
@@ -337,12 +337,11 @@ Everything else — the architecture, the sidecar design, the implementation, an
 [`documentation/`](documentation/) — is original work. The codebase was formerly namespaced
 `GauntletAI.AgentForge.*`; that prefix has been dropped in favour of plain `AgentForge.*`.
 
-Hosting is split, deliberately: the **live git remote and issue tracker** is
-[labs.gauntletai.com](https://labs.gauntletai.com/adammarquette/agent-forge-copilot) (GitLab) — that is where
-`origin` points and where issues/MRs are filed — while
-[GitHub](https://github.com/adammarquette/agent-forge-copilot) holds a mirror that also runs CI
-(`.github/workflows/ci.yml`). The two have **separate issue numbering**; see
-[`INDEX.md`](documentation/INDEX.md) §5 for which `#N` belongs to which.
+The **git remote and issue tracker** is
+[GitHub](https://github.com/adammarquette/agent-forge-copilot) — that is where `origin` points, where
+issues and pull requests are filed, and where CI runs (`.github/workflows/ci.yml`). The project previously
+lived on a GitLab instance; a September 2026 restore recreated that project empty, so its issue numbers no
+longer resolve — see [`INDEX.md`](documentation/INDEX.md) §5.
 
 ---
 

@@ -4,12 +4,10 @@ CI runs on **GitHub Actions**. The pipeline entry point is
 `.github/workflows/ci.yml`, which GitHub auto-discovers — no repository setting
 required.
 
-> **CI is on the mirror, not on `origin`.** The live remote and tracker is GitLab
-> (`INDEX.md` §5); GitHub holds the mirror that runs this pipeline. There is no
-> `.gitlab-ci.yml` in the tree, so **a branch pushed only to GitLab gets no
-> pipeline** — its gates (`dotnet format --verify-no-changes`, unit tests, eval
-> tests, evals) have to be run locally before the MR, per the root `AGENTS.md`.
-> Mirror the branch to GitHub when you want the real thing to run.
+> **`origin` and CI are both GitHub.** The GitLab remote was dropped after its
+> project was recreated empty by a restore (`INDEX.md` §5), so there is no second
+> host and no `.gitlab-ci.yml` in the tree: every branch pushed to `origin` gets
+> the full pipeline below. Nothing has to be mirrored anywhere first.
 
 ```
 .github/

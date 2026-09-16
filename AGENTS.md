@@ -32,7 +32,7 @@ these AGENTS files summarize and point to it.
 - **Comments are terse.** Inline comments are one short line, only for non-obvious *why* (a hidden constraint,
   a workaround, a surprising invariant) — never restate *what* the code does. XML doc comments on public
   methods describe behavior/contract only.
-- **Reference comments:** Must be prefixed `reference:` (e.g. `// reference: documentation/ARCHITECTURE.md §9` or `// reference: labs.gauntletai.com#140`). A bare `#N`/`!N` and legacy `gitlab#N` citations both mean the **live GitLab tracker** (`labs.gauntletai.com`, project `1464`) and still resolve; `gh#N` means the **GitHub mirror**, which numbers its issues independently. Never cite a GitHub issue as a bare `#N`. See `documentation/INDEX.md` §5.
+- **Reference comments:** Must be prefixed `reference:` (e.g. `// reference: documentation/ARCHITECTURE.md §9` or `// reference: #385`). A bare `#N` means the **GitHub tracker** — that is where `origin` points and where issues and PRs live. Legacy `gitlab#N` / `!N` citations point at the GitLab tracker whose project was recreated **empty** by a restore in September 2026; those issues did not survive, so treat them as historical context, not links. See `documentation/INDEX.md` §5.
 - **Commits:** Conventional Commits; add `Assisted-by:` trailer when authored by an AI agent.
 - **No orphaned PRs:** Every PR references a tracking issue (`Closes #N` / `Related to #N`) opened *before* the PR.
 

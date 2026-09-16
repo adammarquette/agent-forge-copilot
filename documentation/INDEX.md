@@ -91,21 +91,16 @@ Read `USERS.md` §4/§5 for the *why*; this is the jump from a use case to the p
 
 ## 5. The external wiki (issue tracker)
 
-The wiki extends beyond this folder into the issue tracker — issues/epics/MRs are cited as heavily as doc
-sections because they carry the same reconstructable context (see `README.md`). The live tracker and git
-remote is **`adammarquette/agent-forge-copilot`** on
-**[labs.gauntletai.com](https://labs.gauntletai.com/adammarquette/agent-forge-copilot)** (GitLab, project id
-`1464`) — that is where `origin` points, where issues are filed, and where merge requests are opened.
+The wiki extends beyond this folder into the issue tracker — issues/epics/PRs are cited as heavily as doc
+sections because they carry the same reconstructable context (see `README.md`). The tracker and git remote
+is **[`adammarquette/agent-forge-copilot`](https://github.com/adammarquette/agent-forge-copilot)** on
+GitHub — that is where `origin` points, where issues are filed, and where pull requests are opened.
 
-> **Two hosts, two numbering spaces.** Work moved to GitHub for a period and then came back, so a bare `#N`
-> is ambiguous unless you know which host minted it:
->
-> - **`#N` / `!N` = the GitLab tracker above** (issues / merge requests). Historical `gitlab#N` citations in
->   the docs and code are the *same* instance and still resolve — e.g. `gitlab#128` is the click-to-source
->   `Binary.read` scope, and #140 (this year's deployment-reproducibility issue) continues that same sequence.
-> - **`gh#N` = the [GitHub mirror](https://github.com/adammarquette/agent-forge-copilot)**, whose issues were
->   numbered independently during the GitHub period — `gh#109` is an unrelated QA-login issue, not the
->   `Binary.read` one. Cite those as `gh#N` or as a full URL, never as a bare `#N`.
+> **Legacy `gitlab#N` citations are dead links, not resolvable history.** The project lived on a GitLab
+> instance (`labs.gauntletai.com`) for a period, and much of the corpus cites it. In September 2026 a
+> restore recreated that project **empty** — new project id, no repository content, no issues, no tags —
+> so `gitlab#N` and `!N` citations no longer resolve to anything. Keep them where they record *why* a
+> decision was made; do not follow them expecting a page. A bare `#N` means the GitHub tracker above.
 >
 > **The mirror is behind, and CI lives there.** `.github/workflows/ci.yml` only fires on GitHub pushes and
 > pull requests, and there is no `.gitlab-ci.yml` in the tree — so a branch that exists only on GitLab gets
