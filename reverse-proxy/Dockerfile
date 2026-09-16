@@ -4,36 +4,37 @@
 # envsubst's every *.template file under /etc/nginx/templates/ into
 # /etc/nginx/conf.d/ - that's how OPENEMR_UPSTREAM/SIDECAR_UPSTREAM/PORT below
 # reach the config without a custom image.
-#
-# Built via Railway's RAILWAY_DOCKERFILE_PATH service variable (set by
-# gitlab_rp's deploy job), not a `railway up <subdirectory>` path argument -
-# the latter hits a known Railway CLI "prefix not found" failure when a
-# monorepo has more than one Dockerfile (confirmed live). RAILWAY_DOCKERFILE_PATH
-# keeps the build context at the repo root, so COPY paths below are
-# root-relative, not relative to this file's own directory.
 FROM nginx:1.27-alpine
 
-COPY reverse-proxy/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
-# Real service names in the "staging" Railway project this now deploys into
-# (RAILWAY_TOKEN_RP is a copy of RAILWAY_TOKEN_STAGING) - confirmed against
-# Railway's own service list, not guessed. Port 80 for OpenEMR is confirmed
-# against the fork's actual Dockerfile (Apache hardcoded to `Listen
-# 0.0.0.0:80`, `EXPOSE 80 443` - no PORT-env override). Port 8080 for the
-# sidecar matches its own Dockerfile default (ASPNETCORE_URLS binds
-# ${PORT:-8080}) but hasn't been confirmed as the actual private-networking
-# port Railway assigned it - verify once this can actually be tested end to
-# end.
-ENV OPENEMR_UPSTREAM=openemr.railway.internal:80 \
-    SIDECAR_UPSTREAM=agent-forge-api-staging.railway.internal:8080
+# Sourced by the stock entrypoint before the envsubst step (see the script).
+# Must be executable or the entrypoint skips it silently.
+COPY 10-resolver.envsh /docker-entrypoint.d/10-resolver.envsh
+RUN chmod +x /docker-entrypoint.d/10-resolver.envsh
 
-# Railway's real internal DNS resolver address - fixed, documented, and stable
-# across every project/environment (not something to look up per-deployment):
-# https://docs.railway.com/networking/private-networking/how-it-works. IPv6
-# literal, so nginx's resolver directive needs it bracketed. For local
-# docker-compose testing only, override to 127.0.0.11 (Docker's own embedded
-# DNS) instead.
-ENV DNS_RESOLVER=[fd12::10]
+# Defaults match the compose service names in the repo-root docker-compose.yml;
+# override both for any other stack. Port 80 for OpenEMR is confirmed against
+# the fork's actual Dockerfile (Apache hardcoded to `Listen 0.0.0.0:80`,
+# `EXPOSE 80 443` - no PORT-env override). Port 8080 for the sidecar matches its
+# own Dockerfile default (ASPNETCORE_URLS binds ${PORT:-8080}).
+ENV OPENEMR_UPSTREAM=openemr:80 \
+    SIDECAR_UPSTREAM=agent-forge-api:8080
 
-# Railway injects PORT at runtime; the template listens on it directly.
+# EMPTY BY DEFAULT, not 127.0.0.11: 10-resolver.envsh reads the real resolver out
+# of the container's own /etc/resolv.conf at start, so one image works under
+# Docker (embedded DNS) and on Railway (private networking) with no per-stack
+# hardcoding. Set this to pin a resolver and skip detection; an IPv6 literal must
+# be bracketed, because nginx's resolver directive requires it.
+ENV DNS_RESOLVER=
+
+# Resolve upstreams over IPv4 only. Railway private DNS is dual-stack (A + AAAA),
+# but BOTH upstreams listen on IPv4 only - the sidecar's entrypoint binds
+# 0.0.0.0 and the OpenEMR fork's Apache hardcodes `Listen 0.0.0.0:80` - so an
+# AAAA answer yields a connection refused on an otherwise healthy stack. Harmless
+# under Docker, whose embedded DNS returns A records anyway. Set to `on` only for
+# a legacy IPv6-only Railway environment (pre-2025-10-16). reference: gh#140
+ENV RESOLVER_IPV6=off
+
+# Overridden at runtime by the environment; the template listens on it directly.
 ENV PORT=8080

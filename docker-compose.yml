@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------
 # Local demo stack — OpenEMR (this project's fork) + the AgentForge sidecar.
 #
-# Quick start is in README.md ("Run it locally"). Two tiers, by design:
+# Quick start is in README.md ("Run it"). Two tiers, by design:
 #
 #   docker compose up -d                      # OpenEMR + the AgentForge module.
 #                                             # No API key needed.
@@ -18,7 +18,7 @@
 # launch requires ONE origin. OpenEMR's `site_addr_oath` must equal the sidecar's
 # OpenEmr:BaseUrl or the `aud` check fails, and a launch whose /launch and
 # /callback land on different hosts loses the session cookie ("No pending SMART
-# launch"). See documentation/RAILWAY.md. So there is a single entry point,
+# launch"). See documentation/DEPLOYMENT.md. So there is a single entry point,
 # http://localhost:8080, and no service publishes its own port.
 #
 # WHY OPENEMR IS PULLED, NOT BUILT: the image is this project's OpenEMR fork,
@@ -36,7 +36,7 @@ name: agentforge-demo
 services:
   # ---------------------------------------------------------------------------
   # Front door. The single origin every request enters through - OpenEMR at /,
-  # the sidecar under /agentforge. Same nginx config that runs on staging.
+  # the sidecar under /agentforge. The only service that publishes a port.
   # ---------------------------------------------------------------------------
   reverse-proxy:
     build:
@@ -79,9 +79,9 @@ services:
       MYSQL_DATABASE: openemr
       OE_USER: admin
       # Zero-config LOCAL default so `docker compose up` just works. Deliberately
-      # NOT the staging admin password (which is withheld from source) - this stack
-      # is ephemeral, localhost-only, synthetic data, so a known throwaway default
-      # is fine and can't reach anything shared. Override in .env for a non-throwaway
+      # a real credential - this stack is ephemeral, localhost-only, synthetic
+      # data, so a known throwaway default is fine and can't reach anything
+      # shared. Override in .env for a non-throwaway
       # stack. `admin` is the only login a fresh boot creates; `cardio1` + demo
       # patients need the seed/bootstrap (gh#375), not built-in.
       OE_PASS: ${OPENEMR_ADMIN_PASSWORD:-LocalDev1!}
@@ -89,8 +89,7 @@ services:
       # OpenEMR image only restores its sites/ skeleton from /swarm-pieces (and
       # runs first-boot setup) when SWARM_MODE=yes and the replica elects itself
       # leader. Without this it crash-loops on a missing sites/default/sqlconf.php.
-      # Single replica => always leader => safe. Same reason it is set on Railway
-      # (documentation/RAILWAY.md).
+      # Single replica => always leader => safe. reference: documentation/DEPLOYMENT.md §7
       SWARM_MODE: "yes"
     volumes:
       - openemr-sites:/var/www/localhost/htdocs/openemr/sites

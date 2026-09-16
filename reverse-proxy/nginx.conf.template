@@ -11,12 +11,13 @@ client_max_body_size 64m;
 # Upstreams are held in variables and resolved by this resolver at REQUEST
 # time, not baked in as literal proxy_pass hostnames resolved once at config
 # load. A literal hostname makes `nginx -t`/startup fail hard the moment that
-# name isn't resolvable yet (confirmed locally - Railway's sibling services
-# starting slower than nginx would hit exactly this) instead of just failing
-# the individual request. DNS_RESOLVER defaults to Railway's real, fixed
-# internal resolver ([fd12::10] - see the Dockerfile) - override to Docker's
-# own embedded DNS (127.0.0.11, no brackets) for local docker-compose testing.
-resolver ${DNS_RESOLVER} valid=10s;
+# name isn't resolvable yet (confirmed locally - a sibling container starting
+# slower than nginx hits exactly this) instead of just failing the individual
+# request. DNS_RESOLVER is detected from /etc/resolv.conf at container start by
+# docker-entrypoint.d/10-resolver.envsh (set it explicitly to override), and
+# ipv6=off keeps nginx on A records because both upstreams are IPv4-only - see
+# the Dockerfile for both.
+resolver ${DNS_RESOLVER} valid=10s ipv6=${RESOLVER_IPV6};
 
 server {
     listen ${PORT};
@@ -49,7 +50,7 @@ server {
 
     # The ingestion endpoint lives under the sidecar's /agentforge PathBase but must NOT be reachable
     # through the public front door: it authenticates by trusted private-network origin (W2-D17) and the
-    # cron reaches it directly over railway.internal. A longer prefix than /agentforge/ below, so nginx
+    # cron reaches it directly over the container network. A longer prefix than /agentforge/ below, so nginx
     # selects this and never forwards /agentforge/documents/* to the sidecar. 404 (not 403) to avoid
     # advertising the route. reference: agent-forge-copilot#91, W2_ARCHITECTURE.md §15 W2-D17.
     location /agentforge/documents/ {
