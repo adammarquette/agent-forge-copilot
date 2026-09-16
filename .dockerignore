@@ -6,3 +6,7 @@
 documentation/
 tests/
 **/node_modules/
+# The OpenEMR fork submodule - ~85MB of PHP that the sidecar image has no use for. Without this it
+# is uploaded to the daemon on every sidecar build. It builds via docker-compose.build-openemr.yml,
+# whose context is external/agent-forge itself, so excluding it here costs nothing.
+external/

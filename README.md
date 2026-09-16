@@ -300,6 +300,10 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 - **OpenEMR fork — [`agent-forge`](https://github.com/adammarquette/agent-forge)** — the audited EHR
   base + the thin custom module (`oe-module-agentforge`) that originates the SMART EHR launch of this sidecar.
+  **Present here as the `external/agent-forge` submodule**, pinned to the commit the deployed image was built
+  from, so a fork change and the image it produces move in one reviewable commit — `git clone
+  --recurse-submodules`, and see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §1 for the change workflow and
+  the `openemr-pin` guard.
   The module adds two in-EHR entry points — an **AgentForge launch button** on the patient demographics page
   and a top-nav **Daily Agenda** tab — and on click performs a SMART EHR launch of the sidecar, opening it as
   a **top-level browser tab** by default (or, when the sidecar is served same-site, a modal iframe —

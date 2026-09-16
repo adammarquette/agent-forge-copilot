@@ -41,6 +41,7 @@ required.
 | `format` | lint | `dotnet format --verify-no-changes` |
 | `license-scan` | lint | fails on a dependency outside `allowed-licenses.json` |
 | `nginx-config-lint` | lint | renders `nginx.conf.template` and runs `nginx -t` |
+| `openemr-pin` | lint | `tools/verify-openemr-pin.sh` — the `external/agent-forge` submodule and both OpenEMR image pins must agree (`DEPLOYMENT.md` §1) |
 | `build` | build | compile under warnings-as-errors |
 | `unit-tests` | test | fully mocked suite |
 | `eval-tests` | test | deterministic eval rubrics as xUnit theories |

@@ -58,6 +58,8 @@ carries the finer detail; this is the family-level jump table.
 | `tools/SeedDemoPatients` | CLI utility to seed demo synthetic patients & clinical records | Demo data setup | `README.md` (Run it) |
 | `tools/MintQaIdentityToken` | CLI utility to mint test identity/session tokens for QA | Integration testing | `tests/AGENTS.md` |
 | `tools/LoadTestChat` | CLI load-testing tool for SignalR chat endpoints & turn latency | `NFR-PERF-*` verification | `PERFORMANCE_BASELINES.md` |
+| `external/agent-forge` | The OpenEMR fork, as a submodule pinned to the commit the deployed image was built from | Deployment provenance | `DEPLOYMENT.md` §1 |
+| `tools/verify-openemr-pin.sh` | Guard: the fork submodule and both OpenEMR image pins must agree (CI job `openemr-pin`) | Deployment provenance | `DEPLOYMENT.md` §1, `CI-SETUP.md` §1 |
 
 ---
 
