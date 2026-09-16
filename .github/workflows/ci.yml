@@ -394,6 +394,73 @@ jobs:
           name: eval-results
           path: evals/results.json
           retention-days: 7
+  # ---------------------------------------------------------------------------
+  # REVIEW-VERDICT - the reviewer's ruling, as a gate (reference: gh#399).
+  #
+  # `needs` is the point: nobody is asked to rule on a diff that does not compile,
+  # so this only starts once build and the test jobs are green. It then WAITS for a
+  # verdict rather than failing for the lack of one - a PR with no ruling yet is
+  # unreviewed, not rejected.
+  #
+  # What counts is defined once, in .github/scripts/verdict-state.sh, and is a
+  # REVIEW body whose first line reads `**Verdict: Approve**` or
+  # `**Verdict: Request changes**`. A PR comment carrying that line, or an inline
+  # comment (whose review body is empty), is visible to a human and invisible here.
+  #
+  # DEADLINE is deliberately SHORT (5m) while this is bedding in: until reviews are
+  # routine, a 30m wait would tax every PR with runner time and a standing red check,
+  # and a red check nobody acts on stops meaning anything. Raise it once a reviewer is
+  # reliably ruling - the signal is the same either way, only the patience differs.
+  #
+  # Request changes ends the wait immediately: only a push can resolve it.
+  # An approval binds to the PR's CONTRIBUTION, not the head sha, so a rebase or a
+  # target-sync keeps it and a new commit kills it - see verdict-state.sh.
+  # ---------------------------------------------------------------------------
+  review-verdict:
+    name: review-verdict
+    runs-on: ubuntu-latest
+    needs: [build, unit-tests, eval-tests, evals]
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # patch-id over the PR's contribution needs the real history.
+          fetch-depth: 0
+      - name: Wait for a verdict
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -uo pipefail
+          DEADLINE=$(( $(date +%s) + 5*60 ))
+          while :; do
+            out=$(bash .github/scripts/verdict-state.sh "$PR_NUMBER" 2>&1) && rc=0 || rc=$?
+            echo "review-verdict: $out"
+            case "$out" in
+              *VERDICT=request-changes*)
+                echo "::error::Changes requested. Only a push can resolve this."
+                exit 1 ;;
+            esac
+            if [ "$rc" -eq 0 ]; then
+              echo "review-verdict: a fresh approval stands."
+              exit 0
+            fi
+            if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+              echo "::error::No fresh verdict after 5 minutes."
+              echo "A verdict is a REVIEW body whose first line is '**Verdict: Approve**' or"
+              echo "'**Verdict: Request changes**'. A PR comment or an inline comment does not count."
+              echo "Post with: .github/scripts/post-verdict.sh review $PR_NUMBER COMMENT <body-file>"
+              exit 1
+            fi
+            sleep 30
+          done
+
+
 
   # ---------------------------------------------------------------------------
   # PUBLISH-IMAGE — build the sidecar once and push it to GHCR, so a deployment

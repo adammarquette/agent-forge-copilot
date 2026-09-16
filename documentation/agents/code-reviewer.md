@@ -127,8 +127,48 @@ non-blocking notes. A verdict that never approves stalls the work as surely as o
 - **Redesign.** Review what was built against what it claims to do. If a different design would be better, ask —
   unless the design as built is unsafe, which is a finding.
 
+## Your verdict is a gate, not a note
+
+The **`review-verdict`** check reads your ruling, and the authoring agent is **blocked on it** — its task is
+not done until this PR is reviewed and green. Four consequences.
+
+**Spell it exactly.** `**Verdict: Approve**` or `**Verdict: Request changes**`, on the **first line of the
+review body**. The reader is deliberately forgiving — emphasis, casing, a trailing period and trailing prose
+are all fine (`**Verdict: Approve** — nice catch on the lock`) — but the verdict word itself must be
+`Approve` or `Request changes`. `Approved`, `LGTM`, or the line placed second reads as **no verdict at all**,
+and the PR stays blocked. `.github/scripts/verdict-state-selftest.sh` is the list of shapes that work.
+
+**It must be a REVIEW body.** Not a PR comment, not an inline comment. Both are perfectly visible to a human
+and **invisible to the gate** — a PR comment goes to an endpoint it never reads, and an inline comment
+creates a review whose body is empty. Either one leaves the author's watcher waiting out its deadline next
+to a ruling that does not count, which is *worse than silence, because it looks like a verdict*. Post with
+`.github/scripts/post-verdict.sh review <pr> COMMENT <body-file>`; **exit 0 is the only outcome that means
+you ruled**, because it confirms with the gate's own reader rather than trusting the POST. The successful
+shape comes back as state `COMMENTED` — that is expected, not a misfire. `APPROVE` is deliberately unused: a
+bot approval can be dismissed, and GitHub refuses it when you share an identity with the author. The verdict
+is a **line**, not a state.
+
+**You have about 5 minutes.** `review-verdict` starts only after build and the test jobs are green — nobody
+is asked to rule on a diff that does not compile — then waits. A PR with no verdict is **not failed on the
+spot**; it waits. *Request changes* ends the wait immediately, since only a push can resolve it. (Five
+minutes is a deliberately short bedding-in value — short enough that an unreviewed PR does not tax every
+run with a standing red check. It goes up once ruling is routine.)
+
+**An approval binds to the PR's contribution, not the commit id.** It survives a rebase or a sync with the
+target — `develop` requires branches to be up to date, so every merge rewrites every open PR's head, and a
+sha-bound approval would expire on someone else's merge. It dies on anything you did not see: a new commit,
+and equally a **conflict resolution**, which is a human edit nobody reviewed. Re-review then; never carry a
+verdict forward.
+
+**Approve when the diff is ready, not when it is perfect.** Findings you would not block on belong in the
+body as non-blocking notes, not as *Request changes* — a verdict that never approves stalls the loop as
+surely as one that never comes.
+
 ## Definition of done
 
 Every finding names a concrete failure · ranked by blast radius · repeated patterns called out as patterns · no
-formatting noise · MR-description claims verified against the diff · a verdict (approve / request changes) naming
-the head SHA reviewed · **not one byte of the repository changed by you** · nothing merged, closed or pushed.
+formatting noise · PR-description claims verified against the diff · **a verdict whose first line is
+`**Verdict: Approve**` or `**Verdict: Request changes**`**, **naming the head SHA reviewed**, **posted on the
+PR as a review** rather than returned to whoever started you, and **confirmed readable by the gate**
+(`post-verdict.sh` exits 0) rather than assumed · **not one byte of the repository changed by you** ·
+nothing merged, closed or pushed.

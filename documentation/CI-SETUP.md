@@ -48,6 +48,7 @@ required.
 | `license-scan` | lint | fails on a dependency outside `allowed-licenses.json` |
 | `doc-sizes` | lint | `scripts/check-doc-sizes.sh` — every `~tok` price in a routing table matches its file, and the gate's own self-test still reddens |
 | `docs-sync` | lint | **PRs only.** Fails when `src/`, `reverse-proxy/`, `docker-compose.yml` or `.env.example` changed but `documentation/` did not. Opt out with a `docs: n/a - <reason>` line in the PR body — a bare `docs: n/a` is rejected. Detects *absent* doc edits, not wrong ones; see root `AGENTS.md`, “Docs stay in sync with the code”. Companion to `doc-sizes`: that one keeps prices honest, this one keeps the prose honest. |
+| `review-verdict` | gate | **PRs only.** Waits (5m, short while bedding in) for the Code Reviewer's ruling — a *review* body whose first line is `**Verdict: Approve**` / `**Verdict: Request changes**`. Runs only after `build` and the test jobs, because nobody rules on a diff that does not compile. No verdict **waits** rather than failing; request-changes ends the wait. An approval binds to the PR's contribution, so a rebase keeps it and a new commit kills it. §8. |
 | `nginx-config-lint` | lint | renders `nginx.conf.template` and runs `nginx -t` |
 | `openemr-pin` | lint | `tools/verify-openemr-pin.sh` — the `external/agent-forge` submodule and both OpenEMR image pins must agree (`DEPLOYMENT.md` §1) |
 | `build` | build | compile under warnings-as-errors |
@@ -208,7 +209,31 @@ malformed one — a verdict nobody can parse fails the job rather than leaving a
 self-test (`render_review_test.py`) covers both directions, including the case where the model returns
 `approve` while reporting a blocking finding.
 
-## 8. Day-to-day flow
+## 8. The verdict gate
+
+§7 runs the reviewer; this is what makes its ruling *count*. Three scripts, one reader:
+
+| Script | Who runs it | What it does |
+|---|---|---|
+| [`verdict-state.sh`](../.github/scripts/verdict-state.sh) | everything else | **The single reader.** Parses the verdict and decides fresh vs stale. Two parsers that drifted would let a PR look ruled to one caller and unruled to another. |
+| [`post-verdict.sh`](../.github/scripts/post-verdict.sh) | the reviewer | `preflight` then `review`. Confirms through the reader rather than trusting the POST — **exit 0 is the only outcome that means you ruled.** |
+| [`watch-verdict.sh`](../.github/scripts/watch-verdict.sh) | the **authoring agent** | Blocks until a ruling exists. `0` approve · `1` changes requested · `2` no ruling the gate can read — which is *not* approval. |
+
+**What counts is a REVIEW body**, first line `**Verdict: Approve**` or `**Verdict: Request changes**`.
+Forgiving about emphasis, casing, a trailing period and trailing prose; strict about the word.
+[`verdict-state-selftest.sh`](../.github/scripts/verdict-state-selftest.sh) is the list of accepted shapes,
+and it drives the real parser rather than a copy.
+
+**The near-misses** — a PR comment carrying the verdict line (a different endpoint, never read) and an
+inline comment (which creates a review with an *empty* body). Both are perfectly visible to a human and
+invisible to the gate, so the author's watcher waits out its deadline next to a ruling that does not count.
+That is worse than silence, because it looks like a verdict. A successful post comes back as state
+`COMMENTED`; that is the expected shape, not a misfire.
+
+**Why the author blocks on it** (`src/AGENTS.md`): a review that arrives after the authoring session ends
+lands in an empty room and is addressed by a session that must rebuild the reasoning from the diff.
+
+## 9. Day-to-day flow
 
 1. Dev opens a PR → `format`, `license-scan`, `doc-sizes`, `docs-sync`,
    `nginx-config-lint`, `build` run in parallel, then `unit-tests`, `eval-tests`, `evals`. Red run = merge button
