@@ -70,8 +70,8 @@ bash .github/scripts/watch-verdict.sh verdict <pr>   # blocks; 0 approve, 1 chan
   somewhere invisible (a PR comment and an inline comment both look right and count for nothing). Treat it
   as unreviewed and say so; do not merge around it.
 
-An approval binds to what was reviewed, so a rebase or a target-sync keeps it while a new commit or a
-conflict resolution kills it. Push a fix, expect to wait for a fresh ruling.
+An approval binds to what was reviewed, so a target-sync or a non-force rebase keeps it while a new commit,
+a conflict resolution or a force-push kills it. Push a fix, expect to wait for a fresh ruling.
 
 **On `Request changes`:** if you are running under the Coordinator, it dispatches the fixes — one work
 item per blocking finding, spawned as a fresh Coding Agent with the PR number and the review body

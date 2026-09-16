@@ -432,8 +432,9 @@ jobs:
   # reliably ruling - the signal is the same either way, only the patience differs.
   #
   # Request changes ends the wait immediately: only a push can resolve it.
-  # An approval binds to the PR's CONTRIBUTION, not the head sha, so a rebase or a
-  # target-sync keeps it and a new commit kills it - see verdict-state.sh.
+  # An approval binds to the PR's CONTRIBUTION, not the head sha, so a target-sync or a
+  # non-force rebase keeps it while a new commit, a conflict resolution or a force-push
+  # kills it - see verdict-state.sh.
   # ---------------------------------------------------------------------------
   review-verdict:
     name: review-verdict

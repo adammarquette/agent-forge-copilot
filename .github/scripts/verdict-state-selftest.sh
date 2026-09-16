@@ -27,6 +27,9 @@ t none             '**Verdict: Approved**'                         'the WORD is 
 t none             '**Verdict: LGTM**'                             'the WORD is strict (LGTM)'
 t approve          "$(printf '**Verdict: Approve**\nmore body')"   'verdict on the first line'
 t none             "$(printf 'preamble\n**Verdict: Approve**')"    'verdict on the second line'
+# GitHub returns review bodies CRLF-terminated, so this is the shape the API actually produces - the
+# one the parser must survive in production and the only one nothing else here pins.
+t request-changes  "$(printf '**Verdict: Request changes**\r\nmore body')" 'CRLF, as the API returns it'
 
 if [ "$FAIL" -eq 0 ]; then
     echo "ok  the verdict parser still accepts the contract's shapes and rejects the near-misses."

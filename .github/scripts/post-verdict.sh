@@ -7,6 +7,10 @@
 # EXIT 0 FROM `review` IS THE ONLY OUTCOME THAT MEANS YOU RULED. Anything else means the verdict
 # does not exist as far as the gate is concerned, however good it looks on the PR page.
 #
+# Exit 0 means READABLE, not approved. This script's question is "did a verdict land where the gate
+# reads it?", so an Approve and a Request changes both exit 0 - deciding which one the branch gets is
+# verdict-state.sh's exit code and the `review-verdict` job's job, not this one's.
+#
 # The near-misses this exists to prevent - all of them visible to a human and invisible to the gate:
 #   - a PR COMMENT holding the verdict line: a different endpoint, never read
 #   - an INLINE comment: creates a review whose body is EMPTY
@@ -58,13 +62,29 @@ review)
 
     gh api "repos/$REPO/pulls/$PR/reviews" -X POST -f "event=$STATE" -F "body=@$BODY_FILE" --jq '.id' >/dev/null || die "posting the review failed - you have NOT ruled"
 
-    # Confirm with the gate's own reader rather than trusting the POST's 200.
-    if out=$(GH_REPO="$REPO" bash "$here/verdict-state.sh" "$PR"); then
-        echo "post-verdict: ruled. $out"
-    else
-        echo "post-verdict: posted, but the gate cannot read it: ${out:-no verdict found}" >&2
-        die "you have NOT ruled - do not report a verdict the gate does not see"
-    fi
+    # Confirm with the gate's own reader rather than trusting the POST's 200 - but read its OUTPUT,
+    # not its exit code. The two call sites ask different questions: the CI gate asks "was this
+    # approved?", which is the exit status; the poster asks "can the gate READ what I just posted?",
+    # which is the STATE= field. Switching on the exit here would call every Request changes a
+    # failure to rule - including the one that says so - and would do the same to a good Approve
+    # anywhere `contribution()` cannot resolve (shallow clone, `origin/$BASE_REF` unfetched, fork
+    # head absent, force-pushed rebase), all of which read as `stale`. reference: gh#400
+    out=$(GH_REPO="$REPO" bash "$here/verdict-state.sh" "$PR" 2>&1) || true
+    case "$out" in
+        *STATE=approved*|*STATE=changes-requested*)
+            echo "post-verdict: ruled. $out"
+            ;;
+        *STATE=stale*)
+            # Posted and readable, but bound to a contribution that is no longer the head: the review
+            # exists and you HAVE ruled, while the gate will keep waiting. Say both halves out loud.
+            echo "post-verdict: ruled, but the gate will NOT count it yet - it does not bind to the" >&2
+            echo "post-verdict: current contribution, so the PR needs a re-review at this head. $out" >&2
+            ;;
+        *)
+            echo "post-verdict: posted, but the gate cannot read it: ${out:-no verdict found}" >&2
+            die "you have NOT ruled - do not report a verdict the gate does not see"
+            ;;
+    esac
     ;;
 *)
     die "unknown command '$CMD'"

@@ -48,7 +48,7 @@ required.
 | `license-scan` | lint | fails on a dependency outside `allowed-licenses.json` |
 | `doc-sizes` | lint | `scripts/check-doc-sizes.sh` — every `~tok` price in a routing table matches its file, and the gate's own self-test still reddens |
 | `docs-sync` | lint | **PRs only.** Fails when `src/`, `reverse-proxy/`, `docker-compose.yml` or `.env.example` changed but `documentation/` did not. Opt out with a `docs: n/a - <reason>` line in the PR body — a bare `docs: n/a` is rejected. Detects *absent* doc edits, not wrong ones; see root `AGENTS.md`, “Docs stay in sync with the code”. Companion to `doc-sizes`: that one keeps prices honest, this one keeps the prose honest. |
-| `review-verdict` | gate | **PRs only.** Waits (5m, short while bedding in) for the Code Reviewer's ruling — a *review* body whose first line is `**Verdict: Approve**` / `**Verdict: Request changes**`. Runs only after `build` and the test jobs, because nobody rules on a diff that does not compile. No verdict **waits** rather than failing; request-changes ends the wait. An approval binds to the PR's contribution, so a rebase keeps it and a new commit kills it. §8. |
+| `review-verdict` | gate | **PRs only.** Waits (5m, short while bedding in) for the Code Reviewer's ruling — a *review* body whose first line is `**Verdict: Approve**` / `**Verdict: Request changes**`. Runs only after `build` and the test jobs, because nobody rules on a diff that does not compile. No verdict **waits** rather than failing; request-changes ends the wait. An approval binds to the PR's contribution, so a target-sync or a non-force rebase keeps it while a new commit, a conflict resolution or a force-push kills it. §8. |
 | `nginx-config-lint` | lint | renders `nginx.conf.template` and runs `nginx -t` |
 | `openemr-pin` | lint | `tools/verify-openemr-pin.sh` — the `external/agent-forge` submodule and both OpenEMR image pins must agree (`DEPLOYMENT.md` §1) |
 | `build` | build | compile under warnings-as-errors |
@@ -221,7 +221,7 @@ Three scripts, one reader:
 | Script | Who runs it | What it does |
 |---|---|---|
 | [`verdict-state.sh`](../.github/scripts/verdict-state.sh) | everything else | **The single reader.** Parses the verdict and decides fresh vs stale. Two parsers that drifted would let a PR look ruled to one caller and unruled to another. |
-| [`post-verdict.sh`](../.github/scripts/post-verdict.sh) | the reviewer | `preflight` then `review`. Confirms through the reader rather than trusting the POST — **exit 0 is the only outcome that means you ruled.** |
+| [`post-verdict.sh`](../.github/scripts/post-verdict.sh) | the reviewer | `preflight` then `review`. Confirms through the reader rather than trusting the POST — **exit 0 is the only outcome that means you ruled.** It switches on the reader's `STATE=` field, not its exit code: the question here is *"can the gate read this?"*, so both verdicts exit 0, and `stale` exits 0 with a loud warning that the ruling does not yet bind. |
 | [`watch-verdict.sh`](../.github/scripts/watch-verdict.sh) | the **authoring agent** | Blocks until a ruling exists. `0` approve · `1` changes requested · `2` no ruling the gate can read — which is *not* approval. |
 
 **What counts is a REVIEW body**, first line `**Verdict: Approve**` or `**Verdict: Request changes**`.

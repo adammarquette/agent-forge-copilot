@@ -13,7 +13,7 @@ right moment.
 |---|---|---|---|
 | **Coding Agent** — production code + the test-first unit tests that drive it | [`src/AGENTS.md`](../../src/AGENTS.md) | 1.5K | **automatically**, on your first read of a file in `src/` |
 | **Integration Testing Agent** — integration tests against real OpenEMR/MySQL in QA | [`tests/AGENTS.md`](../../tests/AGENTS.md) | 0.7K | **automatically**, in that project |
-| **Code Reviewer** — reviewing changes anywhere; **reads and reports only, never edits**, and leaves an approve / request-changes verdict on the MR | [`code-reviewer.md`](code-reviewer.md) | 3.3K | **on demand** — open it when you take the hat. Claude Code: the `code-reviewer` skill, or the [`code-reviewer` subagent](../../.claude/agents/code-reviewer.md) when an author spawns its own reviewer |
+| **Code Reviewer** — reviewing changes anywhere; **reads and reports only, never edits**, and leaves an approve / request-changes verdict on the pull request | [`code-reviewer.md`](code-reviewer.md) | 3.5K | **on demand** — open it when you take the hat. Claude Code: the `code-reviewer` skill, or the [`code-reviewer` subagent](../../.claude/agents/code-reviewer.md) when an author spawns its own reviewer |
 | **Platform Agent** — CI, the image, compose, the proxy, deploy | [`platform.md`](platform.md) | 1.3K | **on demand**. Claude Code: the `platform` skill |
 | **Coordinator** — drives an MR from changes-requested back to green; **dispatches, never writes the fix, never merges or approves** | [`coordinator.md`](coordinator.md) | 1.3K | **on demand**. Claude Code: the `coordinator` skill |
 | *(shared rubric, not a contract)* — which model tier a task takes, and the categories that always take the strongest one | [`task-sizing.md`](task-sizing.md) | 0.9K | read it when dispatching or choosing a model |
@@ -63,7 +63,7 @@ whether the change should exist at all.
 ## The reviewer is the one role that is also a boundary
 
 The other three contracts describe how to do work. The Code Reviewer's also says what it may not touch: **it
-never edits a file**, and its output is a verdict on a merge request — approve, or request changes with findings
+never edits a file**, and its output is a verdict on a pull request — approve, or request changes with findings
 attached. That is why it is the one role with a **subagent** as well as a skill: a skill loads into the caller's
 context, so an author who invokes it is still the author, holding both hats and reviewing a diff they are still
 free to change. The subagent runs in a context that never saw the change and has **no file-editing tools at
