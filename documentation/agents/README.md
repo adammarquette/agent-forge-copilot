@@ -13,7 +13,7 @@ right moment.
 |---|---|---|---|
 | **Coding Agent** — production code + the test-first unit tests that drive it | [`src/AGENTS.md`](../../src/AGENTS.md) | 0.9K | **automatically**, on your first read of a file in `src/` |
 | **Integration Testing Agent** — integration tests against real OpenEMR/MySQL in QA | [`tests/AGENTS.md`](../../tests/AGENTS.md) | 0.7K | **automatically**, in that project |
-| **Code Reviewer** — reviewing changes anywhere; **reads and reports only, never edits**, and leaves an approve / request-changes verdict on the MR | [`code-reviewer.md`](code-reviewer.md) | 2.1K | **on demand** — open it when you take the hat. Claude Code: the `code-reviewer` skill, or the [`code-reviewer` subagent](../../.claude/agents/code-reviewer.md) when an author spawns its own reviewer |
+| **Code Reviewer** — reviewing changes anywhere; **reads and reports only, never edits**, and leaves an approve / request-changes verdict on the MR | [`code-reviewer.md`](code-reviewer.md) | 2.6K | **on demand** — open it when you take the hat. Claude Code: the `code-reviewer` skill, or the [`code-reviewer` subagent](../../.claude/agents/code-reviewer.md) when an author spawns its own reviewer |
 | **Platform Agent** — CI, the image, compose, the proxy, deploy | [`platform.md`](platform.md) | 1.3K | **on demand**. Claude Code: the `platform` skill |
 | **Coordinator** — drives an MR from changes-requested back to green; **dispatches, never writes the fix, never merges or approves** | [`coordinator.md`](coordinator.md) | 0.9K | **on demand**. Claude Code: the `coordinator` skill |
 | *(shared rubric, not a contract)* — which model tier a task takes, and the categories that always take the strongest one | [`task-sizing.md`](task-sizing.md) | 0.9K | read it when dispatching or choosing a model |
@@ -55,7 +55,7 @@ fix: the trigger is a *match*, not a guarantee, and other tools read `AGENTS.md`
 Opening the contract yourself remains the thing you are accountable for.
 
 **The reviewer has a third delivery route, and it is the only one that needs no one to remember it:** the
-`code-review` job in [`.gitlab-ci.yml`](../../.gitlab-ci.yml) runs this contract against every push to an open
+`code-review` job in [`.github/workflows/code-review.yml`](../../.github/workflows/code-review.yml) runs this contract against every push to an open
 MR, posts its findings as a note, and fails when one is blocking ([`CI-SETUP.md`](../CI-SETUP.md) §7). That is
 the floor. It does not retire the hat — a job reviews the diff it was handed, while a human reviewer can ask
 whether the change should exist at all.

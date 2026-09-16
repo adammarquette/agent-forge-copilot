@@ -1,4 +1,4 @@
-"""Proves render_review can go red. Run: python .gitlab/ci/render_review_test.py"""
+"""Proves render_review can go red. Run: python .github/ci/render_review_test.py"""
 import json
 import os
 import subprocess

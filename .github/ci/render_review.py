@@ -1,4 +1,4 @@
-"""Turns the reviewer's JSON verdict into a GitLab note payload.
+"""Turns the reviewer's JSON verdict into a GitHub PR comment payload.
 
 Kept out of review.sh because it is the part with branches worth testing: the shape check, the
 "no findings" case, and the markdown. Run render_review_test.py against it.
@@ -7,14 +7,14 @@ Kept out of review.sh because it is the part with branches worth testing: the sh
 
 Prints `VERDICT=<v> BLOCKING=<n> TOTAL=<n>` on success; exits non-zero with a message on a
 malformed verdict, because a verdict nobody can parse must fail the job rather than pass an
-unreviewed merge request.
+unreviewed pull request.
 """
 import json
 import sys
 
 FOOTER = (
-    "_Posted by the Code Reviewer job (`.gitlab/ci/review.sh`). Contract: "
-    "`documentation/agents/code-reviewer.md`. This job never edits code and cannot approve an MR._"
+    "_Posted by the Code Reviewer job (`.github/ci/review.sh`). Contract: "
+    "`documentation/agents/code-reviewer.md`. This job never edits code and cannot approve a PR._"
 )
 
 
