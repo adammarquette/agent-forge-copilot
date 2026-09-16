@@ -2,7 +2,9 @@
 
 Instructions for AI coding agents working in this repository. **Nested `AGENTS.md` files take precedence for
 their subtree:** `src/AGENTS.md` governs the **Coding Agent**; `tests/AGENTS.md` governs the **Integration
-Testing Agent**. This root file holds the rules that apply everywhere.
+Testing Agent**. **Role contracts live in [`documentation/agents/`](documentation/agents/)** — Code Reviewer and
+Platform — and never auto-load; open the one whose hat you are wearing. This root file holds the rules that apply
+everywhere.
 
 ## What this repo is
 The **.NET sidecar** for an AI clinical copilot embedded in OpenEMR for the outpatient cardiologist. It
@@ -36,11 +38,20 @@ these AGENTS files summarize and point to it.
 - **Commits:** Conventional Commits; add `Assisted-by:` trailer when authored by an AI agent.
 - **No orphaned PRs:** Every PR references a tracking issue (`Closes #N` / `Related to #N`) opened *before* the PR.
 
-## The two agent roles
-| Agent | Scope | Definition |
-|---|---|---|
-| **Coding Agent** | `src/` production code **and** the test-first unit tests that drive it | `src/AGENTS.md` |
-| **Integration Testing Agent** | the integration test project (real deps in QA) | `tests/AGENTS.md` |
+## The agent roles
+| Agent | Scope | Definition | How it loads |
+|---|---|---|---|
+| **Coding Agent** | `src/` production code **and** the test-first unit tests that drive it | `src/AGENTS.md` | automatically, editing `src/` |
+| **Integration Testing Agent** | the integration test project (real deps in QA) | `tests/AGENTS.md` | automatically, in that project |
+| **Code Reviewer** | reviewing any change, anywhere | `documentation/agents/code-reviewer.md` | **open it yourself**, or the `code-reviewer` skill / subagent |
+| **Platform Agent** | CI, the image, compose, the proxy, deploy | `documentation/agents/platform.md` | **open it yourself**, or the `platform` skill |
+
+The first two arrive by directory proximity. The last two follow *what you are doing* rather than where a file
+sits, so they **never auto-load** — and wearing one of those hats without opening its contract is the failure
+nothing catches. In Claude Code each is also a **skill** under `.claude/skills/`, and the reviewer additionally a
+**subagent** (`.claude/agents/code-reviewer.md`) for the isolated context an author-spawned review needs. **A
+skill is a trigger, not the contract** — it points at the file above and never copies it. Index and rationale:
+[`documentation/agents/README.md`](documentation/agents/README.md).
 
 ## Build / test
 - Build: `dotnet build AgentForge.slnx`

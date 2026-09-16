@@ -31,6 +31,7 @@ This file adds the missing third leg: **doc / requirement / use-case → code pr
 | [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | — |
 | [`CI-SETUP.md`](CI-SETUP.md) · [`DEPLOYMENT.md`](DEPLOYMENT.md) | CI pipeline, and the operational runbook for the Docker container stack (bootstrap, config, quirks, rollback) | — |
 | [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the container stack — services, what is published vs network-internal, flows, trust boundaries (mermaid) | — |
+| [`agents/`](agents/) | **Agent role contracts** — Code Reviewer, Platform — plus the index of every contract and, for each, whether it auto-loads or you must open it | — |
 | [`supporting/`](supporting/) | Source requirement PDFs (Week 1 & 2) and the architecture-defense decks | — |
 
 > **Agent Context Optimization:** To prevent prompt/context bloat, do **not** load full architectural specs (`ARCHITECTURE.md`, `W2_ARCHITECTURE.md`, `PRD.md`) into context upfront. Use this `INDEX.md` table to identify the single project or document section required for your immediate task.
