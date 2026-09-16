@@ -34,17 +34,36 @@ Concretely, you:
 
 ## The loop, and where it ends
 
-1. **Read the state.** Verdict, pipeline, what the MR description claims, what the issue says.
-2. **Decide.** Clean and green → mark ready and stop. Blocking findings → continue.
-3. **Dispatch.** One work item per finding, each sized. Blocking findings first; a non-blocking note may be
-   deferred to the issue rather than fixed now.
+1. **Read the state.** `bash .github/scripts/verdict-state.sh <pr>` — switch on `STATE`, never on `VERDICT`
+   alone. Plus the pipeline, what the PR description claims, and what the issue says.
+2. **Decide**, by `STATE`:
+   - `approved` → mark ready and stop.
+   - `changes-requested` → continue to 3.
+   - `stale` → a ruling exists but predates the current contribution. **Spawn the reviewer again**; do not
+     dispatch fixes against a verdict that was not about this code.
+   - `none` → nobody has ruled. Spawn the reviewer; if it cannot post, that is a hard stop below.
+3. **Dispatch — spawn a Coding Agent, do not fix it yourself.** One work item per blocking finding, each
+   sized. Hand each one the **PR number and the review body**, and let it resolve the diff itself
+   (`src/AGENTS.md`). Blocking findings first; a non-blocking note may be deferred to the issue instead.
+   *You* never edit the code — dispatching and doing are different roles, and collapsing them loses the
+   independence that makes this loop worth running.
 4. **Verify before pushing.** Format, unit and eval gates locally, plus any gate the change touches.
-5. **Let it re-review**, then go back to 1.
+5. **Spawn the reviewer again and block on it** — `bash .github/scripts/watch-verdict.sh verdict <pr>`.
+   Exit 0 approved · 1 changes requested (back to 1) · **2 means no ruling the gate can read, which is not
+   approval** and is a hard stop. Then go back to 1.
+
+**The loop is automatic, and it is capped.** Steps 3 and 5 spawn agents without asking, because a review
+that waits for a human to relay it is a review that arrives after the authoring context is gone. What is
+*not* automatic is giving up: the cap below is what stops a fix loop from grinding on a problem it cannot
+solve.
 
 **Hard stops — escalate to a human, do not iterate:**
 
 - **Two full loops without going green.** Per `MR_WORKFLOW.md`, that is a sizing or scope problem, not a
-  prompting one.
+  prompting one. Count the loops — an automatic dispatch makes it easy to run a third without noticing, and
+  a third round is the signal that the finding is not the kind of thing another prompt fixes.
+- **The same finding survives a fix.** Re-dispatching it is how a loop becomes a livelock; the reviewer has
+  now said it twice and been wrong or unheard, and either way a human decides which.
 - **A finding you think is wrong.** That is a disagreement, and disagreements are decisions.
 - **A change that would alter the requirement**, the contract, or what the feature is supposed to do.
 - **The tracker is unreachable**, or a verdict cannot be read. Write the state down where the human will see

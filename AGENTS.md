@@ -52,11 +52,11 @@ this file says about roles; each contract owns its own rules.
 
 | If you are… | Your contract | ~tok | Arrives |
 |---|---|---|---|
-| writing `src/` code or the unit tests driving it | [`src/AGENTS.md`](src/AGENTS.md) | 0.9K | on its own, when you read a file there |
+| writing `src/` code or the unit tests driving it | [`src/AGENTS.md`](src/AGENTS.md) | 1.5K | on its own, when you read a file there |
 | writing integration tests against real dependencies | [`tests/AGENTS.md`](tests/AGENTS.md) | 0.7K | on its own, in that project |
-| reviewing a change — any change, anywhere | [`documentation/agents/code-reviewer.md`](documentation/agents/code-reviewer.md) | 2.6K | **never on its own — open it** |
+| reviewing a change — any change, anywhere | [`documentation/agents/code-reviewer.md`](documentation/agents/code-reviewer.md) | 3.5K | **never on its own — open it** |
 | touching CI, the image, compose, the proxy or a deploy | [`documentation/agents/platform.md`](documentation/agents/platform.md) | 1.3K | **never on its own — open it** |
-| shepherding an MR back to green — dispatching fixes, not writing them | [`documentation/agents/coordinator.md`](documentation/agents/coordinator.md) | 0.9K | **never on its own — open it** |
+| shepherding an MR back to green — dispatching fixes, not writing them | [`documentation/agents/coordinator.md`](documentation/agents/coordinator.md) | 1.3K | **never on its own — open it** |
 
 A contract sits wherever it has to be to arrive when it applies: subtree contracts load by directory proximity,
 role contracts follow what you are *doing* and so cannot. **Nothing catches a hat worn without its contract** —
