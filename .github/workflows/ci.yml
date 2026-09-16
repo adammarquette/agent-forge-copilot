@@ -251,6 +251,17 @@ jobs:
               nginx -t
             '
 
+  # The OpenEMR fork submodule records which SOURCE the deployed image was built from; compose and
+  # the Railway IaC record which IMAGE gets deployed. Two halves of one fact in three files - this
+  # fails the build if they drift apart. No submodule checkout needed: the guard reads the gitlink.
+  openemr-pin:
+    name: openemr-pin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Submodule and image pins agree
+        run: sh tools/verify-openemr-pin.sh
+
   # ---------------------------------------------------------------------------
   # BUILD — compile gate. The test jobs below rebuild in their own containers
   # (see header note 2), so this does not hand anything downstream; it exists so

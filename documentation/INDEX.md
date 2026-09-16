@@ -35,7 +35,7 @@ blank cell means the row routes somewhere that is not one file.
 | [`AUDIT.md`](AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) | 5.1K | audit finding refs |
 | [`W2_AUDIT.md`](W2_AUDIT.md) | Week 2 implementation audit — per-requirement Met/Partial/Gap coverage, risks, prioritized recommendations vs the submission gates | 7.2K | audit finding refs |
 | [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | 3.8K | — |
-| [`DEPLOYMENT.md`](DEPLOYMENT.md) | The operational runbook for the Docker container stack — bootstrap, config, quirks, rollback; the Railway Infrastructure-as-Code deployment is §9 | 8.4K | — |
+| [`DEPLOYMENT.md`](DEPLOYMENT.md) | The operational runbook for the Docker container stack — bootstrap, config, quirks, rollback; the Railway Infrastructure-as-Code deployment is §9 | 8.9K | — |
 | [`CI-SETUP.md`](CI-SETUP.md) | The GitHub build/test/eval gates, plus the dormant automated reviewer (§7) that reviewed every PR | 3.3K | — |
 | [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the container stack — services, what is published vs network-internal, flows, trust boundaries (mermaid) | 2.6K | — |
 | [`MR_WORKFLOW.md`](MR_WORKFLOW.md) | The lifecycle a change moves through from branch to `main`, and who acts at each state — what the Coordinator drives | 0.7K | — |
@@ -74,6 +74,8 @@ carries the finer detail; this is the family-level jump table.
 | `tools/LoadTestChat` | CLI load-testing tool for SignalR chat endpoints & turn latency | `NFR-PERF-*` verification | `PERFORMANCE_BASELINES.md` |
 | `.gitlab-ci.yml` · `.gitlab/ci/` | The GitLab pipeline — one job, the automated Code Reviewer on every MR push (`review.sh` + `render_review.py` and its self-test) | Review automation | `CI-SETUP.md` §7, `agents/code-reviewer.md` |
 | `scripts/` · `documentation/.harness.conf` | Corpus gates: `measure-tok.sh` prints a document's price, `check-doc-sizes.sh` fails CI when a priced row stops matching its file (`.harness.conf` registers which tables are priced) | Doc/context hygiene | `CI-SETUP.md` §1 (`doc-sizes`) |
+| `external/agent-forge` | The OpenEMR fork, as a submodule pinned to the commit the deployed image was built from | Deployment provenance | `DEPLOYMENT.md` §1 |
+| `tools/verify-openemr-pin.sh` | Guard: the fork submodule and both OpenEMR image pins must agree (CI job `openemr-pin`) | Deployment provenance | `DEPLOYMENT.md` §1, `CI-SETUP.md` §1 |
 
 ---
 

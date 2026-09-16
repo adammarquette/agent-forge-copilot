@@ -40,12 +40,41 @@ The image is this project's **OpenEMR fork**, which carries core patches the SMA
 (`SessionUtil`'s launch-bridge cookie, `AuthorizationController`, `library/auth.inc.php`) on top of the
 `oe-module-agentforge` module. Stock `openemr/openemr` with the module dropped on top does **not** reproduce a
 working launch. The fork's own pipeline publishes the built image to GHCR on green `main`; building it here
-would mean cloning a second repo and a ~10-minute Alpine/PHP build. To build from source anyway, see the
-commented `build:` block on the `openemr` service in `docker-compose.yml`.
+would mean a ~10-minute Alpine/PHP build in every environment, which is why the default stack pulls.
 
-**Consequence: a change to the AgentForge OpenEMR module (e.g. `moduleConfig.php`, the launch pages) ships by
-merging the fork and letting its CI republish the image — not by anything in this repo.** Then bump
-`OPENEMR_IMAGE` (or the pin in `docker-compose.yml`) and recreate the container.
+### The fork is a submodule, so the two deploy as one unit
+
+`external/agent-forge` is the fork, **pinned to the exact commit the image tag was built from**. The
+submodule records *which source* is deployed; `docker-compose.yml` and `.railway/railway.ts` record *which
+image* is deployed. Those are two halves of one fact living in three files, so they drift — the pin was
+already three commits behind the fork the day the submodule was introduced.
+**[`tools/verify-openemr-pin.sh`](../tools/verify-openemr-pin.sh) makes that drift a failure** instead of a
+surprise: it compares the submodule gitlink against both image pins and is wired into CI as the
+`openemr-pin` job (§5). It reads the *gitlink*, so it needs no submodule checkout and costs CI nothing.
+
+**Cloning:** `git clone --recurse-submodules`, or `git submodule update --init` in an existing clone. Nothing
+in the default stack needs the submodule *contents* — it pulls the published image — so a clone without it
+still runs; the submodule matters when you want to read or build the fork's source.
+
+**Changing the fork** — the one workflow this is all for:
+
+1. Merge the change on the fork; its pipeline publishes a new `sha-<12>` image to GHCR.
+2. Here, move **both halves in one commit**: `git -C external/agent-forge fetch origin && git -C
+   external/agent-forge checkout <fork-commit>`, `git add external/agent-forge`, and set the matching
+   `sha-<12>` in `docker-compose.yml` **and** `.railway/railway.ts`.
+3. `sh tools/verify-openemr-pin.sh` before opening the MR; CI runs it too.
+
+That single commit is the "deployed together" property: one reviewable diff that says which fork source
+and which image this stack is on, and a gate that stops them separating.
+
+**To run fork changes before the fork's pipeline has published them**, build from the submodule with the
+opt-in overlay — a multi-minute first build, cheap on rerun, tagged `agent-forge-openemr:local` so it can
+never masquerade as the published pin in your image cache:
+
+```bash
+git submodule update --init external/agent-forge
+docker compose -f docker-compose.yml -f docker-compose.build-openemr.yml up -d --build
+```
 
 ## 2. The one-origin invariant
 
@@ -214,6 +243,8 @@ Pipeline (`.github/workflows/ci.yml`): lint → build → test (unit + eval) →
   `ghcr.io/adammarquette/agent-forge-copilot` (`sha-<12>` + `main` + `latest`) — the same build-once pattern
   the OpenEMR fork uses. "Build once, deploy that exact artifact." The image carries **no secrets**; runtime
   config comes from the environment (§3).
+- **`openemr-pin`** (lint stage) fails the build if the `external/agent-forge` submodule and the two OpenEMR
+  image pins disagree — see §1. It reads the gitlink, so it needs no submodule checkout.
 - **Pin, don't float.** Both images are pinned to an immutable `sha-<12>` tag rather than `:latest`, so a
   reviewer months from now gets the exact build this stack was verified against. `OPENEMR_IMAGE` in `.env`
   overrides the OpenEMR pin to follow `:latest`/`:main`.

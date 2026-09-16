@@ -30,6 +30,8 @@ const REGION = "us-west2";
 // Pinned, immutable tags - never `:latest`. Same rule as docker-compose.yml: a
 // deployment is reproducible only if the tag cannot move under it. Bump
 // deliberately; rollback is re-pinning the previous tag (DEPLOYMENT.md §6).
+// Must match the external/agent-forge submodule gitlink; tools/verify-openemr-pin.sh enforces it
+// in CI (DEPLOYMENT.md section 1). Bump both halves in one commit, never just this line.
 const OPENEMR_IMAGE = "ghcr.io/adammarquette/agent-forge:sha-dfe7e6c4077d";
 const SIDECAR_IMAGE = "ghcr.io/adammarquette/agent-forge-copilot:sha-60c9495d39ff";
 

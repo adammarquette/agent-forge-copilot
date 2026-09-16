@@ -64,12 +64,11 @@ services:
     # when the fork's pipeline republishes. `:latest` / `:main` track the newest
     # build; override OPENEMR_IMAGE in .env to follow them or to bump the pin.
     image: ${OPENEMR_IMAGE:-ghcr.io/adammarquette/agent-forge:sha-dfe7e6c4077d}
-    # To build from the fork's source instead of pulling, clone
-    # https://github.com/adammarquette/agent-forge next to this repo and swap the
-    # image above for:
-    # build:
-    #   context: ../agent-forge
-    #   dockerfile: docker/railway/Dockerfile
+    # The fork's source is IN this repo as a submodule (external/agent-forge), pinned to the
+    # exact commit this tag was built from - tools/verify-openemr-pin.sh fails the build if the
+    # two ever disagree. To run your own fork changes before the fork's pipeline publishes them:
+    #   git submodule update --init external/agent-forge
+    #   docker compose -f docker-compose.yml -f docker-compose.build-openemr.yml up -d --build
     environment:
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306

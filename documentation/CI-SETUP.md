@@ -48,6 +48,7 @@ required.
 | `doc-sizes` | lint | `scripts/check-doc-sizes.sh` — every `~tok` price in a routing table matches its file, and the gate's own self-test still reddens |
 | `docs-sync` | lint | **PRs only.** Fails when `src/`, `reverse-proxy/`, `docker-compose.yml` or `.env.example` changed but `documentation/` did not. Opt out with a `docs: n/a - <reason>` line in the PR body — a bare `docs: n/a` is rejected. Detects *absent* doc edits, not wrong ones; see root `AGENTS.md`, “Docs stay in sync with the code”. Companion to `doc-sizes`: that one keeps prices honest, this one keeps the prose honest. |
 | `nginx-config-lint` | lint | renders `nginx.conf.template` and runs `nginx -t` |
+| `openemr-pin` | lint | `tools/verify-openemr-pin.sh` — the `external/agent-forge` submodule and both OpenEMR image pins must agree (`DEPLOYMENT.md` §1) |
 | `build` | build | compile under warnings-as-errors |
 | `unit-tests` | test | fully mocked suite |
 | `eval-tests` | test | deterministic eval rubrics as xUnit theories |

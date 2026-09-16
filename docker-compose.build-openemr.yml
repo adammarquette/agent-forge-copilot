@@ -1,0 +1,23 @@
+# Opt-in overlay: build OpenEMR from the pinned submodule instead of pulling the
+# published image. For when you have CHANGED fork source and want to see it running
+# before the fork's pipeline has published a new image.
+#
+#   git submodule update --init external/agent-forge
+#   docker compose -f docker-compose.yml -f docker-compose.build-openemr.yml up -d --build
+#
+# The default stack pulls the prebuilt image instead (documentation/DEPLOYMENT.md §1) - that is
+# "build once, deploy that exact artifact", and it is why this is an overlay and not the default.
+# Expect a multi-minute Alpine + PHP build the first time; the layer cache makes reruns cheap.
+#
+# The submodule is pinned to the SAME commit the default image tag was built from, so building
+# here and pulling there produce the same OpenEMR - until you move one of them. tools/verify-openemr-pin.sh
+# is what catches that.
+services:
+  openemr:
+    # A DISTINCT local tag, deliberately not the pinned ghcr.io name: tagging a local build with
+    # the published pin would leave an impostor in the image cache that a later plain
+    # `docker compose up` would use instead of pulling the real artifact.
+    image: agent-forge-openemr:local
+    build:
+      context: external/agent-forge
+      dockerfile: docker/railway/Dockerfile

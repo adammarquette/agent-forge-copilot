@@ -1,0 +1,4 @@
+[submodule "external/agent-forge"]
+	path = external/agent-forge
+	url = https://github.com/adammarquette/agent-forge.git
+	branch = main
