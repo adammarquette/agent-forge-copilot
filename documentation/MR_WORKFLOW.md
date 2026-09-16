@@ -23,9 +23,9 @@ one.
 
 ## The rules that are not obvious
 
-- **Gates are local, not remote.** GitLab runs only the reviewer; the build/test/eval gates live on the GitHub
-  mirror, which a GitLab-only branch never reaches (`CI-SETUP.md` §7). **A green MR pipeline does not mean the
-  tests pass** — it means the reviewer had nothing blocking to say.
+- **Green CI means the gates ran.** Every branch pushed to `origin` gets the full pipeline — lint, build,
+  test, evals, and both doc gates (`CI-SETUP.md`). The automated reviewer is a separate concern and is
+  currently dormant (§7), so a green run says the gates passed, not that anything reviewed the change.
 - **An approval is about one revision.** A push after a verdict makes the MR unreviewed again; the reviewer
   names the head SHA for exactly this reason.
 - **Nothing automated merges, and nothing automated approves.** The review job cannot approve — GitLab has no

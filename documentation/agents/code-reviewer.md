@@ -67,10 +67,10 @@ Ranked the way this system actually fails. The standards themselves live in
   advertising an obsolete contract, a doc section the change contradicts. The same-change rule is repo-wide: grep the
   concept and check that *every* doc describing it moved, not just the nearest one. On a clinical path a false
   claim is worse than no claim.
-- **Reference comments** carry the `reference:` prefix. A bare `#N`/`!N` and legacy `gitlab#N` both address the
-  live GitLab tracker; `gh#N` addresses the GitHub mirror, which numbers independently
-  ([`INDEX.md`](../INDEX.md) §5). A GitHub issue cited as a bare `#N` is a finding — it silently points at a
-  different issue.
+- **Reference comments** carry the `reference:` prefix. A bare `#N` addresses the **GitHub tracker**, which is
+  where `origin` points and where issues and PRs live. Legacy `gitlab#N` / `!N` citations point at a GitLab
+  project that a restore recreated empty ([`INDEX.md`](../INDEX.md) §5) — they no longer resolve, so a *new*
+  citation written as `gitlab#N` is a finding. Existing ones are historical context; leave them.
 - **Dependency caps**, notably FluentAssertions `[6.12.0,8.0.0)` — v8+ is commercially licensed and the license
   gate is what catches it, not taste.
 
