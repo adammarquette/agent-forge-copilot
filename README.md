@@ -79,15 +79,26 @@ crash-looping for anyone without them:
 
 1. **An Anthropic API key.** `Llm:ApiKey` is `[Required]` and validated at startup — the sidecar
    cannot boot without one. Put it in `.env` as `ANTHROPIC_API_KEY`.
-2. **A registered SMART client.** In OpenEMR: **Admin → System → API Clients**, register a
-   *confidential* client with redirect URI `http://localhost:8080/agentforge/callback`, then
-   **enable it** — freshly-registered clients land disabled. Put its id/secret in `.env` as
-   `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET`. (`dotnet run --project tools/RegisterSmartClients`
-   automates the registration.)
+2. **A registered SMART client.** `dotnet run --project tools/RegisterSmartClients -- http://localhost:8080`
+   registers both *confidential* clients with the right redirect URIs and scopes, and prints their
+   ids/secrets — put the patient pair in `.env` as `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET`.
+   (By hand it is **Admin → System → API Clients**, and freshly-registered clients land disabled.)
+   The agenda client is registered too, but compose passes no `OpenEmrAgenda__*`, so the Daily Agenda
+   launch stays unconfigured on this stack — see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §3.
 
-Also set **Admin → Configuration → Connectors → Site Address Override** to `http://localhost:8080`.
-Without it OpenEMR advertises its own container hostname as the FHIR base, and every launch fails the
-SMART `aud` check before reaching a login form.
+Then run the database half of the bootstrap, which sets the Site Address Override, enables the clients
+it just registered, and writes the module's launch URIs. It connects to MySQL, which the default stack
+does not publish — bring the stack up with the opt-in overlay (a loopback-only `127.0.0.1:3306` publish)
+first:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d
+MYSQL_ROOT_PASSWORD=rootpass dotnet run --project tools/BootstrapOpenEmr -- http://localhost:8080
+```
+
+Without the Site Address Override OpenEMR advertises its own container hostname as the FHIR base, and
+every launch fails the SMART `aud` check before reaching a login form. Both tools are idempotent and
+take the front door as their argument — see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §4.
 
 ```bash
 docker compose --profile copilot up -d
@@ -159,7 +170,7 @@ no browser caller — is blocked at the proxy:
 
 | Doc | ~tok | Purpose |
 |---|---|---|
-| [`INDEX.md`](documentation/INDEX.md) | 2.9K | **Start here** — the wiki's front door: documents catalog + the requirement/use-case → **code project** map the `.slnx` doesn't carry |
+| [`INDEX.md`](documentation/INDEX.md) | 3.1K | **Start here** — the wiki's front door: documents catalog + the requirement/use-case → **code project** map the `.slnx` doesn't carry |
 | [`PRD.md`](documentation/PRD.md) | 11.4K | Product requirements — the problem, functional & non-functional requirements (FR/NFR IDs) |
 | [`USERS.md`](documentation/USERS.md) | 3.4K | The target user, the 90-second workflow, and the use cases everything traces to |
 | [`AUDIT.md`](documentation/AUDIT.md) | 5.1K | Findings from auditing the OpenEMR fork (security / perf / data quality) |
@@ -169,9 +180,9 @@ no browser caller — is blocked at the proxy:
 | [`W2_AUDIT.md`](documentation/W2_AUDIT.md) | 7.2K | **(Week 2)** Implementation audit — per-requirement Met/Partial/Gap against the submission gates |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | 5.7K | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
-| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 7.1K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
+| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 8.4K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
 | [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 2.6K | Physical/network view of the container stack — what is published vs internal (mermaid) |
-| [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.2K | Both pipelines — the GitHub build/test/eval gates, and the GitLab job that reviews every MR |
+| [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.3K | Both pipelines — the GitHub build/test/eval gates, and the GitLab job that reviews every MR |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
 | [`MR_WORKFLOW.md`](documentation/MR_WORKFLOW.md) | 0.7K | How a change gets from a branch to `main` — the states, and who acts at each |
 | [`agents/README.md`](documentation/agents/README.md) | 1.8K | **Agent role contracts** — which contract governs which hat, and whether it auto-loads |
@@ -198,10 +209,10 @@ software engineering, it's simply *another* layer of abstraction above the code,
 layer of abstraction above IL/machine instructions. `documentation/` is written at that higher layer on
 purpose - a knowledge base meant to be read and maintained by models, not just humans, favoring dense
 cross-links and explicit context over prose that assumes a reader who already remembers yesterday's session.
-The wiki isn't only that folder, either - it extends into the GitHub issues and PR descriptions too, which
-is why those get cited as heavily as doc sections. (Citations of the form `gitlab#N` address the retired
-pre-migration tracker — historical context, not links; see `INDEX.md` §5.) Together they're the wiki this
-project's agents read to reconstruct state.
+The wiki isn't only that folder, either - it extends into the issue tracker and merge-request descriptions
+too, which is why those get cited as heavily as doc sections. (A bare `#N` addresses the GitHub tracker; legacy
+`gitlab#N`/`!N` citations point at a GitLab project that a restore recreated empty, so they no longer
+resolve. See `INDEX.md` §5.) Together they're the wiki this project's agents read to reconstruct state.
 
 ---
 
@@ -334,8 +345,13 @@ them, so they are kept as source documents rather than edited.
 
 Everything else — the architecture, the sidecar design, the implementation, and the docs in
 [`documentation/`](documentation/) — is original work. The codebase was formerly namespaced
-`GauntletAI.AgentForge.*` and hosted on a Gauntlet-run GitLab; both have been retired in favour of
-`AgentForge.*` on GitHub.
+`GauntletAI.AgentForge.*`; that prefix has been dropped in favour of plain `AgentForge.*`.
+
+The **git remote and issue tracker** is
+[GitHub](https://github.com/adammarquette/agent-forge-copilot) — that is where `origin` points, where
+issues and pull requests are filed, and where CI runs (`.github/workflows/ci.yml`). The project previously
+lived on a GitLab instance; a September 2026 restore recreated that project empty, so its issue numbers no
+longer resolve — see [`INDEX.md`](documentation/INDEX.md) §5.
 
 ---
 

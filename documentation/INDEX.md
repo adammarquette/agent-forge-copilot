@@ -35,8 +35,8 @@ blank cell means the row routes somewhere that is not one file.
 | [`AUDIT.md`](AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) | 5.1K | audit finding refs |
 | [`W2_AUDIT.md`](W2_AUDIT.md) | Week 2 implementation audit — per-requirement Met/Partial/Gap coverage, risks, prioritized recommendations vs the submission gates | 7.2K | audit finding refs |
 | [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | 3.8K | — |
-| [`DEPLOYMENT.md`](DEPLOYMENT.md) | The operational runbook for the Docker container stack — bootstrap, config, quirks, rollback; the Railway Infrastructure-as-Code deployment is §9 | 7.1K | — |
-| [`CI-SETUP.md`](CI-SETUP.md) | The GitHub build/test/eval gates, plus the dormant automated reviewer (§7) that reviewed every PR | 3.2K | — |
+| [`DEPLOYMENT.md`](DEPLOYMENT.md) | The operational runbook for the Docker container stack — bootstrap, config, quirks, rollback; the Railway Infrastructure-as-Code deployment is §9 | 8.4K | — |
+| [`CI-SETUP.md`](CI-SETUP.md) | The GitHub build/test/eval gates, plus the dormant automated reviewer (§7) that reviewed every PR | 3.3K | — |
 | [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the container stack — services, what is published vs network-internal, flows, trust boundaries (mermaid) | 2.6K | — |
 | [`MR_WORKFLOW.md`](MR_WORKFLOW.md) | The lifecycle a change moves through from branch to `main`, and who acts at each state — what the Coordinator drives | 0.7K | — |
 | [`agents/README.md`](agents/README.md) | **Agent role contracts** — Code Reviewer, Platform, Coordinator — plus the task-sizing rubric, and for each contract whether it auto-loads or you must open it | 1.8K | — |
@@ -68,6 +68,7 @@ carries the finer detail; this is the family-level jump table.
 | `src/…Agents` | **(Week 2)** Evidence-agent supervisor + four workers (extract → retrieve → compose → critic) + ingestion service; logged/metered handoffs | Week 2 multi-agent graph (`FR-GRAPH-*`) | `W2_ARCHITECTURE.md` §6 |
 | `tests/…UnitTests` · `…IntegrationTests` · `…EvalTests` · `…Evals` | Mocked unit tests (test-first) · real-dependency QA tests · deterministic rubric xUnit tests · golden-set eval runner (cases in top-level `evals/`) | `FR-EVAL-*` | `ENGINEERING_STANDARDS.md` §8, `tests/AGENTS.md` |
 | `tools/RegisterSmartClients` | CLI utility to register confidential SMART client credentials in OpenEMR | SMART OAuth setup | `README.md` (Adding the copilot) |
+| `tools/BootstrapOpenEmr` | CLI utility that writes the database half of the first-run bootstrap (OpenEMR globals + enabling the registered SMART clients), idempotently | SMART launch bootstrap | `DEPLOYMENT.md` §4 |
 | `tools/SeedDemoPatients` | CLI utility to seed demo synthetic patients & clinical records | Demo data setup | `README.md` (Run it) |
 | `tools/MintQaIdentityToken` | CLI utility to mint test identity/session tokens for QA | Integration testing | `tests/AGENTS.md` |
 | `tools/LoadTestChat` | CLI load-testing tool for SignalR chat endpoints & turn latency | `NFR-PERF-*` verification | `PERFORMANCE_BASELINES.md` |
@@ -106,18 +107,22 @@ Read `USERS.md` §4/§5 for the *why*; this is the jump from a use case to the p
 ## 5. The external wiki (issue tracker)
 
 The wiki extends beyond this folder into the issue tracker — issues/epics/PRs are cited as heavily as doc
-sections because they carry the same reconstructable context (see `README.md`). Project
-**[`adammarquette/agent-forge-copilot`](https://github.com/adammarquette/agent-forge-copilot)** on GitHub.
+sections because they carry the same reconstructable context (see `README.md`). The tracker and git remote
+is **[`adammarquette/agent-forge-copilot`](https://github.com/adammarquette/agent-forge-copilot)** on
+GitHub — that is where `origin` points, where issues are filed, and where pull requests are opened.
 
-> **Numbering caveat.** The project was migrated off its original GitLab tracker, and issue numbers did **not**
-> survive the move — a `#N` minted on GitLab addresses a *different* issue on GitHub (e.g. old #109 was the
-> click-to-source `Binary.read` scope; GitHub #109 is an unrelated QA-login issue). Historical `gitlab#N`
-> citations throughout the docs and code comments therefore refer to the **retired** tracker and must not be
-> read as GitHub links. The two tracking issues below are pre-migration numbers.
+> **Legacy `gitlab#N` citations are dead links, not resolvable history.** The project lived on a GitLab
+> instance (`labs.gauntletai.com`) for a period, and much of the corpus cites it. In September 2026 a
+> restore recreated that project **empty** — new project id, no repository content, no issues, no tags —
+> so `gitlab#N` and `!N` citations no longer resolve to anything. Keep them where they record *why* a
+> decision was made; do not follow them expecting a page. A bare `#N` means the GitHub tracker above.
+>
+> **The mirror is behind, and CI lives there.** `.github/workflows/ci.yml` only fires on GitHub pushes and
+> pull requests, and there is no `.gitlab-ci.yml` in the tree — so a branch that exists only on GitLab gets
+> **no pipeline at all**, and its gates have to be run locally (`AGENTS.md` § Build / test).
 
-- **MVP v1** — parent tracking issue **#6** *(legacy GitLab number)*; Epics 1–12 merged (`main`).
-- **Week 2 — Multimodal Evidence Agent** — saga/tracking issue **#71** *(legacy GitLab number)*; see
-  `W2_ARCHITECTURE.md`.
+- **MVP v1** — parent tracking issue **#6**; Epics 1–12 merged (`main`).
+- **Week 2 — Multimodal Evidence Agent** — saga/tracking issue **#71**; see `W2_ARCHITECTURE.md`.
 - **The coupled OpenEMR fork** — [`agent-forge`](https://github.com/adammarquette/agent-forge); read its PHP
   source when diagnosing fork-specific auth/FHIR quirks (`README.md` §Related repositories).
 

@@ -45,6 +45,6 @@ Both prerequisites have shipped:
 - OpenEMR-side config (`agent-forge#24`, `#25`, `#26` - redirect_uri, launch URI,
   `cookie_samesite` revert) - config only, no fork code changes
 
-The per-environment values that still have to be set by hand (Site Address Override, the two OAuth
-clients and their redirect URIs, the module's Launch URI) are in
-[`../documentation/DEPLOYMENT.md`](../documentation/DEPLOYMENT.md) §4.
+The per-environment values (Site Address Override, the two OAuth clients and their redirect URIs, the
+module's launch URIs) are database state, scripted by `tools/RegisterSmartClients` +
+`tools/BootstrapOpenEmr` — see [`../documentation/DEPLOYMENT.md`](../documentation/DEPLOYMENT.md) §4.
