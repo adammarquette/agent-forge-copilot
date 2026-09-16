@@ -79,15 +79,22 @@ crash-looping for anyone without them:
 
 1. **An Anthropic API key.** `Llm:ApiKey` is `[Required]` and validated at startup — the sidecar
    cannot boot without one. Put it in `.env` as `ANTHROPIC_API_KEY`.
-2. **A registered SMART client.** In OpenEMR: **Admin → System → API Clients**, register a
-   *confidential* client with redirect URI `http://localhost:8080/agentforge/callback`, then
-   **enable it** — freshly-registered clients land disabled. Put its id/secret in `.env` as
-   `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET`. (`dotnet run --project tools/RegisterSmartClients`
-   automates the registration.)
+2. **A registered SMART client.** `dotnet run --project tools/RegisterSmartClients -- http://localhost:8080`
+   registers both *confidential* clients with the right redirect URIs and scopes, and prints their
+   ids/secrets — put them in `.env` as `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET` and the agenda
+   pair. (By hand it is **Admin → System → API Clients**, and freshly-registered clients land
+   disabled.)
 
-Also set **Admin → Configuration → Connectors → Site Address Override** to `http://localhost:8080`.
-Without it OpenEMR advertises its own container hostname as the FHIR base, and every launch fails the
-SMART `aud` check before reaching a login form.
+Then run the database half of the bootstrap, which sets the Site Address Override, enables the clients
+it just registered, and writes the module's launch URIs:
+
+```bash
+MYSQL_HOST=127.0.0.1 MYSQL_ROOT_PASS=<mysql root password>   dotnet run --project tools/BootstrapOpenEmr -- http://localhost:8080
+```
+
+Without the Site Address Override OpenEMR advertises its own container hostname as the FHIR base, and
+every launch fails the SMART `aud` check before reaching a login form. Both tools are idempotent and
+take the front door as their argument — see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §4.
 
 ```bash
 docker compose --profile copilot up -d

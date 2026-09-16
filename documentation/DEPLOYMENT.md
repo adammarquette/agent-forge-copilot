@@ -90,48 +90,76 @@ reference for standing the sidecar up anywhere else.
 `Bff__AllowInsecureHttpForLocalDevelopment` let the stack run over plain HTTP. They exist precisely for this
 demo stack and are **not safe for anything else**.
 
-## 4. First-run bootstrap (not config-as-code)
+## 4. First-run bootstrap (database state, scripted)
 
-A fresh stack is a bare OpenEMR plus the module. These steps are **live state in OpenEMR's database**, so they
-must be redone on any fresh stack or after a volume reset.
+A fresh stack is a bare OpenEMR plus the module. The settings below are **live state in OpenEMR's database**,
+not config-as-code, so they must be redone on any fresh stack or after a volume reset — but they are no longer
+an Admin-GUI dance. Two tools do all of it, and both are idempotent:
 
-1. **Site Address Override.** Admin → Configuration → Connectors → **Site Address Override**
-   (`site_addr_oath`) = the front door. It defaults to an *empty string*, which PHP's `??` does not treat as
-   unset, so every OAuth URL the server computes comes out as a bare path with no scheme/host — which breaks
-   both the admin "Register New App" GUI (`fetch()` on an unreachable URL — *"Failed to fetch"*) and JWT
-   assertion audience validation (`invalid_client: Client authentication failed`) even with an otherwise
-   correct assertion. Also enable **"OAuth2 EHR-Launch Authorization Flow Skip"** on the same tab.
+```bash
+# 1. the API half — registers both SMART clients, prints their ids/secrets
+dotnet run --project tools/RegisterSmartClients -- http://localhost:8080
 
-2. **OAuth clients.** Register both SMART clients with **`tools/RegisterSmartClients`**, against the **front
-   door**:
+# put the printed ids/secrets in .env, then:
 
-   ```bash
-   dotnet run --project tools/RegisterSmartClients -- http://localhost:8080
-   ```
+# 2. the database half — globals + enabling the clients
+MYSQL_HOST=127.0.0.1 MYSQL_ROOT_PASS=<mysql root password> \
+  dotnet run --project tools/BootstrapOpenEmr -- http://localhost:8080
+```
 
-   It POSTs both registrations with the correct scope lists, crucially including **`patient/Binary.read`** on
-   the patient client. Without that scope on the *registered* client, OpenEMR's `finalizeScopes` silently
-   drops the Binary scope the launch requests, the source-document fetch 401s, and click-to-source shows a
-   misleading 404 (reference: gitlab#128). Follow the tool's printed output: it prints the new client
-   ids/secrets, the variables to set, and the SQL to enable them and skip the per-launch prompt —
+`BootstrapOpenEmr` talks to MySQL directly (the settings have no API), reading the same environment variable
+names the OpenEMR container uses: `MYSQL_HOST` (default `127.0.0.1`), `MYSQL_PORT` (`3306`), `MYSQL_DATABASE`
+(`openemr`), `MYSQL_USER` (`root`), and `MYSQL_ROOT_PASS` / `MYSQL_PASS`. It waits for the schema (OpenEMR's
+first boot takes minutes on a fresh volume), prints one line per setting — `ok` or `SET` — and refuses a
+service-internal hostname, because that argument becomes `site_addr_oath` and §2's one-origin invariant rests
+on it. Run it on every deploy if you like; a converged stack is all `ok`.
+
+What the two tools write, and why each value matters:
+
+1. **Site Address Override** (`site_addr_oath`) = the front door — *written by `BootstrapOpenEmr`*. It
+   defaults to an *empty string*, which PHP's `??` does not treat as unset, so every OAuth URL the server
+   computes comes out as a bare path with no scheme/host — which breaks both the admin "Register New App" GUI
+   (`fetch()` on an unreachable URL — *"Failed to fetch"*) and JWT assertion audience validation
+   (`invalid_client: Client authentication failed`) even with an otherwise correct assertion. The same tool
+   also sets **"OAuth2 EHR-Launch Authorization Flow Skip"** (`oauth_ehr_launch_authorization_flow_skip`),
+   the global that gates the per-client skip in step 2. Both are on Admin → Configuration → Connectors if you
+   ever need to check them by eye.
+
+2. **OAuth clients** — *registered by `RegisterSmartClients`, enabled by `BootstrapOpenEmr`*. Registration
+   POSTs both clients against the **front door** with the correct scope lists, crucially including
+   **`patient/Binary.read`** on the patient client. Without that scope on the *registered* client, OpenEMR's
+   `finalizeScopes` silently drops the Binary scope the launch requests, the source-document fetch 401s, and
+   click-to-source shows a misleading 404 (reference: gitlab#128). Freshly-registered clients then land
+   **disabled** (the agenda client especially), so registration alone is not enough —
 
    ```sql
    UPDATE oauth_clients SET is_enabled = 1, skip_ehr_launch_authorization_flow = 1 WHERE client_id IN (…);
    ```
 
-   Freshly-registered clients land **disabled** (the agenda client especially), so this step is not optional.
-   Put the ids/secrets in `.env` as `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET` and the agenda pair.
+   is what `BootstrapOpenEmr` issues for every `AgentForge%` client. The **ids and secrets are the one thing
+   neither tool can carry across** — they are generated at registration and consumed as sidecar config, so put
+   them in `.env` as `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET` and the agenda pair before bringing the
+   `copilot` profile up.
 
-3. **OpenEMR AgentForge module settings** — the module's own `moduleConfig.php` page, *not* the standard
-   Globals screen: **Launch URI** = `<front door>/agentforge/agenda/launch` (the roster endpoint),
-   **Issuer** = `<front door>/apis/default/fhir`, **Launch Mode** = `tab`. One Launch URI can't serve both the
-   per-patient (`/agentforge/launch`) and roster (`/agentforge/agenda/launch`) endpoints — module coexistence
-   is a tracked follow-up.
+3. **The AgentForge module's own settings** — *written by `BootstrapOpenEmr`*, as the four globals the
+   module's `moduleConfig.php` page saves: **Launch URI** (`agentforge_launch_uri`) =
+   `<front door>/agentforge/launch`, **Agenda Launch URI** (`agentforge_agenda_launch_uri`) =
+   `<front door>/agentforge/agenda/launch`, **Issuer** (`agentforge_issuer`) =
+   `<front door>/apis/default/fhir`, **Launch Mode** (`agentforge_launch_mode`) = `tab`. The per-patient and
+   roster launches need **separate** URIs — the sidecar serves them from different paths, and one shared URI
+   sends the per-patient "Launch AgentForge" button to the roster endpoint, which ignores patient context and
+   renders the Daily Agenda instead of the patient chat. `tab` mode is required because the cross-origin
+   iframe modal loses the session cookie. The tool writes these with the same upsert the fork's
+   `AgentForgeGlobalConfig::save()` uses, so the result is indistinguishable from an admin saving that page.
 
-4. **Demo data.** `admin` is the only login a fresh stack creates. The `cardio1` demo cardiologist and the
-   demo patients are **not** built in — create the provider in Admin → Users and run
+4. **Demo data** — *still manual*. `admin` is the only login a fresh stack creates. The `cardio1` demo
+   cardiologist and the demo patients are **not** built in — create the provider in Admin → Users and run
    `dotnet run --project tools/SeedDemoPatients`. Automating this into the compose bring-up is tracked in
    [#375](https://github.com/adammarquette/agent-forge-copilot/issues/375).
+
+> **Not covered:** the document-ingestion cron's own globals (`agentforge_ingest_uri`,
+> `agentforge_ingest_category_map`) are environment-specific — a private address and this install's document
+> category ids — and are still saved from the module's config page.
 
 > **Why the client is confidential, not public.** The architecture calls for a public client (D11 — no client
 > secret held anywhere in the browser). Getting there required three real bugs to be found and fixed, in
@@ -314,12 +342,17 @@ owning DNS. Revisit if this environment becomes anything more than a demo.
 
 ### What the file cannot do
 
-Applying it yields a stack that **boots but cannot complete a SMART launch**. Everything in §4 is live state in
-OpenEMR's *database* — Site Address Override, both OAuth clients, the module Launch URI, demo seeding — and no
-infrastructure tool can express it. The retired GitLab CI had deploy-time self-heal jobs for exactly this
-(`a0dc176`, `60c969f`); that tree was deleted in `5a1be7b` and has to be rebuilt before a Railway deploy is
-reproducible end to end. **That is the remaining work on labs.gauntletai.com#140, and the reason this section says "not yet
-applied" rather than "run this".**
+Applying it yields a stack that **boots but cannot complete a SMART launch** until §4's bootstrap runs.
+Everything in §4 is live state in OpenEMR's *database* — Site Address Override, both OAuth clients, the
+module's launch URIs, demo seeding — and no infrastructure tool can express it. The retired GitLab CI had
+deploy-time self-heal jobs for exactly this (`a0dc176`, `60c969f`); that tree was deleted in `5a1be7b`.
+
+**That gap is now closed in source rather than in CI:** `tools/RegisterSmartClients` (the API half) and
+`tools/BootstrapOpenEmr` (the database half) are idempotent and environment-agnostic — they take the front
+door as an argument, so the same two commands bootstrap compose, Railway, or anything else. A deploy job that
+wants self-heal invokes them; nothing about them is CI-specific. What is left genuinely manual is feeding the
+generated client ids/secrets back into the service variables, and demo seeding (#375) — which is why this
+section still says "not yet applied" rather than "run this".
 
 ### Topology mapping
 
