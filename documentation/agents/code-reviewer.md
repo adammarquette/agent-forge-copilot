@@ -102,15 +102,15 @@ Ranked the way this system actually fails. The standards themselves live in
   habit, and saying so is what stops the fourth.
 - **Few, well-evidenced.** Padding real findings with style notes trains the author to skim. Formatting is
   `dotnet format`'s job and CI enforces it (§10).
-- **On an MR, leave a verdict — a state, not a bare comment.** Attach findings as inline notes on the diff, then
-  **request changes** if any finding is unresolved, or **approve** with a one-line summary when it is clean. An
-  approval is a claim about a specific revision, so **name the head SHA you reviewed** — an MR that moves after
-  your approval is unreviewed again. A review of a local diff with no MR uses `ReportFindings` instead.
-- **If the tracker is unreachable, the verdict still has to land somewhere durable.** Write it as the review it
-  would have been — head SHA, findings, verdict — and hand it to the author to post, rather than letting it exist
-  only in a session transcript.
-- **Sign what you write.** An AI-authored review body or inline note ends with `Assisted-by: <Model Name>
-  (<tool>)`, on the comment itself — a footer on the MR does not cover a note added later.
+- **On a PR, everything goes in the review BODY.** Quote the file and line in the body rather than attaching
+  inline notes: an inline comment creates a review whose body is *empty*, which the gate cannot read — see
+  *Your verdict is a gate, not a note*. **Name the head SHA you reviewed.** A review of a local diff with no PR
+  uses `ReportFindings` instead.
+- **If you cannot post, say so loudly and rule nowhere else.** Write the review as it would have been — head
+  SHA, findings, verdict — and hand it to the operator to post. Do not let it exist only in a session
+  transcript, and do not report a verdict `post-verdict.sh` did not confirm.
+- **Sign what you write.** An AI-authored review body ends with `Assisted-by: <Model Name> (<tool>)`, in the
+  body itself — a footer on the PR does not cover a review posted later.
 
 **Approve when the diff is ready, not when it is perfect.** Findings you would not block on belong in the body as
 non-blocking notes. A verdict that never approves stalls the work as surely as one that never comes.

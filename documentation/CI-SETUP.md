@@ -211,7 +211,12 @@ self-test (`render_review_test.py`) covers both directions, including the case w
 
 ## 8. The verdict gate
 
-§7 runs the reviewer; this is what makes its ruling *count*. Three scripts, one reader:
+§7 runs a reviewer in CI; **its output does not reach this gate.** `review.sh` posts to
+`issues/<pr>/comments`, which is precisely the endpoint below that nothing reads — so the CI reviewer is
+advisory, and what feeds the gate is a reviewer **spawned by the authoring agent** (`src/AGENTS.md`),
+posting a review through `post-verdict.sh`. Unifying the two is follow-up work, not done here.
+
+Three scripts, one reader:
 
 | Script | Who runs it | What it does |
 |---|---|---|

@@ -26,17 +26,20 @@ DEADLINE=$(( $(date +%s) + TIMEOUT ))
 echo "watch-verdict: waiting up to $((TIMEOUT / 60))m for a verdict on PR #$PR"
 
 while :; do
-    out=$(bash "$here/verdict-state.sh" "$PR" 2>&1) && rc=0 || rc=$?
+    out=$(bash "$here/verdict-state.sh" "$PR" 2>&1) || true
+    # Switch on STATE, never VERDICT alone. A review is permanent: an old request-changes would
+    # otherwise fire again the moment you pushed the fix, telling you to do what you just did.
     case "$out" in
-        *VERDICT=request-changes*)
+        *STATE=approved*)
+            echo "watch-verdict: APPROVED - $out"
+            exit 0 ;;
+        *STATE=changes-requested*)
             echo "watch-verdict: CHANGES REQUESTED - $out"
             echo "watch-verdict: read the review on the PR, fix it, and push. Only a push clears this."
             exit 1 ;;
+        *STATE=stale*)
+            echo "watch-verdict: a ruling exists but predates your current contribution; waiting for a re-review" ;;
     esac
-    if [ "$rc" -eq 0 ]; then
-        echo "watch-verdict: APPROVED - $out"
-        exit 0
-    fi
     if [ "$(date +%s)" -ge "$DEADLINE" ]; then
         echo "watch-verdict: NO VERDICT after $((TIMEOUT / 60))m - $out" >&2
         echo "watch-verdict: the reviewer never ruled, or ruled where the gate cannot read it" >&2

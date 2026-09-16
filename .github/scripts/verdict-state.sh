@@ -6,9 +6,18 @@
 # a second parser that disagreed would let a PR look ruled to one caller and unruled to another.
 #
 #   verdict-state.sh <pr>
+#   verdict-state.sh --parse   (reads a review body on stdin, prints the verdict; for the self-test)
 #
-# Prints:  VERDICT=approve|request-changes|none  FRESH=yes|no  COMMIT=<sha>  REVIEW_ID=<id>
-# Exits 0 when a FRESH verdict exists, 1 otherwise. The gate reads the line; scripts read the exit.
+# Prints ONE line:
+#   STATE=approved|changes-requested|stale|none  VERDICT=<v>  FRESH=yes|no  COMMIT=<sha>  REVIEW_ID=<id>
+#
+# CONSUMERS MUST SWITCH ON `STATE`, NEVER ON `VERDICT` ALONE. A GitHub review is permanent, so a
+# Request changes stays readable forever; matching VERDICT=request-changes without checking freshness
+# makes the gate reject the very push that was meant to clear it, and tells the author to "fix it and
+# push" immediately after they did - a livelock (found reviewing gh#400). STATE folds freshness in so
+# the mistake is not available to make.
+#
+# Exit 0 only for STATE=approved. The gate reads the line; scripts read the exit.
 #
 # WHAT COUNTS (documentation/agents/code-reviewer.md):
 #   - a REVIEW body, not a PR comment and not an inline comment. Both of those are visible to a
@@ -19,14 +28,16 @@
 # FRESHNESS binds to the PR's own CONTRIBUTION, not the commit id: patch-id over
 # merge-base(base, commit)..commit. `develop` requires branches to be up to date, so every merge
 # rewrites every open PR's head - binding to the sha would expire every approval on someone else's
-# merge. A rebase or target-sync keeps a verdict; a new commit or a conflict resolution kills it,
-# because that is content nobody reviewed.
+# merge. A rebase or target-sync keeps a verdict; a new commit or a conflict resolution kills it.
+# A FORCE-PUSHED rebase orphans the reviewed commit, so merge-base fails and freshness dies: that
+# fails closed (stale, not approved), which is the safe direction.
+#
+# No python: this runs on runners where only `python3` may exist, and a reader that dies on a
+# missing interpreter is indistinguishable from "nobody ruled" (gh#400). gh's own --jq does it all.
 set -euo pipefail
 
 verdict_of() {
-    # $1 = review body; echoes approve|request-changes|none
-    line=$(printf '%s
-' "$1" | head -1 | tr -d '*_' | sed 's/^[[:space:]]*//' | tr '[:upper:]' '[:lower:]')
+    line=$(printf '%s\n' "$1" | head -1 | tr -d '\r*_' | sed 's/^[[:space:]]*//' | tr '[:upper:]' '[:lower:]')
     if printf '%s' "$line" | grep -qE '^verdict:[[:space:]]*approve([^a-z]|$)'; then
         echo approve
     elif printf '%s' "$line" | grep -qE '^verdict:[[:space:]]*request changes([^a-z]|$)'; then
@@ -36,8 +47,7 @@ verdict_of() {
     fi
 }
 
-# --parse reads a body on stdin and prints the verdict. It exists so the self-test exercises
-# THIS parser rather than a copy of it; two parsers that disagree is the whole failure mode.
+# --parse drives THIS parser from the self-test; a copy that drifted is the whole failure mode.
 if [ "${1:-}" = "--parse" ]; then
     verdict_of "$(cat)"
     exit 0
@@ -46,11 +56,9 @@ fi
 PR="${1:?usage: verdict-state.sh <pr>}"
 REPO="${GH_REPO:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}"
 
-meta=$(gh api "repos/$REPO/pulls/$PR" --jq '{base: .base.ref, head: .head.sha}')
-BASE_REF=$(printf '%s' "$meta" | python -c "import sys,json;print(json.load(sys.stdin)['base'])")
-HEAD_SHA=$(printf '%s' "$meta" | python -c "import sys,json;print(json.load(sys.stdin)['head'])")
+BASE_REF=$(gh api "repos/$REPO/pulls/$PR" --jq '.base.ref')
+HEAD_SHA=$(gh api "repos/$REPO/pulls/$PR" --jq '.head.sha')
 
-# The contribution: what this PR adds on top of where it forks from.
 contribution() {
     commit="$1"
     mb=$(git merge-base "origin/$BASE_REF" "$commit" 2>/dev/null) || return 1
@@ -59,27 +67,35 @@ contribution() {
 
 HEAD_ID=$(contribution "$HEAD_SHA" || true)
 
-# Newest first: a later ruling supersedes an earlier one on the same PR.
-rows=$(gh api "repos/$REPO/pulls/$PR/reviews" --paginate --jq 'reverse | .[] | @base64')
+# --paginate applies --jq PER PAGE, so a `reverse` inside the filter only reverses within a page and
+# silently breaks ordering past 30 reviews (gh#400). Emit in API order and reverse the whole stream.
+# Body travels base64 so a multi-line review stays one record.
+rows=$(gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
+    --jq '.[] | [(.id|tostring), (.commit_id // ""), (.body // "" | @base64)] | @tsv' | tac)
 
-BEST_V=none; BEST_FRESH=no; BEST_ID=; BEST_COMMIT=
-for row in $rows; do
-    decoded=$(printf '%s' "$row" | base64 -d)
-    body=$(printf '%s' "$decoded" | python -c "import sys,json;print(json.load(sys.stdin).get('body') or '')")
-    rid=$(printf '%s' "$decoded" | python -c "import sys,json;print(json.load(sys.stdin).get('id') or '')")
-    rcommit=$(printf '%s' "$decoded" | python -c "import sys,json;print(json.load(sys.stdin).get('commit_id') or '')")
+V=none; FRESH=no; RID=; RCOMMIT=
+while IFS=$'\t' read -r rid rcommit b64; do
+    [ -n "${rid:-}" ] || continue
+    body=$(printf '%s' "$b64" | base64 -d 2>/dev/null || true)
     v=$(verdict_of "$body")
     [ "$v" = "none" ] && continue
-
-    fresh=no
+    V="$v"; RID="$rid"; RCOMMIT="$rcommit"
     if [ -n "$rcommit" ] && [ -n "$HEAD_ID" ]; then
-        rid_contrib=$(contribution "$rcommit" || true)
-        [ -n "$rid_contrib" ] && [ "$rid_contrib" = "$HEAD_ID" ] && fresh=yes
+        c=$(contribution "$rcommit" || true)
+        [ -n "$c" ] && [ "$c" = "$HEAD_ID" ] && FRESH=yes
     fi
-
-    BEST_V="$v"; BEST_FRESH="$fresh"; BEST_ID="$rid"; BEST_COMMIT="$rcommit"
     break
-done
+done <<< "$rows"
 
-echo "VERDICT=$BEST_V FRESH=$BEST_FRESH COMMIT=${BEST_COMMIT:-none} REVIEW_ID=${BEST_ID:-none}"
-[ "$BEST_V" != "none" ] && [ "$BEST_FRESH" = "yes" ]
+if [ "$V" = "none" ]; then
+    STATE=none
+elif [ "$FRESH" != "yes" ]; then
+    STATE=stale
+elif [ "$V" = "approve" ]; then
+    STATE=approved
+else
+    STATE=changes-requested
+fi
+
+echo "STATE=$STATE VERDICT=$V FRESH=$FRESH COMMIT=${RCOMMIT:-none} REVIEW_ID=${RID:-none}"
+[ "$STATE" = "approved" ]

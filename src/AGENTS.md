@@ -73,6 +73,12 @@ bash .github/scripts/watch-verdict.sh verdict <pr>   # blocks; 0 approve, 1 chan
 An approval binds to what was reviewed, so a rebase or a target-sync keeps it while a new commit or a
 conflict resolution kills it. Push a fix, expect to wait for a fresh ruling.
 
+**On `Request changes`:** if you are running under the Coordinator, it dispatches the fixes — one work
+item per blocking finding, spawned as a fresh Coding Agent with the PR number and the review body
+(`documentation/agents/coordinator.md`). Standalone, you are that agent: fix, verify, push, and wait for
+the re-review yourself. Either way the fix is made by a coder and the ruling by a reviewer, and the two
+are never the same pass.
+
 ## Definition of done
 Failing unit tests written first and now green · standards met · no PHI anywhere · traces to a `USERS.md`
 use case · tool/contract schemas updated if the interface changed · **a Code Reviewer verdict on the PR, approved** (`watch-verdict.sh` exit 0 — exit 2 is unreviewed, not approved) · **`documentation/` checked for staleness and any stale doc updated in this same change** (root `AGENTS.md`) · `dotnet format` clean.

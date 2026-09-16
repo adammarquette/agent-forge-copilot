@@ -220,6 +220,25 @@ jobs:
           echo "If genuinely nothing went stale, add a line to the PR body:"
           echo "    docs: n/a - <why nothing went stale>"
           exit 1
+  # ---------------------------------------------------------------------------
+  # VERDICT-SELFTEST - proves the verdict parser still accepts what the contract
+  # promises and rejects the near-misses.
+  #
+  # It runs here because documentation/agents/code-reviewer.md and CI-SETUP.md
+  # both cite this self-test as the thing keeping the parser honest - and until
+  # this job existed, nothing ran it. Loosening the regex would have left the
+  # pipeline green: a test that cannot fail, which this repo's own reviewer
+  # contract calls a finding (gh#400).
+  # ---------------------------------------------------------------------------
+  verdict-selftest:
+    name: verdict-selftest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verdict parser self-test
+        run: bash .github/scripts/verdict-state-selftest.sh
+
+
 
 
   # Validates reverse-proxy/nginx.conf.template's syntax without needing real upstream hosts
@@ -439,19 +458,23 @@ jobs:
           set -uo pipefail
           DEADLINE=$(( $(date +%s) + 5*60 ))
           while :; do
-            out=$(bash .github/scripts/verdict-state.sh "$PR_NUMBER" 2>&1) && rc=0 || rc=$?
+            out=$(bash .github/scripts/verdict-state.sh "$PR_NUMBER" 2>&1) || true
             echo "review-verdict: $out"
+            # Switch on STATE, never on VERDICT alone: a GitHub review is permanent, so an old
+            # `request-changes` stays readable forever and matching it would reject the very push
+            # meant to clear it. STATE folds freshness in (gh#400).
             case "$out" in
-              *VERDICT=request-changes*)
-                echo "::error::Changes requested. Only a push can resolve this."
+              *STATE=approved*)
+                echo "review-verdict: a fresh approval stands."
+                exit 0 ;;
+              *STATE=changes-requested*)
+                echo "::error::Changes requested on the current contribution. Only a push can resolve this."
                 exit 1 ;;
+              *STATE=stale*)
+                : ;;  # a ruling exists but predates this contribution - keep waiting for a re-review
             esac
-            if [ "$rc" -eq 0 ]; then
-              echo "review-verdict: a fresh approval stands."
-              exit 0
-            fi
             if [ "$(date +%s)" -ge "$DEADLINE" ]; then
-              echo "::error::No fresh verdict after 5 minutes."
+              echo "::error::No fresh verdict after 5 minutes (last read: $out)."
               echo "A verdict is a REVIEW body whose first line is '**Verdict: Approve**' or"
               echo "'**Verdict: Request changes**'. A PR comment or an inline comment does not count."
               echo "Post with: .github/scripts/post-verdict.sh review $PR_NUMBER COMMENT <body-file>"

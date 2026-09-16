@@ -11,11 +11,11 @@ right moment.
 
 | Contract | Lives at | ~tok | Loads |
 |---|---|---|---|
-| **Coding Agent** — production code + the test-first unit tests that drive it | [`src/AGENTS.md`](../../src/AGENTS.md) | 1.4K | **automatically**, on your first read of a file in `src/` |
+| **Coding Agent** — production code + the test-first unit tests that drive it | [`src/AGENTS.md`](../../src/AGENTS.md) | 1.5K | **automatically**, on your first read of a file in `src/` |
 | **Integration Testing Agent** — integration tests against real OpenEMR/MySQL in QA | [`tests/AGENTS.md`](../../tests/AGENTS.md) | 0.7K | **automatically**, in that project |
 | **Code Reviewer** — reviewing changes anywhere; **reads and reports only, never edits**, and leaves an approve / request-changes verdict on the MR | [`code-reviewer.md`](code-reviewer.md) | 3.3K | **on demand** — open it when you take the hat. Claude Code: the `code-reviewer` skill, or the [`code-reviewer` subagent](../../.claude/agents/code-reviewer.md) when an author spawns its own reviewer |
 | **Platform Agent** — CI, the image, compose, the proxy, deploy | [`platform.md`](platform.md) | 1.3K | **on demand**. Claude Code: the `platform` skill |
-| **Coordinator** — drives an MR from changes-requested back to green; **dispatches, never writes the fix, never merges or approves** | [`coordinator.md`](coordinator.md) | 0.9K | **on demand**. Claude Code: the `coordinator` skill |
+| **Coordinator** — drives an MR from changes-requested back to green; **dispatches, never writes the fix, never merges or approves** | [`coordinator.md`](coordinator.md) | 1.3K | **on demand**. Claude Code: the `coordinator` skill |
 | *(shared rubric, not a contract)* — which model tier a task takes, and the categories that always take the strongest one | [`task-sizing.md`](task-sizing.md) | 0.9K | read it when dispatching or choosing a model |
 
 Universal rules that bind all four: the root [`AGENTS.md`](../../AGENTS.md). **This file is the role model's
