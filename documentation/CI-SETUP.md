@@ -40,6 +40,7 @@ required.
 |---|---|---|
 | `format` | lint | `dotnet format --verify-no-changes` |
 | `license-scan` | lint | fails on a dependency outside `allowed-licenses.json` |
+| `doc-sizes` | lint | `scripts/check-doc-sizes.sh` — every `~tok` price in a routing table matches its file, and the gate's own self-test still reddens |
 | `nginx-config-lint` | lint | renders `nginx.conf.template` and runs `nginx -t` |
 | `build` | build | compile under warnings-as-errors |
 | `unit-tests` | test | fully mocked suite |

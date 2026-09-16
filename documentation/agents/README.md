@@ -4,12 +4,17 @@ Every agent contract in this repository, in one place. **Two of them do not live
 deliberate: a contract's location decides *when it loads*, so the file sits wherever it must be to arrive at the
 right moment.
 
-| Contract | Lives at | Loads |
-|---|---|---|
-| **Coding Agent** — production code + the test-first unit tests that drive it | [`src/AGENTS.md`](../../src/AGENTS.md) | **automatically**, on your first read of a file in `src/` |
-| **Integration Testing Agent** — integration tests against real OpenEMR/MySQL in QA | [`tests/AGENTS.md`](../../tests/AGENTS.md) | **automatically**, in that project |
-| **Code Reviewer** — reviewing changes anywhere; **reads and reports only, never edits**, and leaves an approve / request-changes verdict on the MR | [`code-reviewer.md`](code-reviewer.md) | **on demand** — open it when you take the hat. Claude Code: the `code-reviewer` skill, or the [`code-reviewer` subagent](../../.claude/agents/code-reviewer.md) when an author spawns its own reviewer |
-| **Platform Agent** — CI, the image, compose, the proxy, deploy | [`platform.md`](platform.md) | **on demand**. Claude Code: the `platform` skill |
+## The contracts
+
+`~tok` is what the read costs — bytes ÷ 4, to 0.1K — so you can see the price before paying it.
+`scripts/check-doc-sizes.sh` fails CI when a number here stops matching its file.
+
+| Contract | Lives at | ~tok | Loads |
+|---|---|---|---|
+| **Coding Agent** — production code + the test-first unit tests that drive it | [`src/AGENTS.md`](../../src/AGENTS.md) | 0.8K | **automatically**, on your first read of a file in `src/` |
+| **Integration Testing Agent** — integration tests against real OpenEMR/MySQL in QA | [`tests/AGENTS.md`](../../tests/AGENTS.md) | 0.7K | **automatically**, in that project |
+| **Code Reviewer** — reviewing changes anywhere; **reads and reports only, never edits**, and leaves an approve / request-changes verdict on the MR | [`code-reviewer.md`](code-reviewer.md) | 2.1K | **on demand** — open it when you take the hat. Claude Code: the `code-reviewer` skill, or the [`code-reviewer` subagent](../../.claude/agents/code-reviewer.md) when an author spawns its own reviewer |
+| **Platform Agent** — CI, the image, compose, the proxy, deploy | [`platform.md`](platform.md) | 1.3K | **on demand**. Claude Code: the `platform` skill |
 
 Universal rules that bind all four: the root [`AGENTS.md`](../../AGENTS.md). The role model is also recorded in
 [`ENGINEERING_STANDARDS.md` §15](../ENGINEERING_STANDARDS.md).

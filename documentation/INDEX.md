@@ -18,21 +18,27 @@ This file adds the missing third leg: **doc / requirement / use-case → code pr
 
 ## 1. Documents catalog (the sources)
 
-| Doc | Owns / is authoritative for | ID namespace it defines |
-|---|---|---|
-| [`PRD.md`](PRD.md) | Problem statement, functional & non-functional requirements | `FR-*`, `NFR-*` |
-| [`USERS.md`](USERS.md) | The one persona, the 90-second workflow, use cases + capability→UC map (§5) | `UC-1..UC-6` |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Topology, trust boundaries, verification design, deployment; the vMVP decision log | doc §-numbers |
-| [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) | **(Week 2)** Multimodal Evidence Agent — ingestion, supervisor/worker graph, hybrid RAG, eval gate | `W2-D1..W2-D14` |
-| [`INTERFACE_CONTROL.md`](INTERFACE_CONTROL.md) | The OpenEMR external interface (FHIR R4 / OAuth2 / SMART) — the ICD | ICD sections A, B, … |
-| [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md) | Stack, dependencies, testing tiers, logging/security standards, solution layout (§9) | `§`-numbers |
-| [`AUDIT.md`](AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) | audit finding refs |
-| [`W2_AUDIT.md`](W2_AUDIT.md) | Week 2 implementation audit — per-requirement Met/Partial/Gap coverage, risks, prioritized recommendations vs the submission gates | audit finding refs |
-| [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | — |
-| [`CI-SETUP.md`](CI-SETUP.md) · [`DEPLOYMENT.md`](DEPLOYMENT.md) | CI pipeline, and the operational runbook for the Docker container stack (bootstrap, config, quirks, rollback); the Railway Infrastructure-as-Code deployment is `DEPLOYMENT.md` §9 | — |
-| [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the container stack — services, what is published vs network-internal, flows, trust boundaries (mermaid) | — |
-| [`agents/`](agents/) | **Agent role contracts** — Code Reviewer, Platform — plus the index of every contract and, for each, whether it auto-loads or you must open it | — |
-| [`supporting/`](supporting/) | Source requirement PDFs (Week 1 & 2) and the architecture-defense decks | — |
+**`~tok` is what the read costs** — bytes ÷ 4, rounded to 0.1K — so you can see the price before paying it.
+Re-derive any of them with `scripts/measure-tok.sh`; `scripts/check-doc-sizes.sh` fails CI when a number here
+stops matching its file, because a price nothing measures drifts until it inverts the advice beside it. A
+blank cell means the row routes somewhere that is not one file.
+
+| Doc | Owns / is authoritative for | ~tok | ID namespace it defines |
+|---|---|---|---|
+| [`PRD.md`](PRD.md) | Problem statement, functional & non-functional requirements | 11.4K | `FR-*`, `NFR-*` |
+| [`USERS.md`](USERS.md) | The one persona, the 90-second workflow, use cases + capability→UC map (§5) | 3.4K | `UC-1..UC-6` |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Topology, trust boundaries, verification design, deployment; the vMVP decision log | 11.2K | doc §-numbers |
+| [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) | **(Week 2)** Multimodal Evidence Agent — ingestion, supervisor/worker graph, hybrid RAG, eval gate | 12.6K | `W2-D1..W2-D14` |
+| [`INTERFACE_CONTROL.md`](INTERFACE_CONTROL.md) | The OpenEMR external interface (FHIR R4 / OAuth2 / SMART) — the ICD | 5.7K | ICD sections A, B, … |
+| [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md) | Stack, dependencies, testing tiers, logging/security standards, solution layout (§9) | 6.6K | `§`-numbers |
+| [`AUDIT.md`](AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) | 5.1K | audit finding refs |
+| [`W2_AUDIT.md`](W2_AUDIT.md) | Week 2 implementation audit — per-requirement Met/Partial/Gap coverage, risks, prioritized recommendations vs the submission gates | 7.1K | audit finding refs |
+| [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | 3.8K | — |
+| [`DEPLOYMENT.md`](DEPLOYMENT.md) | The operational runbook for the Docker container stack — bootstrap, config, quirks, rollback; the Railway Infrastructure-as-Code deployment is §9 | 7.0K | — |
+| [`CI-SETUP.md`](CI-SETUP.md) | Both pipelines: the GitHub build/test/eval gates, and the GitLab job that reviews every MR (§7) | 3.0K | — |
+| [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the container stack — services, what is published vs network-internal, flows, trust boundaries (mermaid) | 2.6K | — |
+| [`agents/README.md`](agents/README.md) | **Agent role contracts** — Code Reviewer, Platform — plus the index of every contract and, for each, whether it auto-loads or you must open it | 1.5K | — |
+| [`supporting/`](supporting/) | Source requirement PDFs (Week 1 & 2) and the architecture-defense decks |  | — |
 
 > **Agent Context Optimization:** To prevent prompt/context bloat, do **not** load full architectural specs (`ARCHITECTURE.md`, `W2_ARCHITECTURE.md`, `PRD.md`) into context upfront. Use this `INDEX.md` table to identify the single project or document section required for your immediate task.
 
@@ -60,6 +66,7 @@ carries the finer detail; this is the family-level jump table.
 | `tools/MintQaIdentityToken` | CLI utility to mint test identity/session tokens for QA | Integration testing | `tests/AGENTS.md` |
 | `tools/LoadTestChat` | CLI load-testing tool for SignalR chat endpoints & turn latency | `NFR-PERF-*` verification | `PERFORMANCE_BASELINES.md` |
 | `.gitlab-ci.yml` · `.gitlab/ci/` | The GitLab pipeline — one job, the automated Code Reviewer on every MR push (`review.sh` + `render_review.py` and its self-test) | Review automation | `CI-SETUP.md` §7, `agents/code-reviewer.md` |
+| `scripts/` · `documentation/.harness.conf` | Corpus gates: `measure-tok.sh` prints a document's price, `check-doc-sizes.sh` fails CI when a priced row stops matching its file (`.harness.conf` registers which tables are priced) | Doc/context hygiene | `CI-SETUP.md` §1 (`doc-sizes`) |
 
 ---
 
