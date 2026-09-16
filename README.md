@@ -169,7 +169,7 @@ no browser caller — is blocked at the proxy:
 | [`W2_AUDIT.md`](documentation/W2_AUDIT.md) | 7.2K | **(Week 2)** Implementation audit — per-requirement Met/Partial/Gap against the submission gates |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | 5.7K | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
-| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 7.0K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
+| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 7.1K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
 | [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 2.6K | Physical/network view of the container stack — what is published vs internal (mermaid) |
 | [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.1K | Both pipelines — the GitHub build/test/eval gates, and the GitLab job that reviews every MR |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
