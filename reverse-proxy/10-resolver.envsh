@@ -1,0 +1,37 @@
+#!/bin/sh
+# Derive DNS_RESOLVER from the container's own /etc/resolv.conf when it is not
+# set explicitly, so the same image works under Docker (embedded DNS at
+# 127.0.0.11) and on Railway (private networking, a different resolver) with no
+# per-environment hardcoding. reference: gh#140
+#
+# This is a `.envsh`, not a `.sh`: the stock nginx entrypoint SOURCES *.envsh
+# (and only executes *.sh in a subshell), so an export here is visible to
+# 20-envsubst-on-templates.sh, which renders ${DNS_RESOLVER} into the config.
+# It must therefore run before it lexically - hence the 10- prefix.
+#
+# nginx's `resolver` directive needs a bare address; an IPv6 literal must be
+# bracketed or nginx -t fails.
+
+if [ -z "${DNS_RESOLVER:-}" ]; then
+    # First nameserver wins, matching normal resolver behaviour.
+    _ns=$(awk '/^nameserver/ { print $2; exit }' /etc/resolv.conf 2>/dev/null)
+
+    if [ -z "$_ns" ]; then
+        # No resolver at all: fall back to Docker's embedded DNS rather than
+        # rendering an empty directive, which would fail nginx -t outright.
+        _ns="127.0.0.11"
+        echo "10-resolver.envsh: no nameserver in /etc/resolv.conf; falling back to $_ns"
+    fi
+
+    # Bracket IPv6 literals (contain ':'), leave IPv4 alone.
+    case "$_ns" in
+        *:*) DNS_RESOLVER="[$_ns]" ;;
+        *)   DNS_RESOLVER="$_ns" ;;
+    esac
+
+    export DNS_RESOLVER
+    echo "10-resolver.envsh: DNS_RESOLVER=$DNS_RESOLVER (from /etc/resolv.conf)"
+    unset _ns
+else
+    echo "10-resolver.envsh: DNS_RESOLVER=$DNS_RESOLVER (explicit, detection skipped)"
+fi

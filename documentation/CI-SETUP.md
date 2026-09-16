@@ -7,7 +7,9 @@ required.
 ```
 .github/
 ├── workflows/
-│   └── ci.yml                      <- lint + build + test + evals (this document)
+│   ├── ci.yml                      <- lint + build + test + evals (this document)
+│   └── railway-config.yml          <- Railway IaC: plan on PR, apply on merge,
+│                                      scheduled drift check (DEPLOYMENT.md §9)
 ├── scripts/
 │   └── verify-test-results.sh      <- shared false-green guard (see §5)
 └── licenses/

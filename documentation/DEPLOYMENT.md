@@ -7,7 +7,8 @@ it working end to end.
 
 > **There is no hosted/public instance.** The project ran a managed-PaaS demo through mid-2026; it has been
 > retired, and every environment (demo, QA, review) is now the same set of containers brought up locally or on
-> whatever host the operator chooses. Quick start is in the root [`README.md`](../README.md#run-it); the
+> whatever host the operator chooses. A Railway definition now exists in source (§9) but has **not** been
+> applied, so this remains true today. Quick start is in the root [`README.md`](../README.md#run-it); the
 > physical/network view is [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md); this file is the operational
 > runbook (bootstrap, config, quirks, rollback).
 
@@ -265,3 +266,90 @@ enabled, throwaway credentials. A production deployment runs the **same containe
 HIPAA-eligible cloud under a signed BAA (default **AWS**), with TLS terminated at the edge, secrets from a real
 secret store, and the Site-Address-Override / `aud` invariant of §2 pointed at the real front door. See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) §13 and D15.
+
+## 9. Railway (Infrastructure as Code)
+
+> **Status: defined, not yet applied.** `.railway/railway.ts` describes the stack, but no Railway project has
+> been created from it. Until it is applied, §1's "there is no hosted/public instance" still holds — the
+> compose stack remains the deployment. Tracked by gh#140.
+
+Appended as §9 rather than inserted mid-document **on purpose**: the `§`-numbers are positional, and existing
+`reference: documentation/DEPLOYMENT.md §4` / `§7` comments in `src/` would silently point at the wrong
+section if everything below an insertion shifted. See gh#141.
+
+### Why Railway again, and why it is different this time
+
+The previous managed environment was retired (commit `0a4c729`) because *"most of its working config only ever
+existed as live dashboard edits"* — not because the platform was wrong. It could not be rebuilt from the
+repository, so when it went away, it went away for good.
+
+The whole point of this version is that **the definition lives in source**:
+
+- [`.railway/railway.ts`](../.railway/railway.ts) is the project — five services, four volumes, every
+  non-secret variable.
+- [`.github/workflows/railway-config.yml`](../.github/workflows/railway-config.yml) plans on PR, applies on
+  merge, and runs a **scheduled drift check** (`railway config plan --detailed-exit-code`, which exits `2`
+  when the live environment no longer matches the file). A dashboard edit becomes a red build.
+
+**Not `railway.json`/`railway.toml`.** Config as Code is deprecated, new services cannot opt into it, and
+existing files stop being read on **2026-12-01**.
+
+### What the file cannot do
+
+Applying it yields a stack that **boots but cannot complete a SMART launch**. Everything in §4 is live state in
+OpenEMR's *database* — Site Address Override, both OAuth clients, the module Launch URI, demo seeding — and no
+infrastructure tool can express it. The retired GitLab CI had deploy-time self-heal jobs for exactly this
+(`a0dc176`, `60c969f`); that tree was deleted in `5a1be7b` and has to be rebuilt before a Railway deploy is
+reproducible end to end. **That is the remaining work on gh#140, and the reason this section says "not yet
+applied" rather than "run this".**
+
+### Topology mapping
+
+Compose service → Railway service, one for one. The invariants of §2 carry over unchanged:
+
+| compose | Railway | notes |
+|---|---|---|
+| `reverse-proxy` | built from GitHub, `rootDirectory: reverse-proxy` | **the only service with a public domain** |
+| `openemr` | pinned fork image | `SWARM_MODE=yes` still required — volumes mount empty (§7) |
+| `mysql` | `mysql:9.4` image | image, not the managed helper, for parity with compose |
+| `agent-forge-api` | pinned GHCR sidecar image | published by CI on merge to `main` (§5) |
+| `postgres` | `pgvector/pgvector:pg17` | **must be pgvector**, not the managed Postgres helper |
+
+`OpenEmr__BaseUrl` and `Bff__PublicBaseUrl` are derived from the proxy's own
+`${{reverse-proxy.RAILWAY_PUBLIC_DOMAIN}}`, so the one-origin invariant holds through a domain change without a
+hand edit. OpenEMR's `site_addr_oath` must still be set to that same value by the bootstrap — that half is
+database state and cannot be derived.
+
+### Two Railway-specific gotchas, both already handled
+
+1. **DNS.** The proxy resolves upstreams at request time and needs a `resolver`. Docker's embedded DNS
+   (`127.0.0.11`) does not exist on Railway, so `reverse-proxy/10-resolver.envsh` derives the resolver from the
+   container's own `/etc/resolv.conf` at start. One image, both environments, nothing hardcoded. It is an
+   `.envsh` because the stock nginx entrypoint *sources* those (and only executes `*.sh` in a subshell), so the
+   export reaches the envsubst step that renders the template.
+2. **IPv6.** Railway private DNS is dual-stack, but both upstreams listen on IPv4 only — the sidecar binds
+   `0.0.0.0` and the fork's Apache hardcodes `Listen 0.0.0.0:80`. An AAAA answer would yield a connection
+   refused on a perfectly healthy stack, so the resolver runs with `ipv6=off` (`RESOLVER_IPV6`, harmless under
+   Docker). Set it to `on` only for a legacy IPv6-only Railway environment (pre-2025-10-16).
+
+### Secrets
+
+Declared in the IaC as `preserve()` — "keep whatever is set in Railway" — so they are never written to source
+and survive every apply. They must be set **once per environment** before the first deploy, or the sidecar
+crash-loops on `Llm:ApiKey` (§3, `[Required]` + `ValidateOnStart`):
+
+`MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`, `POSTGRES_PASSWORD` (shared variable, referenced by the sidecar's
+connection string), `OPENEMR_ADMIN_PASSWORD`, `ANTHROPIC_API_KEY`, and both OAuth client id/secret pairs —
+which do not exist until the §4 bootstrap has registered them.
+
+### Operating it
+
+```bash
+npm ci                      # installs the railway SDK so the file can be evaluated
+npm run iac:typecheck       # tsc over .railway/railway.ts
+railway login && railway link
+railway config plan         # preview; never mutates
+railway config apply        # applies after confirmation
+```
+
+CI needs a **project token** (scoped to one environment) as the `RAILWAY_TOKEN` repository secret.
