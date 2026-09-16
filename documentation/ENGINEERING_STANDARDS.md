@@ -366,7 +366,7 @@ out as a hierarchy, and **the nearest file to what's being edited takes preceden
 | `/AGENTS.md` | whole repo | Universal rules (runtime, no-PHI, secrets, logging, dependency caps, "trace to a use case") |
 | `/src/AGENTS.md` | `src/` | **Coding Agent** — production code **and** the test-first unit tests that drive it |
 | `/tests/AGENTS.md` | `tests/` | **Integration Testing Agent** — integration tests against real OpenEMR/MySQL in **QA** |
-| `/documentation/agents/code-reviewer.md` | any change | **Code Reviewer** — finds defects before they land; reports, never fixes |
+| `/documentation/agents/code-reviewer.md` | any change | **Code Reviewer** — finds defects before they land; **never edits a file**, and leaves an approve / request-changes verdict on the MR |
 | `/documentation/agents/platform.md` | CI, image, compose, proxy, deploy | **Platform Agent** — the pipeline and the runtime |
 
 **Two of them auto-load, two do not — and that is the design.** A contract's location decides *when* it arrives.

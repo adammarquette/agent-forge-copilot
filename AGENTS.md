@@ -1,10 +1,9 @@
 # AGENTS.md — AgentForge Clinical Copilot (root)
 
-Instructions for AI coding agents working in this repository. **Nested `AGENTS.md` files take precedence for
-their subtree:** `src/AGENTS.md` governs the **Coding Agent**; `tests/AGENTS.md` governs the **Integration
-Testing Agent**. **Role contracts live in [`documentation/agents/`](documentation/agents/)** — Code Reviewer and
-Platform — and never auto-load; open the one whose hat you are wearing. This root file holds the rules that apply
-everywhere.
+Instructions for AI coding agents working in this repository. This file holds **only what is true for every
+agent everywhere** plus the routing table below. Anything that belongs to one role lives in that role's own
+contract — if you are about to add a rule here that starts "the reviewer should…", it belongs in
+[`documentation/agents/`](documentation/agents/) instead.
 
 ## What this repo is
 The **.NET sidecar** for an AI clinical copilot embedded in OpenEMR for the outpatient cardiologist. It
@@ -34,24 +33,26 @@ these AGENTS files summarize and point to it.
 - **Comments are terse.** Inline comments are one short line, only for non-obvious *why* (a hidden constraint,
   a workaround, a surprising invariant) — never restate *what* the code does. XML doc comments on public
   methods describe behavior/contract only.
-- **Reference comments:** Must be prefixed `reference:` (e.g. `// reference: documentation/ARCHITECTURE.md §9` or `// reference: gh#62`). Legacy `gitlab#N` citations refer to a retired tracker and do not map to GitHub (`gh#N`); treat them as historical context, not links. See `documentation/INDEX.md` §5.
+- **Reference comments:** Must be prefixed `reference:` (e.g. `// reference: documentation/ARCHITECTURE.md §9` or `// reference: labs.gauntletai.com#140`). A bare `#N`/`!N` and legacy `gitlab#N` citations both mean the **live GitLab tracker** (`labs.gauntletai.com`, project `1464`) and still resolve; `gh#N` means the **GitHub mirror**, which numbers its issues independently. Never cite a GitHub issue as a bare `#N`. See `documentation/INDEX.md` §5.
 - **Commits:** Conventional Commits; add `Assisted-by:` trailer when authored by an AI agent.
-- **No orphaned PRs:** Every PR references a tracking issue (`Closes #N` / `Related to #N`) opened *before* the PR.
+- **No orphaned MRs:** Every merge request references a tracking issue (`Closes #N` / `Related to #N`) opened *before* it.
 
-## The agent roles
-| Agent | Scope | Definition | How it loads |
-|---|---|---|---|
-| **Coding Agent** | `src/` production code **and** the test-first unit tests that drive it | `src/AGENTS.md` | automatically, editing `src/` |
-| **Integration Testing Agent** | the integration test project (real deps in QA) | `tests/AGENTS.md` | automatically, in that project |
-| **Code Reviewer** | reviewing any change, anywhere | `documentation/agents/code-reviewer.md` | **open it yourself**, or the `code-reviewer` skill / subagent |
-| **Platform Agent** | CI, the image, compose, the proxy, deploy | `documentation/agents/platform.md` | **open it yourself**, or the `platform` skill |
+## Routing — find your contract, then open it
 
-The first two arrive by directory proximity. The last two follow *what you are doing* rather than where a file
-sits, so they **never auto-load** — and wearing one of those hats without opening its contract is the failure
-nothing catches. In Claude Code each is also a **skill** under `.claude/skills/`, and the reviewer additionally a
-**subagent** (`.claude/agents/code-reviewer.md`) for the isolated context an author-spawned review needs. **A
-skill is a trigger, not the contract** — it points at the file above and never copies it. Index and rationale:
-[`documentation/agents/README.md`](documentation/agents/README.md).
+**Work out which hat you are wearing and open that contract before you start.** This table is the whole of what
+this file says about roles; each contract owns its own rules.
+
+| If you are… | Your contract | Arrives |
+|---|---|---|
+| writing `src/` code or the unit tests driving it | [`src/AGENTS.md`](src/AGENTS.md) | on its own, when you read a file there |
+| writing integration tests against real dependencies | [`tests/AGENTS.md`](tests/AGENTS.md) | on its own, in that project |
+| reviewing a change — any change, anywhere | [`documentation/agents/code-reviewer.md`](documentation/agents/code-reviewer.md) | **never on its own — open it** |
+| touching CI, the image, compose, the proxy or a deploy | [`documentation/agents/platform.md`](documentation/agents/platform.md) | **never on its own — open it** |
+
+A contract sits wherever it has to be to arrive when it applies: subtree contracts load by directory proximity,
+role contracts follow what you are *doing* and so cannot. **Nothing catches a hat worn without its contract** —
+no check fails and no reviewer sees a diff. [`documentation/agents/README.md`](documentation/agents/README.md) is
+the index, and explains the design and the tooling that narrows the gap.
 
 ## Build / test
 - Build: `dotnet build AgentForge.slnx`
@@ -59,4 +60,5 @@ skill is a trigger, not the contract** — it points at the file above and never
 - Eval rubric tests (xUnit): `dotnet test tests/AgentForge.EvalTests`
 - Eval console gate: `dotnet run --project tests/AgentForge.Evals -- evals`
 - Integration tests (QA env, real deps): `dotnet test tests/AgentForge.IntegrationTests`
-- Before opening a PR: `dotnet format --verify-no-changes` + unit & eval tests green.
+- Before opening an MR: `dotnet format --verify-no-changes` + unit & eval tests green. A GitLab-only
+  branch gets no pipeline (`documentation/CI-SETUP.md`), so these are on you.

@@ -8,7 +8,7 @@ right moment.
 |---|---|---|
 | **Coding Agent** — production code + the test-first unit tests that drive it | [`src/AGENTS.md`](../../src/AGENTS.md) | **automatically**, on your first read of a file in `src/` |
 | **Integration Testing Agent** — integration tests against real OpenEMR/MySQL in QA | [`tests/AGENTS.md`](../../tests/AGENTS.md) | **automatically**, in that project |
-| **Code Reviewer** — reviewing changes anywhere | [`code-reviewer.md`](code-reviewer.md) | **on demand** — open it when you take the hat. Claude Code: the `code-reviewer` skill, or the [`code-reviewer` subagent](../../.claude/agents/code-reviewer.md) when an author spawns its own reviewer |
+| **Code Reviewer** — reviewing changes anywhere; **reads and reports only, never edits**, and leaves an approve / request-changes verdict on the MR | [`code-reviewer.md`](code-reviewer.md) | **on demand** — open it when you take the hat. Claude Code: the `code-reviewer` skill, or the [`code-reviewer` subagent](../../.claude/agents/code-reviewer.md) when an author spawns its own reviewer |
 | **Platform Agent** — CI, the image, compose, the proxy, deploy | [`platform.md`](platform.md) | **on demand**. Claude Code: the `platform` skill |
 
 Universal rules that bind all four: the root [`AGENTS.md`](../../AGENTS.md). The role model is also recorded in
@@ -44,6 +44,18 @@ saw the change being written — which is what an author spawning its own review
 it, so a rule keeps one home and deleting a skill loses the prompt rather than the rule. Two things it does not
 fix: the trigger is a *match*, not a guarantee, and other tools read `AGENTS.md` and see no skills at all.
 Opening the contract yourself remains the thing you are accountable for.
+
+## The reviewer is the one role that is also a boundary
+
+The other three contracts describe how to do work. The Code Reviewer's also says what it may not touch: **it
+never edits a file**, and its output is a verdict on a merge request — approve, or request changes with findings
+attached. That is why it is the one role with a **subagent** as well as a skill: a skill loads into the caller's
+context, so an author who invokes it is still the author, holding both hats and reviewing a diff they are still
+free to change. The subagent runs in a context that never saw the change and has **no file-editing tools at
+all**, which makes the boundary structural instead of a promise. Spawn it rather than reviewing your own work.
+
+A reviewer that edits collapses three things at once: the author never learns the pattern, the next pass has the
+reviewer reviewing their own work, and the diff that was approved is not the diff that landed.
 
 ## Never mix hats in one pass
 

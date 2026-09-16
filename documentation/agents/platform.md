@@ -38,7 +38,7 @@ The root contract's rules apply unchanged. Four land specifically on the platfor
 - **Trust boundaries are topology.** What is published versus network-internal is load-bearing
   ([`DEPLOYMENT_TOPOLOGY.md`](../DEPLOYMENT_TOPOLOGY.md)): an endpoint whose authorization argument is "only the
   proxy can reach it" stops being safe the moment a port is published or a network is flattened. Re-read the
-  topology doc before changing either, and say in the PR which boundary moved.
+  topology doc before changing either, and say in the MR which boundary moved.
 - **Enforcement does not live in infrastructure.** Authorization and no-PHI are enforced in code; the proxy and
   the network are defence in depth, never the thing standing between a caller and patient data.
 
@@ -64,12 +64,12 @@ The runbook's *Known quirks* ([`DEPLOYMENT.md`](../DEPLOYMENT.md) §7) is the li
 compose. The shape of the trap is the same each time: a failure whose message points somewhere other than its
 cause — an empty named volume reported as a missing PHP file, a container healthy minutes before it is usable, a
 proxy that starts fine and 502s, a FHIR patient id that silently became someone else after a reseed. **When you
-hit one, add it there in the same change** rather than in the PR description, which nobody greps.
+hit one, add it there in the same change** rather than in the MR description, which nobody greps.
 
 ## Definition of done
 
 Pipeline green · the same image runs locally and deployed · no secrets in source, logs or image layers · every
 setting the operator must supply present in `.env.example` **and** explained in the runbook · the one-origin
 invariant and the published/internal boundary provably intact after the change · the affected section of
-`CI-SETUP.md` / `DEPLOYMENT.md` / `DEPLOYMENT_TOPOLOGY.md` updated in the same PR · new quirks recorded where
+`CI-SETUP.md` / `DEPLOYMENT.md` / `DEPLOYMENT_TOPOLOGY.md` updated in the same change · new quirks recorded where
 the next operator will look.
