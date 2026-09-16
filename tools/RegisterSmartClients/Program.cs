@@ -5,16 +5,16 @@ using System.Text.Json;
 // lists - INCLUDING patient/Binary.read (patient) and user/Binary.read (agenda), which OpenEMR's
 // finalizeScopes drops when the client isn't registered for them, breaking click-to-source (gitlab#128).
 //
-// The OAuth clients are DB-only and vanish on an OpenEMR reseed (documentation/RAILWAY.md "OAuth clients").
+// The OAuth clients are DB-only and vanish on an OpenEMR reseed (documentation/DEPLOYMENT.md §4 "OAuth clients").
 // This makes their re-creation reproducible instead of a manual Admin-GUI dance: it POSTs the registrations,
 // then prints the new client ids/secrets, the GitLab CI variables to update, and the one SQL statement that
 // enables the clients + skips the per-launch authorization prompt.
 //
 // Usage:
 //   dotnet run --project tools/RegisterSmartClients -- <frontDoorBaseUrl> [site]
-//   e.g. dotnet run --project tools/RegisterSmartClients -- https://agent-forge-reverse-proxy-staging.up.railway.app
+//   e.g. dotnet run --project tools/RegisterSmartClients -- http://localhost:8080
 // The base URL MUST be the reverse-proxy front door (never a service's own host), so the redirect_uri and the
-// OAuth aud match the launch (documentation/RAILWAY.md). No secrets are read or written by this tool.
+// OAuth aud match the launch (documentation/DEPLOYMENT.md §2). No secrets are read or written by this tool.
 
 if (args.Length < 1)
 {
@@ -32,7 +32,7 @@ var site = args.Length > 1 ? args[1] : "default";
 ClientSpec[] clients =
 [
     new(
-        Name: "AgentForge Co-Pilot (patient launch)",
+        Name: "AgentForge Copilot (patient launch)",
         RedirectPath: "/agentforge/callback",
         CiIdVar: "OpenEmr__ClientId",
         CiSecretVar: "OpenEmr__ClientSecret",
@@ -43,9 +43,9 @@ ClientSpec[] clients =
             "patient/AllergyIntolerance.read", "patient/MedicationRequest.read", "patient/Procedure.read",
             "patient/DiagnosticReport.read", "api:oemr")),
     new(
-        Name: "AgentForge Co-Pilot (roster/agenda launch)",
+        Name: "AgentForge Copilot (roster/agenda launch)",
         RedirectPath: "/agentforge/agenda/callback",
-        CiIdVar: "OPenEmrAgenda__ClientId", // reference: RAILWAY.md - live var name carries this casing typo
+        CiIdVar: "OPenEmrAgenda__ClientId", // reference: DEPLOYMENT.md §3 - the deployed var name carried this casing typo
         CiSecretVar: "OpenEmrAgenda__ClientSecret",
         Scope: string.Join(' ',
             "openid", "fhirUser", "launch", "api:fhir",
@@ -99,7 +99,7 @@ foreach (var spec in clients)
 }
 
 Console.WriteLine();
-Console.WriteLine("=== Next steps (reference: documentation/RAILWAY.md) ===");
+Console.WriteLine("=== Next steps (reference: documentation/DEPLOYMENT.md §4) ===");
 Console.WriteLine();
 Console.WriteLine("1) Set these GitLab CI/CD variables (masked) to the values below, then re-run the deploy:");
 foreach (var (spec, clientId, clientSecret) in registered)

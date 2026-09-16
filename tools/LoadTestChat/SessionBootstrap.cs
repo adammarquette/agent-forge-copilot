@@ -1,6 +1,6 @@
 using Microsoft.Playwright;
 
-namespace MarqSpec.AgentForge.LoadTestChat;
+namespace AgentForge.LoadTestChat;
 
 /// <summary>
 /// Automates obtaining a real chat session cookie for load testing (GitLab issue #20, following up

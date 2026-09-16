@@ -18,17 +18,17 @@ required.
 > **Migration status.** This repo ran on GitLab CI until the move to GitHub. The
 > **CI half** (lint, build, test, evals) is ported and live, and the **sidecar
 > image is now published to GHCR** on merge to `main` (`publish-image`, below).
-> Still **not yet ported**: the Railway **deploy** that consumes that image
-> (re-assert vars + redeploy), the post-deploy `/health` + `/ready` smoke tests,
-> and the health-gated integration suite — they need repository secrets that do
-> not exist yet and touch live infrastructure. The retired `.gitlab-ci.yml` and
-> `.gitlab/ci/` have been **deleted from the tree**; the originals — including
-> `deploy.yml`, whose comments encode the deploy incidents the port must honor
-> (the `Llm__ApiKey` drift, the `railway up` log-stream false positive, the
-> scope-array truncation) — live in git history at `fbbf07d` (`git show
-> fbbf07d:.gitlab/ci/deploy.yml`). Until the deploy job lands, **deploys are
-> manual** (and Railway still builds from source until the service is repointed
-> at the GHCR image — see `RAILWAY.md`).
+> Still **not ported**: the post-deploy `/health` + `/ready` smoke tests and the
+> health-gated integration suite — they need repository secrets that do not exist
+> yet and a running stack to point at. There is no CD half to port beyond that:
+> the project has **no hosted environment**, so "deploy" means pulling the
+> published image into a container stack, which the operator does (see
+> [`DEPLOYMENT.md`](DEPLOYMENT.md)). The retired `.gitlab-ci.yml` and `.gitlab/ci/`
+> have been **deleted from the tree**; the originals — including `deploy.yml`,
+> whose comments encode the deploy incidents any future CD job should honor (the
+> `Llm__ApiKey` drift, the deploy-log-stream false positive, the scope-array
+> truncation) — live in git history at `fbbf07d`
+> (`git show fbbf07d:.gitlab/ci/deploy.yml`).
 
 ## 1. What runs, and when
 
@@ -156,5 +156,6 @@ faster and removes the whole bug class.
 3. Someone merges to the target branch → "require branches to be up to date"
    forces an update, which re-runs against the new target.
 4. PR merges → the `main` push run executes the same suite on the merged result.
-5. **Deploy is manual** until the CD half is ported — see the migration note at
-   the top and `RAILWAY.md` for the deploy and rollback procedure.
+5. **Deploy is the operator's step** — CI publishes the image; bringing it up is
+   `docker compose`. See `DEPLOYMENT.md` §5–§6 for the deploy and rollback
+   procedure.

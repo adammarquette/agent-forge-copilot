@@ -29,31 +29,35 @@ This file adds the missing third leg: **doc / requirement / use-case → code pr
 | [`AUDIT.md`](AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) | audit finding refs |
 | [`W2_AUDIT.md`](W2_AUDIT.md) | Week 2 implementation audit — per-requirement Met/Partial/Gap coverage, risks, prioritized recommendations vs the submission gates | audit finding refs |
 | [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | — |
-| [`CI-SETUP.md`](CI-SETUP.md) · [`RAILWAY.md`](RAILWAY.md) | CI pipeline and Railway (staging) deployment operations | — |
-| [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the deployed `staging` environment — services, public vs private exposure, flows, trust boundaries (mermaid) | — |
+| [`CI-SETUP.md`](CI-SETUP.md) · [`DEPLOYMENT.md`](DEPLOYMENT.md) | CI pipeline, and the operational runbook for the Docker container stack (bootstrap, config, quirks, rollback) | — |
+| [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the container stack — services, what is published vs network-internal, flows, trust boundaries (mermaid) | — |
 | [`supporting/`](supporting/) | Source requirement PDFs (Week 1 & 2) and the architecture-defense decks | — |
 
----
+> **Agent Context Optimization:** To prevent prompt/context bloat, do **not** load full architectural specs (`ARCHITECTURE.md`, `W2_ARCHITECTURE.md`, `PRD.md`) into context upfront. Use this `INDEX.md` table to identify the single project or document section required for your immediate task.
 
 ## 2. Code map (the missing edge: concept → project → spec)
 
 Layout is authoritative in [`ENGINEERING_STANDARDS.md` §9](ENGINEERING_STANDARDS.md). Each `src/` project also
 carries the finer detail; this is the family-level jump table.
 
-| Project (`src/MarqSpec.AgentForge.*`) | What it is | Implements | Specified by |
+| Project | What it is | Implements | Specified by |
 |---|---|---|---|
-| `.Api` | ASP.NET Core host: BFF (server-side token custody), SignalR hub, `/health` + `/ready` | `FR-AUTH-*`, `FR-CHAT-*`, `NFR-HEALTH-1`, `NFR-SEC-*` | `ARCHITECTURE.md` (BFF/trust), `PRD.md` |
-| `.Agent` | Orchestrator: multi-turn loop, tool chaining, prioritized synthesis | `FR-CHAT-*`, `FR-VERIF-0` (routing) | `ARCHITECTURE.md`, `USERS.md` (UC-1/2/6) |
-| `.Mcp` | MCP tool server: strict tool contracts, audit log, read-only FHIR tools (min-necessary) | `FR-DATA-*`, `NFR-CONTRACT-1` | `INTERFACE_CONTROL.md`, `PRD.md` |
-| `.Verification` | Source attribution + cardiology domain-constraint rules (INR/QT/renal/chronotropy) | `FR-VERIF-*` | `ARCHITECTURE.md` (verification), `USERS.md` (UC-3) |
-| `.Integration.OpenEmr` | Refit clients, OAuth/SMART flow, FHIR mappers, Polly resilience | `FR-AUTH-*`, `FR-DATA-*`, `NFR-REL-*` | `INTERFACE_CONTROL.md` (ICD) |
-| `.Llm` | `ILlmProvider` abstraction + one implementation (the provider seam) | `FR-CHAT-*` (generation) | `ARCHITECTURE.md` |
-| `.Observability` | OpenTelemetry activity source + metrics, correlation IDs | `FR-OBS-*`, `NFR-TRACE-1`, `NFR-PERF-*` | `ENGINEERING_STANDARDS.md` §7, `PERFORMANCE_BASELINES.md` |
-| `.Data` | **(Week 2)** EF Core + pgvector data layer: hybrid-RAG corpus + `DerivedFactStore` (entities, `DbContext`, migrations) | Week 2 persistence | `W2_ARCHITECTURE.md` §5 (W2-D14) |
-| `.Documents` | **(Week 2)** VLM document extraction → strict schema; PdfPig word/bbox layer for citations | Week 2 ingestion (`FR-DOC-*`) | `W2_ARCHITECTURE.md` §3 |
-| `.Retrieval` | **(Week 2)** Hybrid RAG: dense pgvector + sparse FTS + RRF fusion + Cohere rerank (`IDenseRetriever`/`IReranker`/`IEmbeddingProvider` seams) | Week 2 retrieval (`FR-RAG-*`) | `W2_ARCHITECTURE.md` §5 |
-| `.Agents` | **(Week 2)** Evidence-agent supervisor + four workers (extract → retrieve → compose → critic) + ingestion service; logged/metered handoffs | Week 2 multi-agent graph (`FR-GRAPH-*`) | `W2_ARCHITECTURE.md` §6 |
+| `src/…Api` | ASP.NET Core host: BFF (server-side token custody), SignalR hub, `/health` + `/ready` | `FR-AUTH-*`, `FR-CHAT-*`, `NFR-HEALTH-1`, `NFR-SEC-*` | `ARCHITECTURE.md` (BFF/trust), `PRD.md` |
+| `src/…Agent` | Orchestrator: multi-turn loop, tool chaining, prioritized synthesis | `FR-CHAT-*`, `FR-VERIF-0` (routing) | `ARCHITECTURE.md`, `USERS.md` (UC-1/2/6) |
+| `src/…Mcp` | MCP tool server: strict tool contracts, audit log, read-only FHIR tools (min-necessary) | `FR-DATA-*`, `NFR-CONTRACT-1` | `INTERFACE_CONTROL.md`, `PRD.md` |
+| `src/…Verification` | Source attribution + cardiology domain-constraint rules (INR/QT/renal/chronotropy) | `FR-VERIF-*` | `ARCHITECTURE.md` (verification), `USERS.md` (UC-3) |
+| `src/…Integration.OpenEmr` | Refit clients, OAuth/SMART flow, FHIR mappers, Polly resilience | `FR-AUTH-*`, `FR-DATA-*`, `NFR-REL-*` | `INTERFACE_CONTROL.md` (ICD) |
+| `src/…Llm` | `ILlmProvider` abstraction + Anthropic implementation (the provider seam) | `FR-CHAT-*` (generation) | `ARCHITECTURE.md` |
+| `src/…Observability` | OpenTelemetry activity source + metrics, correlation IDs | `FR-OBS-*`, `NFR-TRACE-1`, `NFR-PERF-*` | `ENGINEERING_STANDARDS.md` §7, `PERFORMANCE_BASELINES.md` |
+| `src/…Data` | **(Week 2)** EF Core + pgvector data layer: hybrid-RAG corpus + `DerivedFactStore` (entities, `DbContext`, migrations) | Week 2 persistence | `W2_ARCHITECTURE.md` §5 (W2-D14) |
+| `src/…Documents` | **(Week 2)** VLM document extraction → strict schema; PdfPig word/bbox layer for citations | Week 2 ingestion (`FR-DOC-*`) | `W2_ARCHITECTURE.md` §3 |
+| `src/…Retrieval` | **(Week 2)** Hybrid RAG: dense pgvector + sparse FTS + RRF fusion + Cohere rerank (`IDenseRetriever`/`IReranker`/`IEmbeddingProvider` seams) | Week 2 retrieval (`FR-RAG-*`) | `W2_ARCHITECTURE.md` §5 |
+| `src/…Agents` | **(Week 2)** Evidence-agent supervisor + four workers (extract → retrieve → compose → critic) + ingestion service; logged/metered handoffs | Week 2 multi-agent graph (`FR-GRAPH-*`) | `W2_ARCHITECTURE.md` §6 |
 | `tests/…UnitTests` · `…IntegrationTests` · `…EvalTests` · `…Evals` | Mocked unit tests (test-first) · real-dependency QA tests · deterministic rubric xUnit tests · golden-set eval runner (cases in top-level `evals/`) | `FR-EVAL-*` | `ENGINEERING_STANDARDS.md` §8, `tests/AGENTS.md` |
+| `tools/RegisterSmartClients` | CLI utility to register confidential SMART client credentials in OpenEMR | SMART OAuth setup | `README.md` (Adding the copilot) |
+| `tools/SeedDemoPatients` | CLI utility to seed demo synthetic patients & clinical records | Demo data setup | `README.md` (Run it) |
+| `tools/MintQaIdentityToken` | CLI utility to mint test identity/session tokens for QA | Integration testing | `tests/AGENTS.md` |
+| `tools/LoadTestChat` | CLI load-testing tool for SignalR chat endpoints & turn latency | `NFR-PERF-*` verification | `PERFORMANCE_BASELINES.md` |
 
 ---
 
