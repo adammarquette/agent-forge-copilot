@@ -16,8 +16,11 @@
 # SETUP (one-time, before this workflow can do anything):
 #   1. Create a Railway PROJECT TOKEN scoped to the target environment
 #      (Railway project -> Settings -> Tokens) and store it as the repository
-#      secret RAILWAY_TOKEN. A project token is scoped to ONE environment, so
-#      this workflow can only ever touch that environment.
+#      secret RAILWAY_TOKEN_PROD. A project token is scoped to ONE environment,
+#      so this workflow can only ever touch that environment - here, PRODUCTION.
+#      A RAILWAY_TOKEN_STAGING secret also exists and is DELIBERATELY UNWIRED:
+#      production is the only environment in use. That is a decision, not a TODO -
+#      wire staging in only if there is a reason to plan against it first.
 #   2. Set the secret variables the IaC declares as preserve() — they are
 #      deliberately absent from source. See documentation/DEPLOYMENT.md.
 #
@@ -84,7 +87,7 @@ jobs:
       - uses: railwayapp/config@v1
         with:
           command: plan
-          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+          railway-token: ${{ secrets.RAILWAY_TOKEN_PROD }}
 
   # ---------------------------------------------------------------------------
   # APPLY — on MERGE only. Applies the artifact the plan job pinned; it does NOT
@@ -123,7 +126,7 @@ jobs:
       - uses: railwayapp/config@v1
         with:
           command: apply
-          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+          railway-token: ${{ secrets.RAILWAY_TOKEN_PROD }}
 
   # ---------------------------------------------------------------------------
   # DRIFT — the guardrail that makes this whole approach worth the ceremony.
@@ -155,7 +158,7 @@ jobs:
         run: npm install -g @railway/cli
       - name: Detect drift between .railway/railway.ts and the live environment
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
         run: |
           set +e
           railway config plan --detailed-exit-code

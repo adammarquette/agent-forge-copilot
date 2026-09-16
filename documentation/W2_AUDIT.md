@@ -6,7 +6,10 @@
 `tests/`, `evals/`, `observability/`, `.github/workflows/ci.yml`, and the deployed-config docs. **Scope:** implementation
 coverage, gaps, and risk — *not* a security pen-test or a performance run.
 
-> This audits *our sidecar's* Week 2 work. [`AUDIT.md`](AUDIT.md) is a separate audit of the OpenEMR fork.
+> This audits *our sidecar's* Week 2 work. [`AUDIT.md`](AUDIT.md) (**~5.1K**) is a separate audit of the
+> OpenEMR **fork** — the pre-agent baseline, preserved and never edited. **You do not need it to read this
+> file.** §5 below carries its findings forward with current status, so open `AUDIT.md` only when you need a
+> base finding's original detail: what was observed, where in the fork, and why it mattered.
 
 **Legend:** ✅ Met · 🟡 Partial · ❌ Gap · Each finding cites the file(s) it's based on. "Not fully traced"
 marks items asserted from a single reference rather than end-to-end verification.
@@ -268,11 +271,14 @@ telemetry" — are resolved and dropped.)*
 
 ## 5. Base-system findings carried forward (from AUDIT.md)
 
-> **Why this section exists.** [`AUDIT.md`](AUDIT.md) is the pre-agent baseline of the OpenEMR fork, preserved
-> as a historical snapshot and never edited. Its findings must not be lost as the weekly audits move on, so
-> **each weekly implementation audit carries the base findings forward with their current status** — the role
-> the retired `AUDIT_DELTA.md` used to play, now folded in here so there is one living audit rather than a
-> separate delta doc to keep in sync. Next week's audit inherits and updates this table.
+> **Why this section exists.** [`AUDIT.md`](AUDIT.md) (**~5.1K**) is the pre-agent baseline of the OpenEMR
+> fork, preserved as a historical snapshot and never edited. Its findings must not be lost as the weekly
+> audits move on, so **each weekly implementation audit carries the base findings forward with their current
+> status** — the role the retired `AUDIT_DELTA.md` used to play, now folded in here so there is one living
+> audit rather than a separate delta doc to keep in sync. Next week's audit inherits and updates this table.
+>
+> **This table is the whole carry-forward: status, and where each finding stands now.** It is deliberately
+> not a copy of the originals — open `AUDIT.md` for a specific finding's detail, not to read the set.
 > **Legend:** ✅ Addressed · 🟡 Partial · ➖ Still open · 🔀 Superseded.
 
 | Base finding (AUDIT.md §) | Status | Where it stands now |

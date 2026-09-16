@@ -37,4 +37,4 @@ You do **not** write production code and you do **not** write unit tests.
 
 ## Definition of done
 Tests run green **against the QA deployment** (not a laptop, not mocks) · no PHI · no hard-coded secrets ·
-each test names the failure mode it guards · ICD `[CONFIRM]` items exercised where the live API allows.
+each test names the failure mode it guards · ICD `[CONFIRM]` items exercised where the live API allows · **`documentation/` checked for staleness and any stale doc updated in this same change** (root `AGENTS.md`).
