@@ -18,8 +18,9 @@
 #      (Railway project -> Settings -> Tokens) and store it as the repository
 #      secret RAILWAY_TOKEN_PROD. A project token is scoped to ONE environment,
 #      so this workflow can only ever touch that environment - here, PRODUCTION.
-#      A RAILWAY_TOKEN_STAGING secret also exists but nothing reads it yet; see
-#      documentation/DEPLOYMENT.md before wiring it in.
+#      A RAILWAY_TOKEN_STAGING secret also exists and is DELIBERATELY UNWIRED:
+#      production is the only environment in use. That is a decision, not a TODO -
+#      wire staging in only if there is a reason to plan against it first.
 #   2. Set the secret variables the IaC declares as preserve() — they are
 #      deliberately absent from source. See documentation/DEPLOYMENT.md.
 #
