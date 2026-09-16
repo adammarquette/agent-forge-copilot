@@ -29,7 +29,7 @@ This file adds the missing third leg: **doc / requirement / use-case → code pr
 | [`AUDIT.md`](AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) | audit finding refs |
 | [`W2_AUDIT.md`](W2_AUDIT.md) | Week 2 implementation audit — per-requirement Met/Partial/Gap coverage, risks, prioritized recommendations vs the submission gates | audit finding refs |
 | [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | — |
-| [`CI-SETUP.md`](CI-SETUP.md) · [`DEPLOYMENT.md`](DEPLOYMENT.md) | CI pipeline, and the operational runbook for the Docker container stack (bootstrap, config, quirks, rollback) | — |
+| [`CI-SETUP.md`](CI-SETUP.md) · [`DEPLOYMENT.md`](DEPLOYMENT.md) | CI pipeline, and the operational runbook for the Docker container stack (bootstrap, config, quirks, rollback); the Railway Infrastructure-as-Code deployment is `DEPLOYMENT.md` §9 | — |
 | [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the container stack — services, what is published vs network-internal, flows, trust boundaries (mermaid) | — |
 | [`supporting/`](supporting/) | Source requirement PDFs (Week 1 & 2) and the architecture-defense decks | — |
 

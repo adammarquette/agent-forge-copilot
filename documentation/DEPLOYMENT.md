@@ -7,7 +7,8 @@ it working end to end.
 
 > **There is no hosted/public instance.** The project ran a managed-PaaS demo through mid-2026; it has been
 > retired, and every environment (demo, QA, review) is now the same set of containers brought up locally or on
-> whatever host the operator chooses. Quick start is in the root [`README.md`](../README.md#run-it); the
+> whatever host the operator chooses. A Railway definition now exists in source (§9) but has **not** been
+> applied, so this remains true today. Quick start is in the root [`README.md`](../README.md#run-it); the
 > physical/network view is [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md); this file is the operational
 > runbook (bootstrap, config, quirks, rollback).
 
@@ -265,3 +266,127 @@ enabled, throwaway credentials. A production deployment runs the **same containe
 HIPAA-eligible cloud under a signed BAA (default **AWS**), with TLS terminated at the edge, secrets from a real
 secret store, and the Site-Address-Override / `aud` invariant of §2 pointed at the real front door. See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) §13 and D15.
+
+## 9. Railway (Infrastructure as Code)
+
+> **Status: defined, not yet applied.** `.railway/railway.ts` describes the stack, but no Railway project has
+> been created from it. Until it is applied, §1's "there is no hosted/public instance" still holds — the
+> compose stack remains the deployment. Tracked by labs.gauntletai.com#140.
+
+Appended as §9 rather than inserted mid-document **on purpose**: the `§`-numbers are positional, and the
+existing `reference: documentation/DEPLOYMENT.md §4` / `§7` comments (in `docker-compose.yml` and
+`tools/RegisterSmartClients`, not `src/`) would silently point at the wrong section if everything below an
+insertion shifted. See labs.gauntletai.com#141.
+
+### Why Railway again, and why it is different this time
+
+The previous managed environment was retired (commit `0a4c729`) because *"most of its working config only ever
+existed as live dashboard edits"* — not because the platform was wrong. It could not be rebuilt from the
+repository, so when it went away, it went away for good.
+
+The whole point of this version is that **the definition lives in source**:
+
+- [`.railway/railway.ts`](../.railway/railway.ts) is the project — five services, four volumes, every
+  non-secret variable.
+- [`.github/workflows/railway-config.yml`](../.github/workflows/railway-config.yml) plans on PR, applies on
+  merge, and runs a **scheduled drift check** (`railway config plan --detailed-exit-code`, which exits `2`
+  when the live environment no longer matches the file). A dashboard edit becomes a red build.
+
+**Not `railway.json`/`railway.toml`.** Config as Code is deprecated, new services cannot opt into it, and
+existing files stop being read on **2026-12-01**.
+
+### The one manual step: generating the front door's domain
+
+**Railway does not give a service a domain automatically, and IaC cannot create a generated one** — the docs
+exclude `*.up.railway.app` domains from `.railway/railway.ts` in both `apply` and `pull` directions. So after
+the first apply, someone must open the `reverse-proxy` service → **Settings → Networking → Generate Domain**.
+
+Until that click happens, `${{reverse-proxy.RAILWAY_PUBLIC_DOMAIN}}` has no value, so `OpenEmr__BaseUrl` and
+`Bff__PublicBaseUrl` are degenerate and **no SMART launch can work**. After it, **redeploy `agent-forge-api`**
+so it picks the reference up — Railway resolves reference variables at deploy time, not continuously.
+
+Be clear-eyed about what this costs: it is a **live dashboard edit**, the exact class of change that made the
+previous environment unreproducible, and **the drift job cannot see it** because generated domains are outside
+the planned graph. It is accepted deliberately as the cheap option (no DNS to own), and the mitigation is that
+it is written down here rather than discovered. The alternative — `domains: ["<host>"]` on the proxy, deriving
+the front door from that literal — moves the whole thing into source and under drift detection, at the cost of
+owning DNS. Revisit if this environment becomes anything more than a demo.
+
+### What the file cannot do
+
+Applying it yields a stack that **boots but cannot complete a SMART launch**. Everything in §4 is live state in
+OpenEMR's *database* — Site Address Override, both OAuth clients, the module Launch URI, demo seeding — and no
+infrastructure tool can express it. The retired GitLab CI had deploy-time self-heal jobs for exactly this
+(`a0dc176`, `60c969f`); that tree was deleted in `5a1be7b` and has to be rebuilt before a Railway deploy is
+reproducible end to end. **That is the remaining work on labs.gauntletai.com#140, and the reason this section says "not yet
+applied" rather than "run this".**
+
+### Topology mapping
+
+Compose service → Railway service, one for one. The invariants of §2 carry over unchanged:
+
+| compose | Railway | notes |
+|---|---|---|
+| `reverse-proxy` | built from GitHub, `rootDirectory: reverse-proxy` | **the only service with a public domain** |
+| `openemr` | pinned fork image | `SWARM_MODE=yes` still required — volumes mount empty (§7) |
+| `mysql` | `mysql:9.4` image | image, not the managed helper, for parity with compose |
+| `agent-forge-api` | pinned GHCR sidecar image | published by CI on merge to `main` (§5) |
+| `postgres` | `pgvector/pgvector:pg17` | **must be pgvector**, not the managed Postgres helper |
+
+`OpenEmr__BaseUrl` and `Bff__PublicBaseUrl` are derived from the proxy's own
+`${{reverse-proxy.RAILWAY_PUBLIC_DOMAIN}}`, so the one-origin invariant holds through a domain change without a
+hand edit. OpenEMR's `site_addr_oath` must still be set to that same value by the bootstrap — that half is
+database state and cannot be derived.
+
+### Two Railway-specific gotchas, both already handled
+
+1. **DNS.** The proxy resolves upstreams at request time and needs a `resolver`. Docker's embedded DNS
+   (`127.0.0.11`) does not exist on Railway, so `reverse-proxy/10-resolver.envsh` derives the resolver from the
+   container's own `/etc/resolv.conf` at start. One image, both environments, nothing hardcoded. It is an
+   `.envsh` because the stock nginx entrypoint *sources* those (and only executes `*.sh` in a subshell), so the
+   export reaches the envsubst step that renders the template.
+2. **IPv6.** Railway private DNS is dual-stack, but both upstreams listen on IPv4 only — the sidecar binds
+   `0.0.0.0` and the fork's Apache hardcodes `Listen 0.0.0.0:80`. An AAAA answer would yield a connection
+   refused on a perfectly healthy stack, so the resolver runs with `ipv6=off` (`RESOLVER_IPV6`, harmless under
+   Docker). Set it to `on` only for a legacy IPv6-only Railway environment (pre-2025-10-16).
+
+### Secrets
+
+Never written to source. They must be set **once per environment** before the first deploy, or the sidecar
+crash-loops on `Llm:ApiKey` (§3, `[Required]` + `ValidateOnStart`). **These are the Railway variable names, not
+the compose `.env` names** — `OPENEMR_ADMIN_PASSWORD` and `ANTHROPIC_API_KEY` are `.env` inputs to
+`docker-compose.yml` and mean nothing here.
+
+**Environment-level SHARED variables** (one value, read by two services — a per-service secret could drift out
+of sync, which compose made impossible by deriving both from one `.env` entry):
+
+| variable | read by |
+|---|---|
+| `MYSQL_ROOT_PASSWORD` | `mysql` (`MYSQL_ROOT_PASSWORD`) + `openemr` (`MYSQL_ROOT_PASS`) |
+| `MYSQL_PASSWORD` | `mysql` (`MYSQL_PASSWORD`) + `openemr` (`MYSQL_PASS`) |
+| `POSTGRES_PASSWORD` | `postgres` + the sidecar's `AgentForgeData__ConnectionString` |
+
+**Service-scoped `preserve()` variables** ("keep whatever is already set in Railway", so an apply never
+clobbers them): `OE_PASS` on `openemr`; and on `agent-forge-api` — `Llm__ApiKey`, `OpenEmr__ClientId`,
+`OpenEmr__ClientSecret`, `OpenEmrAgenda__ClientId`, `OpenEmrAgenda__ClientSecret`. The four OAuth values do
+not exist until the §4 bootstrap has registered the clients.
+
+> `preserve()` does not *supply* a value — it declines to manage one. On a first apply nothing is set, so the
+> data services will not initialise and the sidecar will not boot until the variables above exist.
+
+### Operating it
+
+```bash
+npm ci                      # installs the railway SDK so the file can be evaluated
+npm run iac:typecheck       # tsc over .railway/railway.ts
+railway login && railway link
+# set the shared + preserve() variables above BEFORE the first apply, or the
+# data services will not initialise and the sidecar will crash-loop
+railway config plan         # preview; never mutates
+railway config apply        # applies after confirmation
+# then, IN THE DASHBOARD: reverse-proxy -> Settings -> Networking -> Generate Domain
+# then redeploy agent-forge-api so it resolves RAILWAY_PUBLIC_DOMAIN
+# then run the section 4 bootstrap against the new front door
+```
+
+CI needs a **project token** (scoped to one environment) as the `RAILWAY_TOKEN` repository secret.

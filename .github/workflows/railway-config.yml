@@ -1,0 +1,184 @@
+# -----------------------------------------------------------------------------
+# Railway Infrastructure as Code — plan on PR, apply on merge, and fail on drift.
+#
+# This is the guardrail the RETIRED Railway environment never had. That
+# environment died because "most of its working config only ever existed as live
+# dashboard edits" (commit 0a4c729): there was no reviewable source for it and
+# nothing detected when the live project diverged from what anyone believed.
+#
+# Three jobs, three different questions:
+#   plan   — "what would this PR change in Railway?"  (comment on the PR)
+#   apply  — "make it so"                             (on merge, from the pinned plan)
+#   drift  — "has anyone edited the dashboard?"       (scheduled; the real guardrail)
+#
+# reference: labs.gauntletai.com#140, documentation/DEPLOYMENT.md
+#
+# SETUP (one-time, before this workflow can do anything):
+#   1. Create a Railway PROJECT TOKEN scoped to the target environment
+#      (Railway project -> Settings -> Tokens) and store it as the repository
+#      secret RAILWAY_TOKEN. A project token is scoped to ONE environment, so
+#      this workflow can only ever touch that environment.
+#   2. Set the secret variables the IaC declares as preserve() — they are
+#      deliberately absent from source. See documentation/DEPLOYMENT.md.
+#
+# CAVEAT — which remote runs this: the working clone currently pushes to GitLab
+# (`labs.gauntletai.com`) while CI lives here in GitHub Actions. This workflow
+# only ever runs on the GitHub remote. Settling that split is open question 1 on
+# labs.gauntletai.com#140; until it is settled, treat a green run here as covering only what was
+# pushed to GitHub.
+# -----------------------------------------------------------------------------
+
+name: Railway config
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths:
+      - ".railway/**"
+      - "package.json"
+      - ".github/workflows/railway-config.yml"
+  schedule:
+    # 06:00 UTC daily. Drift is caused by humans editing the dashboard, which no
+    # repository event can trigger on - only a clock can.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # PLAN — comments the diff on the PR. Pins the change set, the environment's
+  # configEtag, and the .railway/ git tree so `apply` cannot silently apply
+  # something the reviewer never saw.
+  # ---------------------------------------------------------------------------
+  plan:
+    name: plan
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # Plan is read-only and per-PR, so superseding an older run is fine. It gets
+    # its OWN group: sharing one with apply let a newly-queued plan cancel a
+    # pending apply, silently dropping a merged change.
+    concurrency:
+      group: railway-plan-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      # The action evaluates .railway/railway.ts in-repo, so the SDK must be
+      # installed for it to resolve `railway/iac`.
+      - name: Install IaC dependencies
+        run: npm ci
+      - name: Typecheck the IaC definition
+        run: npm run iac:typecheck
+      - uses: railwayapp/config@v1
+        with:
+          command: plan
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # APPLY — on MERGE only. Applies the artifact the plan job pinned; it does NOT
+  # re-evaluate the authoring file. If the environment moved since the plan, or
+  # the merged .railway/ tree is not the planned tree, this fails and you re-plan.
+  # Merging the PR is the approval step.
+  # ---------------------------------------------------------------------------
+  apply:
+    name: apply
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # Serialized with drift and with other applies; NEVER cancelled. Railway
+    # rejects an apply built on a stale plan, so overlapping runs are worse than
+    # queued ones - and a cancelled apply loses a merged change entirely.
+    concurrency:
+      group: railway-environment
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install IaC dependencies
+        run: npm ci
+      - uses: railwayapp/config@v1
+        with:
+          command: apply
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # DRIFT — the guardrail that makes this whole approach worth the ceremony.
+  # `--detailed-exit-code` exits 0 when nothing would change and 2 when changes
+  # are pending, so a dashboard edit turns into a RED scheduled build instead of
+  # an undocumented difference nobody notices until the environment is rebuilt.
+  #
+  # Deliberately a plan, never an apply: drift is a question for a human. The
+  # live edit may be the emergency fix that should be promoted INTO the file,
+  # and auto-applying would silently revert it.
+  # ---------------------------------------------------------------------------
+  drift:
+    name: drift
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Same group as apply: a drift check racing an in-flight apply would report
+    # phantom drift against a half-applied environment.
+    concurrency:
+      group: railway-environment
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install IaC dependencies
+        run: npm ci
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+      - name: Detect drift between .railway/railway.ts and the live environment
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          set +e
+          railway config plan --detailed-exit-code
+          code=$?
+          set -e
+          case "$code" in
+            0) echo "No drift: the live environment matches .railway/railway.ts." ;;
+            2)
+              {
+                echo "### Railway drift detected"
+                echo ""
+                echo "The live environment no longer matches \`.railway/railway.ts\`."
+                echo "Someone changed it outside this repository, or a merged change was never applied."
+                echo ""
+                echo "Resolve by deciding which side is right:"
+                echo "- the FILE is right -> re-apply it. NOTE: workflow_dispatch runs ONLY this drift job;"
+                echo "  nothing in this workflow applies on that event. Either merge a PR touching"
+                echo "  \`.railway/\` (which runs plan then apply), or apply by hand from the merge commit:"
+                echo "  \`railway link && railway config plan && railway config apply\`."
+                echo "- the LIVE change is right -> promote it into \`.railway/railway.ts\` in a PR"
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "::error::Railway environment has drifted from .railway/railway.ts"
+              exit 1
+              ;;
+            *) echo "::error::railway config plan failed (exit $code)"; exit "$code" ;;
+          esac
