@@ -1,0 +1,36 @@
+# GitLab pipeline - the automated Code Reviewer, and ONLY that.
+#
+# The build/test/eval gates run on GitHub Actions (documentation/CI-SETUP.md); this pipeline is not a
+# port of them and must not be read as one. A green pipeline here means "the reviewer had nothing
+# blocking to say", NOT "this builds and its tests pass".
+#
+# Why it exists: the live remote is GitLab, so an MR opened here was getting no automated review at
+# all, and the Code Reviewer contract (documentation/agents/code-reviewer.md) was only ever applied
+# when a human remembered to ask for it. reference: documentation/agents/README.md
+
+workflow:
+  rules:
+    # MR pipelines only. A bare branch push would review the same commits a second time - the lesson
+    # the retired pipeline learned the expensive way (see CI-SETUP.md on the duplicate-pipeline rule).
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+stages:
+  - review
+
+code-review:
+  stage: review
+  # No `tags:` on purpose - the workstation runner is untagged today. If you tag that runner, add the
+  # matching tag here or the job will sit pending forever with no error.
+  interruptible: true          # a new push supersedes the review in flight; do not pay for both
+  timeout: 20m
+  variables:
+    GIT_DEPTH: "0"             # the reviewer needs the real merge base, not a 20-commit window
+  rules:
+    # Draft means "not ready to be read", so do not spend a review on it.
+    - if: '$CI_MERGE_REQUEST_TITLE =~ /^(Draft|WIP):/'
+      when: never
+    - when: always
+  script:
+    # Windows shell executor runs PowerShell; the review logic is one POSIX script so the same file
+    # works unchanged if this ever moves to a Linux docker executor.
+    - bash .gitlab/ci/review.sh

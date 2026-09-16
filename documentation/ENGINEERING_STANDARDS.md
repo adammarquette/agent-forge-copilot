@@ -358,30 +358,25 @@ Consolidated security requirements (also enforced in code via §4 HTTP, §6 Conf
 
 ## 15. Agent Instructions & Roles (`AGENTS.md` / `CLAUDE.md`)
 
-AI agents that build this repo are governed by **`AGENTS.md`** files (the cross-tool standard). They are laid
-out as a hierarchy, and **the nearest file to what's being edited takes precedence / adds context**:
+**The role model lives in [`agents/README.md`](agents/README.md)** — every contract, where it sits, what it
+costs to read, and whether it auto-loads. It is not repeated here: a second copy of a routing table is a
+second thing to update, and the one that gets missed is the one someone is reading.
 
-| File | Applies to | Role |
-|---|---|---|
-| `/AGENTS.md` | whole repo | Universal rules (runtime, no-PHI, secrets, logging, dependency caps, "trace to a use case") |
-| `/src/AGENTS.md` | `src/` | **Coding Agent** — production code **and** the test-first unit tests that drive it |
-| `/tests/AGENTS.md` | `tests/` | **Integration Testing Agent** — integration tests against real OpenEMR/MySQL in **QA** |
+Two things about the mechanism *are* standards, so they live here:
 
-**Two distinct roles, by design:**
-- **Coding Agent** (`src/`): implements the sidecar under **mandatory test-first TDD** (§8.0) — writes the
-  failing unit test first, then the minimum code to pass. Owns `src/` and the `UnitTests` project.
-- **Integration Testing Agent** (`tests/`): authors and runs the `IntegrationTests` project against real
-  dependencies in the QA environment (nothing mocked, synthetic data only). Does not write production code or
-  unit tests.
+**The `CLAUDE.md` bridge.** Claude Code reads `CLAUDE.md`, not `AGENTS.md`, so each level carries a one-line
+shim importing its sibling (`@AGENTS.md`). Both toolchains honour the same single source with no duplicated
+content to drift. The role contracts need a second bridge, because a shim cannot help a file that is not near
+anything: each has a **skill** in `.claude/skills/` naming the work that should trigger it, and the Code
+Reviewer also has a **subagent** so an author can spawn a review formed in a context that never saw the change
+being written. **A skill is a trigger, not a contract** — it points at `documentation/agents/` and copies
+nothing. Other toolchains read the `AGENTS.md` files and see none of it, which is why the routing tables still
+say *open it yourself*.
 
-**Claude Code bridge:** Claude Code reads `CLAUDE.md`, not `AGENTS.md`, so each level carries a one-line
-`CLAUDE.md` shim that imports its sibling `AGENTS.md` (`@AGENTS.md`). Both toolchains therefore honor the same
-single source, with no duplicated content to drift.
-
-**Authority:** the `AGENTS.md` files are intentionally short and **point to the `documentation/` docs as the
-source of truth** — this file (`ENGINEERING_STANDARDS.md`) for stack/standards/testing, `INTERFACE_CONTROL.md`
-for external interfaces, `ARCHITECTURE.md` for decisions, `USERS.md`/`PRD.md` for what to build. When an
-`AGENTS.md` and a doc disagree, the doc wins and the `AGENTS.md` is corrected.
+**Authority.** The `AGENTS.md` files are intentionally short and **point to the `documentation/` docs as the
+source of truth** — this file for stack/standards/testing, `INTERFACE_CONTROL.md` for external interfaces,
+`ARCHITECTURE.md` for decisions, `USERS.md`/`PRD.md` for what to build. **When an `AGENTS.md` and a doc
+disagree, the doc wins and the `AGENTS.md` is corrected.**
 
 ---
 

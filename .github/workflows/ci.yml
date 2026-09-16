@@ -143,6 +143,20 @@ jobs:
           path: licenses-report.json
           retention-days: 7
 
+  # The routing tables price every document they route to, so a reader sees the cost before paying it. That
+  # column is a claim a document makes about itself, and nothing in an ordinary change has a reason to look
+  # at it - so it goes stale, and a stale price sends readers the wrong way while looking authoritative.
+  # scripts/check-doc-sizes.sh measures the files and fails on drift. It needs no toolchain.
+  doc-sizes:
+    name: doc-sizes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Priced routing tables match their files
+        run: bash scripts/check-doc-sizes.sh
+      - name: The gate can still go red
+        run: bash scripts/check-doc-sizes-selftest.sh
+
   # Validates reverse-proxy/nginx.conf.template's syntax without needing real upstream hosts
   # or a running stack. `nginx -t` only checks the RENDERED config, so the template's
   # ${VAR} placeholders are substituted with placeholders first (envsubst, the same mechanism
