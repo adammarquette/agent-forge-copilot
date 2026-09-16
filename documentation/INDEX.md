@@ -37,7 +37,8 @@ blank cell means the row routes somewhere that is not one file.
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | The operational runbook for the Docker container stack — bootstrap, config, quirks, rollback; the Railway Infrastructure-as-Code deployment is §9 | 7.0K | — |
 | [`CI-SETUP.md`](CI-SETUP.md) | Both pipelines: the GitHub build/test/eval gates, and the GitLab job that reviews every MR (§7) | 3.0K | — |
 | [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the container stack — services, what is published vs network-internal, flows, trust boundaries (mermaid) | 2.6K | — |
-| [`agents/README.md`](agents/README.md) | **Agent role contracts** — Code Reviewer, Platform — plus the index of every contract and, for each, whether it auto-loads or you must open it | 1.5K | — |
+| [`MR_WORKFLOW.md`](MR_WORKFLOW.md) | The lifecycle a change moves through from branch to `main`, and who acts at each state — what the Coordinator drives | 0.7K | — |
+| [`agents/README.md`](agents/README.md) | **Agent role contracts** — Code Reviewer, Platform, Coordinator — plus the task-sizing rubric, and for each contract whether it auto-loads or you must open it | 1.8K | — |
 | [`supporting/`](supporting/) | Source requirement PDFs (Week 1 & 2) and the architecture-defense decks |  | — |
 
 > **Agent Context Optimization:** To prevent prompt/context bloat, do **not** load full architectural specs (`ARCHITECTURE.md`, `W2_ARCHITECTURE.md`, `PRD.md`) into context upfront. Use this `INDEX.md` table to identify the single project or document section required for your immediate task.

@@ -15,6 +15,8 @@ right moment.
 | **Integration Testing Agent** — integration tests against real OpenEMR/MySQL in QA | [`tests/AGENTS.md`](../../tests/AGENTS.md) | 0.7K | **automatically**, in that project |
 | **Code Reviewer** — reviewing changes anywhere; **reads and reports only, never edits**, and leaves an approve / request-changes verdict on the MR | [`code-reviewer.md`](code-reviewer.md) | 2.1K | **on demand** — open it when you take the hat. Claude Code: the `code-reviewer` skill, or the [`code-reviewer` subagent](../../.claude/agents/code-reviewer.md) when an author spawns its own reviewer |
 | **Platform Agent** — CI, the image, compose, the proxy, deploy | [`platform.md`](platform.md) | 1.3K | **on demand**. Claude Code: the `platform` skill |
+| **Coordinator** — drives an MR from changes-requested back to green; **dispatches, never writes the fix, never merges or approves** | [`coordinator.md`](coordinator.md) | 0.9K | **on demand**. Claude Code: the `coordinator` skill |
+| *(shared rubric, not a contract)* — which model tier a task takes, and the categories that always take the strongest one | [`task-sizing.md`](task-sizing.md) | 0.9K | read it when dispatching or choosing a model |
 
 Universal rules that bind all four: the root [`AGENTS.md`](../../AGENTS.md). **This file is the role model's
 one home** — [`ENGINEERING_STANDARDS.md` §15](../ENGINEERING_STANDARDS.md) keeps only what is a *standard*
@@ -76,8 +78,14 @@ If you carry more than one role, run them separately. The Integration Testing Ag
 requirement against real dependencies; review reads the implementation against that same requirement. Doing
 either pair at once collapses the independence that makes both worth running.
 
-## Not here
+## The Coordinator's precondition, and how it was met
 
-There is **no Coordinator contract** — no dispatcher that picks work off a board and drives it to approval. That
-role needs a documented board workflow to read from, and this repo has none yet. Add the workflow doc first; a
-coordinator written ahead of it would be inventing process.
+This folder carried a note saying a Coordinator could **not** be written yet, because the role needs a
+documented workflow to read from and the repo had none — a coordinator written ahead of one would be inventing
+process. That was the right call, and it is what [`MR_WORKFLOW.md`](../MR_WORKFLOW.md) now fixes: the states an
+MR moves through and who acts at each. The contract drives that document rather than a process of its own
+invention, which is why the two landed together.
+
+**It still holds the line the review loop depends on.** The Coordinator dispatches the fix and never writes it,
+acts on findings and never decides which are real, and stops at green — a human merges. Automate the shepherding,
+not the judgement.

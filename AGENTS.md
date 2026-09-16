@@ -48,6 +48,7 @@ this file says about roles; each contract owns its own rules.
 | writing integration tests against real dependencies | [`tests/AGENTS.md`](tests/AGENTS.md) | 0.7K | on its own, in that project |
 | reviewing a change — any change, anywhere | [`documentation/agents/code-reviewer.md`](documentation/agents/code-reviewer.md) | 2.1K | **never on its own — open it** |
 | touching CI, the image, compose, the proxy or a deploy | [`documentation/agents/platform.md`](documentation/agents/platform.md) | 1.3K | **never on its own — open it** |
+| shepherding an MR back to green — dispatching fixes, not writing them | [`documentation/agents/coordinator.md`](documentation/agents/coordinator.md) | 0.9K | **never on its own — open it** |
 
 A contract sits wherever it has to be to arrive when it applies: subtree contracts load by directory proximity,
 role contracts follow what you are *doing* and so cannot. **Nothing catches a hat worn without its contract** —

@@ -173,7 +173,8 @@ no browser caller — is blocked at the proxy:
 | [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 2.6K | Physical/network view of the container stack — what is published vs internal (mermaid) |
 | [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.0K | Both pipelines — the GitHub build/test/eval gates, and the GitLab job that reviews every MR |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
-| [`agents/README.md`](documentation/agents/README.md) | 1.5K | **Agent role contracts** — which contract governs which hat, and whether it auto-loads |
+| [`MR_WORKFLOW.md`](documentation/MR_WORKFLOW.md) | 0.7K | How a change gets from a branch to `main` — the states, and who acts at each |
+| [`agents/README.md`](documentation/agents/README.md) | 1.8K | **Agent role contracts** — which contract governs which hat, and whether it auto-loads |
 | [`supporting/`](documentation/supporting/) |  | The original Week 1 & 2 requirement briefs as issued (see [Origin](#origin)) and the 5-minute architecture-defense decks (`Architecture_Defense.pptx`, `W2_Architecture_Defense.pptx`) |
 
 ### Why so much cross-referencing
