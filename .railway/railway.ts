@@ -8,7 +8,7 @@
 // Everything that can live in source lives here, and CI fails on drift between
 // this file and the live environment.
 //
-// reference: gh#140, documentation/DEPLOYMENT.md
+// reference: labs.gauntletai.com#140, documentation/DEPLOYMENT.md
 //
 // NOT config-as-code: railway.json / railway.toml are deprecated, new services
 // cannot opt into them, and they stop being read on 2026-12-01.
@@ -45,7 +45,7 @@ const MYSQL_HOST = "${{mysql.RAILWAY_PRIVATE_DOMAIN}}";
 // database state - the bootstrap sets it, this file cannot.
 const FRONT_DOOR = "https://" + PROXY_DOMAIN;
 
-export default defineRailway(() => {
+export default defineRailway((ctx) => {
   // -------------------------------------------------------------------------
   // Volumes. Managed volumes mount EMPTY - see SWARM_MODE on openemr below.
   // -------------------------------------------------------------------------
@@ -72,10 +72,14 @@ export default defineRailway(() => {
   const mysql = service("mysql", {
     source: image("mysql:9.4"),
     env: {
-      MYSQL_ROOT_PASSWORD: preserve(),
+      // Shared variables, NOT preserve(): mysql and openemr must hold the SAME
+      // password, and two independent preserve() values can silently diverge -
+      // compose derived both from one ${MYSQL_ROOT_PASSWORD}, and dropping to
+      // per-service secrets would be a real regression in safety.
+      MYSQL_ROOT_PASSWORD: ctx.shared.MYSQL_ROOT_PASSWORD,
       MYSQL_DATABASE: "openemr",
       MYSQL_USER: "openemr",
-      MYSQL_PASSWORD: preserve(),
+      MYSQL_PASSWORD: ctx.shared.MYSQL_PASSWORD,
     },
     volumeMounts: { "/var/lib/mysql": mysqlData },
   });
@@ -85,7 +89,9 @@ export default defineRailway(() => {
     env: {
       POSTGRES_DB: "agentforge",
       POSTGRES_USER: "agentforge",
-      POSTGRES_PASSWORD: preserve(),
+      // Shared, matching the sidecar connection string below. A service-scoped
+      // preserve() here would be a DIFFERENT variable, and the sidecar could not connect.
+      POSTGRES_PASSWORD: ctx.shared.POSTGRES_PASSWORD,
     },
     volumeMounts: { "/var/lib/postgresql/data": postgresData },
   });
@@ -101,9 +107,10 @@ export default defineRailway(() => {
     env: {
       MYSQL_HOST: MYSQL_HOST,
       MYSQL_PORT: "3306",
-      MYSQL_ROOT_PASS: preserve(),
+      // Same shared values the mysql service reads - see the note there.
+      MYSQL_ROOT_PASS: ctx.shared.MYSQL_ROOT_PASSWORD,
       MYSQL_USER: "openemr",
-      MYSQL_PASS: preserve(),
+      MYSQL_PASS: ctx.shared.MYSQL_PASSWORD,
       MYSQL_DATABASE: "openemr",
       OE_USER: "admin",
       OE_PASS: preserve(),
@@ -142,6 +149,17 @@ export default defineRailway(() => {
       OpenEmr__ClientSecret: preserve(),
       OpenEmrAgenda__ClientId: preserve(),
       OpenEmrAgenda__ClientSecret: preserve(),
+
+      // The agenda/roster client has its OWN scope list and does not inherit the
+      // patient list above - omitting it binds AgendaOpenEmrOptions with a null
+      // Scopes and the roster launch cannot request anything. Same contiguity and
+      // casing rules apply. reference: documentation/DEPLOYMENT.md section 3
+      OpenEmrAgenda__Scopes__0: "openid",
+      OpenEmrAgenda__Scopes__1: "fhirUser",
+      OpenEmrAgenda__Scopes__2: "launch",
+      OpenEmrAgenda__Scopes__3: "api:fhir",
+      OpenEmrAgenda__Scopes__4: "user/Appointment.read",
+      OpenEmrAgenda__Scopes__5: "user/Patient.read",
 
       // Contiguous 0-based list - a GAP SILENTLY TRUNCATES the bound array at the
       // first missing index. Casing matters: patient/encounter.read is rejected.
@@ -205,10 +223,22 @@ export default defineRailway(() => {
       // AND under Docker. Set a value only to override that detection.
       DNS_RESOLVER: "",
     },
-    // No `domains:` entry - the generated *.up.railway.app domain is used, and
-    // generated domains are deliberately not represented in IaC. To move this to
-    // a custom hostname, add it here AND re-run the bootstrap so OpenEMR's
-    // site_addr_oath matches the new front door (DEPLOYMENT.md §2/§4).
+    // NO `domains:` ENTRY, AND THAT IS A KNOWN GAP - not an oversight.
+    //
+    // Railway does not assign a domain automatically, and IaC cannot declare a
+    // GENERATED *.up.railway.app domain (the docs exclude them from this file in
+    // both apply and pull directions). So after a first apply someone must click
+    // Settings -> Networking -> Generate Domain on this service, then redeploy
+    // agent-forge-api so it resolves RAILWAY_PUBLIC_DOMAIN. Until then FRONT_DOOR
+    // is degenerate and no SMART launch can work.
+    //
+    // That click is a live dashboard edit the drift job CANNOT detect, because
+    // generated domains are outside the planned graph. Accepted deliberately as
+    // the no-DNS option and written down in DEPLOYMENT.md §9. Declaring a custom
+    // hostname here instead - `domains: [{ domain: "<host>", port: 8080 }]` with
+    // FRONT_DOOR built from that literal - puts it back under source control and
+    // drift detection, and requires re-running the §4 bootstrap so OpenEMR's
+    // site_addr_oath matches.
   });
 
   return project("agent-forge-copilot", {

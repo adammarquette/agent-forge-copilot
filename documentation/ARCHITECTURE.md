@@ -386,7 +386,9 @@ only the host and its compliance controls differ.*
 - **Both services run as containers on one Docker host**, brought up by the repo-root `docker-compose.yml`:
   the OpenEMR fork (module baked into the image), its MySQL, an nginx front door, and — behind the `copilot`
   profile — the sidecar and its pgvector Postgres. **There is no hosted/public instance**; the containers are
-  the deployment. Runbook: `DEPLOYMENT.md`; network view: `DEPLOYMENT_TOPOLOGY.md`.
+  the deployment. A Railway Infrastructure-as-Code definition now exists in source but has **not** been
+  applied, so this still holds — `DEPLOYMENT.md` §9. Runbook: `DEPLOYMENT.md`; network view:
+  `DEPLOYMENT_TOPOLOGY.md`.
 - **One published port.** Only the front door is reachable from outside; everything else is network-internal.
   That is the same one-origin invariant the SMART launch depends on (`DEPLOYMENT.md` §2), not a convenience.
 - **Synthetic/demo data only → no BAA required** (privacy is not in scope here, by policy). That is the

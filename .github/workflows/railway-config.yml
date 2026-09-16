@@ -11,7 +11,7 @@
 #   apply  — "make it so"                             (on merge, from the pinned plan)
 #   drift  — "has anyone edited the dashboard?"       (scheduled; the real guardrail)
 #
-# reference: gh#140, documentation/DEPLOYMENT.md
+# reference: labs.gauntletai.com#140, documentation/DEPLOYMENT.md
 #
 # SETUP (one-time, before this workflow can do anything):
 #   1. Create a Railway PROJECT TOKEN scoped to the target environment
@@ -24,7 +24,7 @@
 # CAVEAT — which remote runs this: the working clone currently pushes to GitLab
 # (`labs.gauntletai.com`) while CI lives here in GitHub Actions. This workflow
 # only ever runs on the GitHub remote. Settling that split is open question 1 on
-# gh#140; until it is settled, treat a green run here as covering only what was
+# labs.gauntletai.com#140; until it is settled, treat a green run here as covering only what was
 # pushed to GitHub.
 # -----------------------------------------------------------------------------
 
@@ -46,13 +46,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  # Never let an apply overlap a plan/apply for the same environment: Railway
-  # rejects an apply built on a stale plan, and a queued duplicate would just
-  # fail confusingly.
-  group: railway-config
-  cancel-in-progress: false
-
 jobs:
   # ---------------------------------------------------------------------------
   # PLAN — comments the diff on the PR. Pins the change set, the environment's
@@ -66,6 +59,12 @@ jobs:
       github.event.action != 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    # Plan is read-only and per-PR, so superseding an older run is fine. It gets
+    # its OWN group: sharing one with apply let a newly-queued plan cancel a
+    # pending apply, silently dropping a merged change.
+    concurrency:
+      group: railway-plan-${{ github.ref }}
+      cancel-in-progress: true
     permissions:
       contents: read
       pull-requests: write
@@ -101,6 +100,12 @@ jobs:
       github.event.pull_request.merged &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    # Serialized with drift and with other applies; NEVER cancelled. Railway
+    # rejects an apply built on a stale plan, so overlapping runs are worse than
+    # queued ones - and a cancelled apply loses a merged change entirely.
+    concurrency:
+      group: railway-environment
+      cancel-in-progress: false
     permissions:
       contents: read
       pull-requests: write
@@ -134,6 +139,11 @@ jobs:
     name: drift
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # Same group as apply: a drift check racing an in-flight apply would report
+    # phantom drift against a half-applied environment.
+    concurrency:
+      group: railway-environment
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
@@ -161,7 +171,10 @@ jobs:
                 echo "Someone changed it outside this repository, or a merged change was never applied."
                 echo ""
                 echo "Resolve by deciding which side is right:"
-                echo "- the FILE is right -> re-run the apply (\`workflow_dispatch\` on this workflow, or re-merge)"
+                echo "- the FILE is right -> re-apply it. NOTE: workflow_dispatch runs ONLY this drift job;"
+                echo "  nothing in this workflow applies on that event. Either merge a PR touching"
+                echo "  \`.railway/\` (which runs plan then apply), or apply by hand from the merge commit:"
+                echo "  \`railway link && railway config plan && railway config apply\`."
                 echo "- the LIVE change is right -> promote it into \`.railway/railway.ts\` in a PR"
               } >> "$GITHUB_STEP_SUMMARY"
               echo "::error::Railway environment has drifted from .railway/railway.ts"

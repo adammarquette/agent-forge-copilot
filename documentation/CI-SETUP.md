@@ -25,7 +25,9 @@ required.
 > yet and a running stack to point at. There is no CD half to port beyond that:
 > the project has **no hosted environment**, so "deploy" means pulling the
 > published image into a container stack, which the operator does (see
-> [`DEPLOYMENT.md`](DEPLOYMENT.md)). The retired `.gitlab-ci.yml` and `.gitlab/ci/`
+> [`DEPLOYMENT.md`](DEPLOYMENT.md)). A Railway IaC definition and its
+> `railway-config.yml` workflow now exist in source but have **not** been applied
+> — `DEPLOYMENT.md` §9. The retired `.gitlab-ci.yml` and `.gitlab/ci/`
 > have been **deleted from the tree**; the originals — including `deploy.yml`,
 > whose comments encode the deploy incidents any future CD job should honor (the
 > `Llm__ApiKey` drift, the deploy-log-stream false positive, the scope-array

@@ -407,7 +407,8 @@ DB-fallback per data type; state/memory model for multi-turn.
   run in production.
 - **Environments:** one runnable stack that anyone can bring up from the repo. **No hosted/public instance** —
   an earlier hosted demo was retired; reproducibility (pinned image tags, config in the compose file) replaced
-  it as the way to demonstrate the system.
+  it as the way to demonstrate the system. A Railway Infrastructure-as-Code definition exists in source but
+  has **not** been applied — `DEPLOYMENT.md` §9.
 - **Ops requirements:** `/health` + `/ready` (NFR-REL-2), CI/CD for agent updates, a documented rollback path,
   and the dashboard/alerts (FR-OBS-3/4) wired to the deployed service.
 - **HIPAA posture (defensible position):**
