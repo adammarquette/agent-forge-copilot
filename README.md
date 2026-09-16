@@ -149,23 +149,32 @@ no browser caller — is blocked at the proxy:
 | `src/` | Production projects (`AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
 | `tests/` | Four test projects: `…UnitTests` (mocked), `…IntegrationTests` (real deps in QA), `…EvalTests` (deterministic rubric checks), and `…Evals` (golden-set eval runner; cases in top-level `evals/`) |
 | `reverse-proxy/` | Nginx front-door container/config for the same-origin front door (issue #62, closed; agent-forge#22) — the `reverse-proxy` service in `docker-compose.yml` and the only published port; its config lint runs in `.github/workflows/ci.yml`; see its own README |
-| `AGENTS.md` · `src/AGENTS.md` · `tests/AGENTS.md` | Instructions for AI coding agents (root + per-role) |
+| `AGENTS.md` · `src/AGENTS.md` · `tests/AGENTS.md` | Instructions for AI coding agents — the root file routes, the subtree files govern `src/` and `tests/` and load by proximity |
+| [`documentation/agents/`](documentation/agents/) | The role contracts that are **not** a directory — Code Reviewer, Platform. They never auto-load; `agents/README.md` is the index |
 | `CLAUDE.md` (each level) | One-line shims so Claude Code honors the same `AGENTS.md` rules |
 
 ### Documentation index (suggested read order)
 
-| Doc | Purpose |
-|---|---|
-| [`INDEX.md`](documentation/INDEX.md) | **Start here** — the wiki's front door: documents catalog + the requirement/use-case → **code project** map the `.slnx` doesn't carry |
-| [`PRD.md`](documentation/PRD.md) | Product requirements — the problem, functional & non-functional requirements (FR/NFR IDs) |
-| [`USERS.md`](documentation/USERS.md) | The target user, the 90-second workflow, and the use cases everything traces to |
-| [`AUDIT.md`](documentation/AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) |
-| [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md) | The design & decision log — topology, trust boundaries, verification, deployment |
-| [`W2_ARCHITECTURE.md`](documentation/W2_ARCHITECTURE.md) | **(Week 2)** Multimodal Evidence Agent — document ingestion, the supervisor/worker graph, hybrid RAG, cloud redundancy, the eval gate, and the Week 2 decision log (W2-D1..D14) |
-| [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
-| [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | Stack, dependencies, coding/testing/security/logging standards |
-| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) · [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
-| [`supporting/`](documentation/supporting/) | The original Week 1 & 2 requirement briefs as issued (see [Origin](#origin)) and the 5-minute architecture-defense decks (`Architecture_Defense.pptx`, `W2_Architecture_Defense.pptx`) |
+**`~tok` is the cost of the read** — bytes ÷ 4, to 0.1K. The full catalog, with what each doc is *authoritative* for and the requirement/use-case → code-project map, is [`INDEX.md`](documentation/INDEX.md) §1; this is the reading order.
+
+| Doc | ~tok | Purpose |
+|---|---|---|
+| [`INDEX.md`](documentation/INDEX.md) | 2.7K | **Start here** — the wiki's front door: documents catalog + the requirement/use-case → **code project** map the `.slnx` doesn't carry |
+| [`PRD.md`](documentation/PRD.md) | 11.4K | Product requirements — the problem, functional & non-functional requirements (FR/NFR IDs) |
+| [`USERS.md`](documentation/USERS.md) | 3.4K | The target user, the 90-second workflow, and the use cases everything traces to |
+| [`AUDIT.md`](documentation/AUDIT.md) | 5.1K | Findings from auditing the OpenEMR fork (security / perf / data quality) |
+| [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md) | 11.5K | The design & decision log — topology, trust boundaries, verification, deployment |
+| [`W2_PRD.md`](documentation/W2_PRD.md) | 9.1K | **(Week 2)** Week 2 product requirements — the multimodal-evidence delta on top of `PRD.md` |
+| [`W2_ARCHITECTURE.md`](documentation/W2_ARCHITECTURE.md) | 12.6K | **(Week 2)** Multimodal Evidence Agent — document ingestion, the supervisor/worker graph, hybrid RAG, cloud redundancy, the eval gate, and the Week 2 decision log (W2-D1..D14) |
+| [`W2_AUDIT.md`](documentation/W2_AUDIT.md) | 7.2K | **(Week 2)** Implementation audit — per-requirement Met/Partial/Gap against the submission gates |
+| [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | 5.7K | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
+| [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
+| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 7.0K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
+| [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 2.6K | Physical/network view of the container stack — what is published vs internal (mermaid) |
+| [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.0K | Both pipelines — the GitHub build/test/eval gates, and the GitLab job that reviews every MR |
+| [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
+| [`agents/README.md`](documentation/agents/README.md) | 1.5K | **Agent role contracts** — which contract governs which hat, and whether it auto-loads |
+| [`supporting/`](documentation/supporting/) |  | The original Week 1 & 2 requirement briefs as issued (see [Origin](#origin)) and the 5-minute architecture-defense decks (`Architecture_Defense.pptx`, `W2_Architecture_Defense.pptx`) |
 
 ### Why so much cross-referencing
 
