@@ -389,4 +389,8 @@ railway config apply        # applies after confirmation
 # then run the section 4 bootstrap against the new front door
 ```
 
-CI needs a **project token** (scoped to one environment) as the `RAILWAY_TOKEN` repository secret.
+CI needs a **project token** (scoped to one environment) as the `RAILWAY_TOKEN_PROD` repository secret —
+the workflow reads that name in all three jobs, so it targets **production**. Because `apply` runs on merge,
+merging a PR that touches `.railway/**` changes production. A `RAILWAY_TOKEN_STAGING` secret also exists and is
+**deliberately unwired** — production is the only environment in use (decided 2026-09-16). Wire staging in
+only if there is a reason to plan against it first; this is a recorded decision, not an unfinished task.
