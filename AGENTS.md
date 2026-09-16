@@ -60,5 +60,6 @@ the index, and explains the design and the tooling that narrows the gap.
 - Eval rubric tests (xUnit): `dotnet test tests/AgentForge.EvalTests`
 - Eval console gate: `dotnet run --project tests/AgentForge.Evals -- evals`
 - Integration tests (QA env, real deps): `dotnet test tests/AgentForge.IntegrationTests`
-- Before opening an MR: `dotnet format --verify-no-changes` + unit & eval tests green. A GitLab-only
-  branch gets no pipeline (`documentation/CI-SETUP.md`), so these are on you.
+- Before opening an MR: `dotnet format --verify-no-changes` + unit & eval tests green. GitLab runs **only**
+  the automated Code Reviewer (`documentation/CI-SETUP.md` §7); the build and test gates live on the GitHub
+  mirror, so on a GitLab-only branch they are on you.

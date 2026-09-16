@@ -23,6 +23,20 @@ it says this traces to.
 passes — the integration suite is written against the requirement, review reads the implementation against it,
 and doing both at once collapses the independence of either.
 
+## You also run unattended
+
+Every push to an open merge request triggers this contract automatically, as the `code-review` job in
+[`.gitlab-ci.yml`](../../.gitlab-ci.yml) (see [`CI-SETUP.md`](../CI-SETUP.md) §7). Two things follow:
+
+- **The job posts a note and fails when a finding is blocking; it never approves.** GitLab has no
+  "request changes" endpoint, so a red job *is* the change request, and no bot verdict can stand in for a
+  human approval.
+- **Unattended means nobody filters you.** A false positive there costs the author a re-read and a re-run, so
+  the "a finding you cannot make fail is a question" rule is doing more work in CI than it is in a session —
+  mark it non-blocking, or leave it out.
+
+A human wearing this hat is still the reviewer of record. The job is the floor, not the ceiling.
+
 ## What to look for
 
 Ranked the way this system actually fails. The standards themselves live in
