@@ -41,6 +41,7 @@ required.
 | `format` | lint | `dotnet format --verify-no-changes` |
 | `license-scan` | lint | fails on a dependency outside `allowed-licenses.json` |
 | `doc-sizes` | lint | `scripts/check-doc-sizes.sh` — every `~tok` price in a routing table matches its file, and the gate's own self-test still reddens |
+| `docs-sync` | lint | **PRs only.** Fails when `src/`, `reverse-proxy/`, `docker-compose.yml` or `.env.example` changed but `documentation/` did not. Opt out with a `docs: n/a - <reason>` line in the PR body — a bare `docs: n/a` is rejected. Detects *absent* doc edits, not wrong ones; see root `AGENTS.md`, “Docs stay in sync with the code”. Companion to `doc-sizes`: that one keeps prices honest, this one keeps the prose honest. |
 | `nginx-config-lint` | lint | renders `nginx.conf.template` and runs `nginx -t` |
 | `build` | build | compile under warnings-as-errors |
 | `unit-tests` | test | fully mocked suite |
@@ -84,7 +85,7 @@ PR stays mergeable.
 On **Settings → Branches → Branch protection rules** for `develop` and `main`:
 
 - ✅ **Require status checks to pass before merging**, selecting: `format`,
-  `license-scan`, `nginx-config-lint`, `build`, `unit-tests`, `eval-tests`,
+  `docs-sync`, `license-scan`, `nginx-config-lint`, `build`, `unit-tests`, `eval-tests`,
   `evals`
 - ✅ **Require branches to be up to date before merging** (see §3)
 
@@ -200,8 +201,8 @@ self-test (`render_review_test.py`) covers both directions, including the case w
 
 ## 8. Day-to-day flow
 
-1. Dev opens a PR → `format`, `license-scan`, `nginx-config-lint`, `build` run in
-   parallel, then `unit-tests`, `eval-tests`, `evals`. Red run = merge button
+1. Dev opens a PR → `format`, `license-scan`, `doc-sizes`, `docs-sync`,
+   `nginx-config-lint`, `build` run in parallel, then `unit-tests`, `eval-tests`, `evals`. Red run = merge button
    locked (given §2).
 2. Dev pushes more commits → the run re-triggers and the superseded one cancels.
 3. Someone merges to the target branch → "require branches to be up to date"

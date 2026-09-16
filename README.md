@@ -159,7 +159,7 @@ no browser caller — is blocked at the proxy:
 
 | Doc | ~tok | Purpose |
 |---|---|---|
-| [`INDEX.md`](documentation/INDEX.md) | 2.7K | **Start here** — the wiki's front door: documents catalog + the requirement/use-case → **code project** map the `.slnx` doesn't carry |
+| [`INDEX.md`](documentation/INDEX.md) | 2.9K | **Start here** — the wiki's front door: documents catalog + the requirement/use-case → **code project** map the `.slnx` doesn't carry |
 | [`PRD.md`](documentation/PRD.md) | 11.4K | Product requirements — the problem, functional & non-functional requirements (FR/NFR IDs) |
 | [`USERS.md`](documentation/USERS.md) | 3.4K | The target user, the 90-second workflow, and the use cases everything traces to |
 | [`AUDIT.md`](documentation/AUDIT.md) | 5.1K | Findings from auditing the OpenEMR fork (security / perf / data quality) |
@@ -171,7 +171,7 @@ no browser caller — is blocked at the proxy:
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
 | [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 7.1K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
 | [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 2.6K | Physical/network view of the container stack — what is published vs internal (mermaid) |
-| [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.1K | Both pipelines — the GitHub build/test/eval gates, and the GitLab job that reviews every MR |
+| [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.2K | Both pipelines — the GitHub build/test/eval gates, and the GitLab job that reviews every MR |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
 | [`MR_WORKFLOW.md`](documentation/MR_WORKFLOW.md) | 0.7K | How a change gets from a branch to `main` — the states, and who acts at each |
 | [`agents/README.md`](documentation/agents/README.md) | 1.8K | **Agent role contracts** — which contract governs which hat, and whether it auto-loads |

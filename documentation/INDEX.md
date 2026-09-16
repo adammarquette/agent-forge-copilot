@@ -26,22 +26,27 @@ blank cell means the row routes somewhere that is not one file.
 | Doc | Owns / is authoritative for | ~tok | ID namespace it defines |
 |---|---|---|---|
 | [`PRD.md`](PRD.md) | Problem statement, functional & non-functional requirements | 11.4K | `FR-*`, `NFR-*` |
+| [`W2_PRD.md`](W2_PRD.md) | **(Week 2)** Companion to `PRD.md` — what Week 2 adds (ingestion, agent graph, citations, eval gate), same FR-/NFR- shape | 9.1K | `FR-DOC-*`, `FR-GRAPH-*`, `FR-CITE-*`, `FR-EVAL-*` |
 | [`USERS.md`](USERS.md) | The one persona, the 90-second workflow, use cases + capability→UC map (§5) | 3.4K | `UC-1..UC-6` |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Topology, trust boundaries, verification design, deployment; the vMVP decision log | 11.5K | doc §-numbers |
-| [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) | **(Week 2)** Multimodal Evidence Agent — ingestion, supervisor/worker graph, hybrid RAG, eval gate | 12.6K | `W2-D1..W2-D14` |
+| [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) | **(Week 2)** Multimodal Evidence Agent — ingestion, supervisor/worker graph, hybrid RAG, eval gate | 12.6K | `W2-D1..W2-D17` |
 | [`INTERFACE_CONTROL.md`](INTERFACE_CONTROL.md) | The OpenEMR external interface (FHIR R4 / OAuth2 / SMART) — the ICD | 5.7K | ICD sections A, B, … |
 | [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md) | Stack, dependencies, testing tiers, logging/security standards, solution layout (§9) | 6.2K | `§`-numbers |
 | [`AUDIT.md`](AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) | 5.1K | audit finding refs |
 | [`W2_AUDIT.md`](W2_AUDIT.md) | Week 2 implementation audit — per-requirement Met/Partial/Gap coverage, risks, prioritized recommendations vs the submission gates | 7.2K | audit finding refs |
 | [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | 3.8K | — |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | The operational runbook for the Docker container stack — bootstrap, config, quirks, rollback; the Railway Infrastructure-as-Code deployment is §9 | 7.1K | — |
-| [`CI-SETUP.md`](CI-SETUP.md) | The GitHub build/test/eval gates, plus the dormant automated reviewer (§7) that reviews every MR (§7) | 3.1K | — |
+| [`CI-SETUP.md`](CI-SETUP.md) | The GitHub build/test/eval gates, plus the dormant automated reviewer (§7) that reviewed every PR | 3.2K | — |
 | [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the container stack — services, what is published vs network-internal, flows, trust boundaries (mermaid) | 2.6K | — |
 | [`MR_WORKFLOW.md`](MR_WORKFLOW.md) | The lifecycle a change moves through from branch to `main`, and who acts at each state — what the Coordinator drives | 0.7K | — |
 | [`agents/README.md`](agents/README.md) | **Agent role contracts** — Code Reviewer, Platform, Coordinator — plus the task-sizing rubric, and for each contract whether it auto-loads or you must open it | 1.8K | — |
 | [`supporting/`](supporting/) | Source requirement PDFs (Week 1 & 2) and the architecture-defense decks |  | — |
 
 > **Agent Context Optimization:** To prevent prompt/context bloat, do **not** load full architectural specs (`ARCHITECTURE.md`, `W2_ARCHITECTURE.md`, `PRD.md`) into context upfront. Use this `INDEX.md` table to identify the single project or document section required for your immediate task.
+>
+> **Reaching one section without opening the doc.** `grep -n '^## ' <doc>` returns every heading with its line number for ~200 tokens; read only that range. For `ARCHITECTURE.md` that is ~730 tokens against ~11K for the whole file. The `~tok` column above prices the choice; this is how you act on it.
+>
+> **Sections are citable**, so cite them instead of quoting: most docs number their `##` headings (`ENGINEERING_STANDARDS.md §6`), `INTERFACE_CONTROL.md` uses `Interface A`–`D`, and `PERFORMANCE_BASELINES.md` carries the `NFR-PERF-*` ID in each heading.
 
 ## 2. Code map (the missing edge: concept → project → spec)
 
