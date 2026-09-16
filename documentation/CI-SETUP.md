@@ -5,9 +5,9 @@ CI runs on **GitHub Actions**. The pipeline entry point is
 required.
 
 > **`origin` and CI are both GitHub.** The GitLab remote was dropped after its
-> project was recreated empty by a restore (`INDEX.md` §5), so there is no second
-> host and no `.gitlab-ci.yml` in the tree: every branch pushed to `origin` gets
-> the full pipeline below. Nothing has to be mirrored anywhere first.
+> project was recreated empty by a restore (`INDEX.md` §5). Every branch pushed to
+> `origin` gets the full pipeline below, plus the automated reviewer (§7) on every
+> pull request. Nothing has to be mirrored anywhere first.
 
 ```
 .github/
@@ -33,7 +33,8 @@ required.
 > [`DEPLOYMENT.md`](DEPLOYMENT.md)). A Railway IaC definition and its
 > `railway-config.yml` workflow now exist in source but have **not** been applied
 > — `DEPLOYMENT.md` §9. The retired `.gitlab-ci.yml` and `.gitlab/ci/`
-> have been **deleted from the tree**; the originals — including `deploy.yml`,
+> have been **deleted from the tree** (the code reviewer that briefly lived there
+> was ported to `.github/`, §7 — it moved, it did not die); the originals — including `deploy.yml`,
 > whose comments encode the deploy incidents any future CD job should honor (the
 > `Llm__ApiKey` drift, the deploy-log-stream false positive, the scope-array
 > truncation) — live in git history at `fbbf07d`
@@ -159,17 +160,19 @@ its own container. Uploading tens of thousands of small files through the
 artifact API is slow and loses the executable bit; caching the packages is both
 faster and removes the whole bug class.
 
-## 7. The automated code reviewer (currently unhosted)
+## 7. The automated code reviewer
 
-> **Dormant.** This reviewer was built to run on GitLab. That project was recreated empty by a restore and
-> the remote has been dropped (`INDEX.md` §5), so [`.gitlab-ci.yml`](../.gitlab-ci.yml) and
-> [`.gitlab/ci/`](../.gitlab/ci/) **do not run anywhere today.** They are kept because the reviewer itself
-> (`review.sh`, `render_review.py` and its tests) is host-agnostic and worth porting to a GitHub Actions
-> job. Until that port happens, treat this section as a design record, not a live gate.
+Built for GitLab, ported to Actions in gh#395 when that host went away. It lives in its own workflow —
+[`.github/workflows/code-review.yml`](../.github/workflows/code-review.yml) — rather than in `ci.yml`,
+because it is the only workflow needing a model API key and `pull-requests: write`, and that blast radius
+is easier to reason about in one small file.
 
-The split it describes: everything above is GitHub Actions — lint, build, test, evals, image. The reviewer
-was a separate pipeline whose only job was `code-review`. **A green reviewer meant "nothing blocking to
-say", not "this builds and its tests pass."** Do not read one for the other.
+**It runs on every pull request** (`opened`, `synchronize`, `reopened`, `ready_for_review`), skips drafts,
+cancels a review in flight when a new push supersedes it, and times out at 20 minutes.
+
+Everything above is the gates — lint, build, test, evals, image. This is a separate job. **A green reviewer
+means "nothing blocking to say", not "this builds and its tests pass"**, and a green pipeline does not mean
+anything reviewed the change. Do not read one for the other.
 
 | | GitHub Actions | GitLab |
 |---|---|---|
@@ -196,12 +199,12 @@ nothing and merges nothing.
      notes**, so there is no substitute, and the job fails with that message rather than half-working.
 3. Nothing else. Draft MRs are skipped by a rule, so a work-in-progress does not get reviewed at you.
 
-**The moving parts.** [`.gitlab/ci/review.sh`](../.gitlab/ci/review.sh) supplies the diff and carries the
+**The moving parts.** [`.github/ci/review.sh`](../.github/ci/review.sh) supplies the diff and carries the
 verdict; it picks neither the persona nor the rules — those are the `code-reviewer` subagent and its contract,
 so review rules keep one home. The tool allowlist passed to the CLI (`Read`, `Grep`, `Glob`, `Bash(git *)`,
 with `Edit`/`Write` denied) is what *enforces* "never edits code"; the contract is the explanation.
-[`render_review.py`](../.gitlab/ci/render_review.py) turns the verdict into the note and rejects a malformed
-one — a verdict nobody can parse fails the job rather than leaving an MR that merely looks reviewed. Its
+[`render_review.py`](../.github/ci/render_review.py) turns the verdict into the comment and rejects a
+malformed one — a verdict nobody can parse fails the job rather than leaving a PR that merely looks reviewed. Its
 self-test (`render_review_test.py`) covers both directions, including the case where the model returns
 `approve` while reporting a blocking finding.
 

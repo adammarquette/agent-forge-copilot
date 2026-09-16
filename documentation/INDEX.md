@@ -72,7 +72,7 @@ carries the finer detail; this is the family-level jump table.
 | `tools/SeedDemoPatients` | CLI utility to seed demo synthetic patients & clinical records | Demo data setup | `README.md` (Run it) |
 | `tools/MintQaIdentityToken` | CLI utility to mint test identity/session tokens for QA | Integration testing | `tests/AGENTS.md` |
 | `tools/LoadTestChat` | CLI load-testing tool for SignalR chat endpoints & turn latency | `NFR-PERF-*` verification | `PERFORMANCE_BASELINES.md` |
-| `.gitlab-ci.yml` · `.gitlab/ci/` | The GitLab pipeline — one job, the automated Code Reviewer on every MR push (`review.sh` + `render_review.py` and its self-test) | Review automation | `CI-SETUP.md` §7, `agents/code-reviewer.md` |
+| `.github/workflows/code-review.yml` · `.github/ci/` | The automated Code Reviewer — its own workflow, on every PR push (`review.sh` + `render_review.py` and its self-test) | Review automation | `CI-SETUP.md` §7, `agents/code-reviewer.md` |
 | `scripts/` · `documentation/.harness.conf` | Corpus gates: `measure-tok.sh` prints a document's price, `check-doc-sizes.sh` fails CI when a priced row stops matching its file (`.harness.conf` registers which tables are priced) | Doc/context hygiene | `CI-SETUP.md` §1 (`doc-sizes`) |
 | `external/agent-forge` | The OpenEMR fork, as a submodule pinned to the commit the deployed image was built from | Deployment provenance | `DEPLOYMENT.md` §1 |
 | `tools/verify-openemr-pin.sh` | Guard: the fork submodule and both OpenEMR image pins must agree (CI job `openemr-pin`) | Deployment provenance | `DEPLOYMENT.md` §1, `CI-SETUP.md` §1 |
@@ -119,9 +119,9 @@ GitHub — that is where `origin` points, where issues are filed, and where pull
 > so `gitlab#N` and `!N` citations no longer resolve to anything. Keep them where they record *why* a
 > decision was made; do not follow them expecting a page. A bare `#N` means the GitHub tracker above.
 >
-> **The mirror is behind, and CI lives there.** `.github/workflows/ci.yml` only fires on GitHub pushes and
-> pull requests, and there is no `.gitlab-ci.yml` in the tree — so a branch that exists only on GitLab gets
-> **no pipeline at all**, and its gates have to be run locally (`AGENTS.md` § Build / test).
+> **There is one host now.** `.github/workflows/ci.yml` fires on every push and pull request, and
+> `code-review.yml` adds the automated reviewer on pull requests (`CI-SETUP.md` §7). Nothing needs
+> mirroring, and no branch can end up without a pipeline.
 
 - **MVP v1** — parent tracking issue **#6**; Epics 1–12 merged (`main`).
 - **Week 2 — Multimodal Evidence Agent** — saga/tracking issue **#71**; see `W2_ARCHITECTURE.md`.

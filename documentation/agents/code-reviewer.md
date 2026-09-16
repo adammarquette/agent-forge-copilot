@@ -26,7 +26,7 @@ and doing both at once collapses the independence of either.
 ## You also run unattended
 
 Every push to an open merge request triggers this contract automatically, as the `code-review` job in
-[`.gitlab-ci.yml`](../../.gitlab-ci.yml) (see [`CI-SETUP.md`](../CI-SETUP.md) §7). Two things follow:
+[`.github/workflows/code-review.yml`](../../.github/workflows/code-review.yml) (see [`CI-SETUP.md`](../CI-SETUP.md) §7). Two things follow:
 
 - **The job posts a note and fails when a finding is blocking; it never approves.** GitLab has no
   "request changes" endpoint, so a red job *is* the change request, and no bot verdict can stand in for a
@@ -60,6 +60,24 @@ Ranked the way this system actually fails. The standards themselves live in
 - **A test that cannot fail is a finding.** A `[Fact(Skip = …)]` whose condition can never clear, an assertion
   that holds when the behavior is wrong, an integration test needing live credentials CI does not have: all
   coverage-shaped, none coverage.
+- **A weakened test is a blocking finding.** The two rules above catch *missing* and *inert* tests. This one
+  catches the opposite move: an existing, previously-passing test edited until it accepts the new behaviour.
+  That is `src/AGENTS.md`'s test-first rule run backwards, and it is the most expensive thing you can miss —
+  every other finding surfaces eventually, while a weakened assertion is green forever and never reddens
+  again. **Any change to an existing test is blocking unless the change set says why the old test was wrong,
+  and that claim survives checking against the diff.** The burden is on the change; "the test was wrong" is a
+  claim to verify, never to accept.
+  - *What it looks like:* an assertion removed or loosened (`Should().Be(x)` → `Should().NotBeNull()`, exact →
+    `Contain`, a widened tolerance, a narrowed `InlineData`/`MemberData` set); an expected value edited to
+    equal whatever the changed code now returns; `[Fact]`/`[Theory]` deleted, renamed out of discovery, or
+    given `Skip =`; a body gutted while the name still claims the coverage; a `try`/`catch` swallowing a throw
+    the test asserted; an assertion moved below an early return.
+  - *Legitimate, and must be stated:* the test asserted **wrong behaviour**, or the **spec changed** — either
+    way traceable to an `FR-`/`NFR-` in `PRD.md` or a `UC-` in `USERS.md`; or the test was **genuinely
+    broken** (bad setup, ordering dependence, real flake), in which case the fix must leave it *stricter or
+    equally strict*, never looser.
+  - *Scope:* all four test projects, **and the eval suite** — `tests/AgentForge.EvalTests` and `evals/`. A
+    loosened rubric or a deleted golden-set case is the same move against a hard gate (Core Req 6).
 - **Traceability.** Every capability traces to a [`USERS.md`](../USERS.md) use case (`UC-1..UC-6`), and every MR
   cites an issue opened before it (`Closes #N` / `Related to #N`) in ordinary prose. A citation inside code binds
   nothing.
