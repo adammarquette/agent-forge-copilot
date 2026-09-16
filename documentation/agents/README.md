@@ -55,7 +55,7 @@ fix: the trigger is a *match*, not a guarantee, and other tools read `AGENTS.md`
 Opening the contract yourself remains the thing you are accountable for.
 
 **The reviewer has a third delivery route, and it is the only one that needs no one to remember it:** the
-`code-review` job in [`.github/workflows/code-review.yml`](../../.github/workflows/code-review.yml) runs this contract against every push to an open
+authoring agent, which spawns this contract and blocks on its verdict (`src/AGENTS.md`) runs this contract against every push to an open
 MR, posts its findings as a note, and fails when one is blocking ([`CI-SETUP.md`](../CI-SETUP.md) §7). That is
 the floor. It does not retire the hat — a job reviews the diff it was handed, while a human reviewer can ask
 whether the change should exist at all.

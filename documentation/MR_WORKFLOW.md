@@ -13,11 +13,11 @@ one.
 | **Issue open** | A tracking issue exists, before any branch. No orphaned MRs — root `AGENTS.md` | human, or Coordinator |
 | **Branch** | `feat/…`, `fix/…`, `chore/…`, `docs/…` off `develop`, ideally in its own worktree | Coding Agent |
 | **Local gates** | `dotnet format --verify-no-changes`, unit + eval tests, and any gate the change touches | Coding Agent |
-| **MR open** | Targets `develop`, cites the issue (`Closes #N` / `Related to #N`), describes what was verified | Coding Agent |
-| **Reviewed** | The `code-review` job posts a verdict on every push (`CI-SETUP.md` §7) | automatic |
-| **Changes requested** | The job failed on a blocking finding, or a human reviewer asked | Coordinator dispatches the fix |
-| **Green** | Review clean, gates pass, MR description matches what landed | Coordinator marks ready |
-| **Merged** | Squash-merged to `develop` | **human only** |
+| **PR open** | Targets `develop`, cites the issue (`Closes #N` / `Related to #N`), describes what was verified | Coding Agent |
+| **Reviewed** | The author spawns a Code Reviewer and blocks on its verdict; `review-verdict` gates on it (`CI-SETUP.md` §7–§8) | Coding Agent spawns it |
+| **Changes requested** | The reviewer ruled `Request changes`, or a human asked | Coordinator dispatches a Coding Agent per finding |
+| **Green** | `STATE=approved`, gates pass, PR description matches what landed | Coordinator marks ready |
+| **Merged** | Merge commit to `develop` (this repo does not squash) | **human only** — gh#401 revisits this |
 | **Promoted** | `develop` → `main` in its own MR | human |
 | **Issue closed** | Closed by the merge, or by hand when the MR targeted a non-default branch | human, or Coordinator |
 

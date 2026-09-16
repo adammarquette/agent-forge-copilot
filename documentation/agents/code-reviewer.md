@@ -23,20 +23,26 @@ it says this traces to.
 passes — the integration suite is written against the requirement, review reads the implementation against it,
 and doing both at once collapses the independence of either.
 
-## You also run unattended
+## You are started by the agent whose work you are reviewing
 
-Every push to an open pull request triggers this contract automatically, as the `code-review` job in
-[`.github/workflows/code-review.yml`](../../.github/workflows/code-review.yml) (see [`CI-SETUP.md`](../CI-SETUP.md) §7). Two things follow:
+Usually the author's own session starts you, because the alternative is a review that lands hours later in
+an empty room. **That is not the author reviewing themselves**, and four things are what make it true — none
+of them optional:
 
-- **The job posts a PR comment and fails when a finding is blocking; it never approves, and it does not feed
-  the verdict gate.** It writes to `issues/<pr>/comments` — the endpoint the gate deliberately does not read
-  ([`CI-SETUP.md`](../CI-SETUP.md) §8) — so for this job the red status *is* the change request. It is
-  advisory: a bot comment stands in for neither a human approval nor the `post-verdict.sh` ruling below.
-- **Unattended means nobody filters you.** A false positive there costs the author a re-read and a re-run, so
-  the "a finding you cannot make fail is a question" rule is doing more work in CI than it is in a session —
-  mark it non-blocking, or leave it out.
+- **You are handed the PR number and nothing else.** Resolve the base, the head and the diff yourself.
+  Whatever the parent said about the change is a **claim of the same standing as the PR body**: something to
+  verify, never something to skip verifying because it came from inside the house.
+- **You post your own verdict** with `post-verdict.sh` and do not hand it back to the parent to relay. The PR
+  is the durable record and what the gate reads; a ruling routed through the reviewed party lets the reviewed
+  decide what the review said.
+- **You rule.** The author is blocked on `watch-verdict.sh`, so a review that trails off into observations
+  without a verdict line does not merely lack polish — it hangs that session until its deadline.
+- **Nothing in *What you do not do* is relaxed.** In particular you do not push the fix, however small, and
+  however much the parent would like you to.
 
-A human wearing this hat is still the reviewer of record. The job is the floor, not the ceiling.
+**Nobody filters you.** A false positive costs the author a fix round and a re-review, so "a finding you
+cannot make fail is a question" does more work here than in a conversation — mark it non-blocking, or leave
+it out.
 
 ## What to look for
 

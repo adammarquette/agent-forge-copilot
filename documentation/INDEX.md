@@ -36,9 +36,9 @@ blank cell means the row routes somewhere that is not one file.
 | [`W2_AUDIT.md`](W2_AUDIT.md) | Week 2 implementation audit — per-requirement Met/Partial/Gap coverage, risks, prioritized recommendations vs the submission gates | 7.2K | audit finding refs |
 | [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | 3.8K | — |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | The operational runbook for the Docker container stack — bootstrap, config, quirks, rollback; the Railway Infrastructure-as-Code deployment is §9 | 8.9K | — |
-| [`CI-SETUP.md`](CI-SETUP.md) | The GitHub build/test/eval gates, plus the dormant automated reviewer (§7) that reviewed every PR | 4.1K | — |
+| [`CI-SETUP.md`](CI-SETUP.md) | The GitHub build/test/eval gates, plus the dormant automated reviewer (§7) that reviewed every PR | 3.5K | — |
 | [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the container stack — services, what is published vs network-internal, flows, trust boundaries (mermaid) | 2.6K | — |
-| [`MR_WORKFLOW.md`](MR_WORKFLOW.md) | The lifecycle a change moves through from branch to `main`, and who acts at each state — what the Coordinator drives | 0.7K | — |
+| [`MR_WORKFLOW.md`](MR_WORKFLOW.md) | The lifecycle a change moves through from branch to `main`, and who acts at each state — what the Coordinator drives | 0.8K | — |
 | [`agents/README.md`](agents/README.md) | **Agent role contracts** — Code Reviewer, Platform, Coordinator — plus the task-sizing rubric, and for each contract whether it auto-loads or you must open it | 1.8K | — |
 | [`supporting/`](supporting/) | Source requirement PDFs (Week 1 & 2) and the architecture-defense decks |  | — |
 
@@ -72,7 +72,7 @@ carries the finer detail; this is the family-level jump table.
 | `tools/SeedDemoPatients` | CLI utility to seed demo synthetic patients & clinical records | Demo data setup | `README.md` (Run it) |
 | `tools/MintQaIdentityToken` | CLI utility to mint test identity/session tokens for QA | Integration testing | `tests/AGENTS.md` |
 | `tools/LoadTestChat` | CLI load-testing tool for SignalR chat endpoints & turn latency | `NFR-PERF-*` verification | `PERFORMANCE_BASELINES.md` |
-| `.github/workflows/code-review.yml` · `.github/ci/` | The automated Code Reviewer — its own workflow, on every PR push (`review.sh` + `render_review.py` and its self-test) | Review automation | `CI-SETUP.md` §7, `agents/code-reviewer.md` |
+| `.github/scripts/` | The verdict gate — the reader, the reviewer's poster, and the watcher the author blocks on on every PR push (`review.sh` + `render_review.py` and its self-test) | Review automation | `CI-SETUP.md` §7, `agents/code-reviewer.md` |
 | `.github/scripts/verdict-state.sh` · `post-verdict.sh` · `watch-verdict.sh` | The verdict gate — one reader, the reviewer's poster, and the blocking watcher the authoring agent waits on | Review is a gate, not a note | `CI-SETUP.md` §8, `documentation/agents/code-reviewer.md` |
 | `scripts/` · `documentation/.harness.conf` | Corpus gates: `measure-tok.sh` prints a document's price, `check-doc-sizes.sh` fails CI when a priced row stops matching its file (`.harness.conf` registers which tables are priced) | Doc/context hygiene | `CI-SETUP.md` §1 (`doc-sizes`) |
 | `external/agent-forge` | The OpenEMR fork, as a submodule pinned to the commit the deployed image was built from | Deployment provenance | `DEPLOYMENT.md` §1 |
@@ -121,7 +121,7 @@ GitHub — that is where `origin` points, where issues are filed, and where pull
 > decision was made; do not follow them expecting a page. A bare `#N` means the GitHub tracker above.
 >
 > **There is one host now.** `.github/workflows/ci.yml` fires on every push and pull request, and
-> `code-review.yml` adds the automated reviewer on pull requests (`CI-SETUP.md` §7). Nothing needs
+> the `review-verdict` gate waits for a spawned reviewer's ruling (`CI-SETUP.md` §7–§8). Nothing needs
 > mirroring, and no branch can end up without a pipeline.
 
 - **MVP v1** — parent tracking issue **#6**; Epics 1–12 merged (`main`).

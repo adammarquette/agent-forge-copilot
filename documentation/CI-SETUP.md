@@ -163,60 +163,29 @@ faster and removes the whole bug class.
 
 ## 7. The automated code reviewer
 
-Built for GitLab, ported to Actions in gh#395 when that host went away. It lives in its own workflow —
-[`.github/workflows/code-review.yml`](../.github/workflows/code-review.yml) — rather than in `ci.yml`,
-because it is the only workflow needing a model API key and `pull-requests: write`, and that blast radius
-is easier to reason about in one small file.
+**The reviewer is spawned, not scheduled.** The agent that authored the change opens its PR, waits for the
+gates to go green, then starts a Code Reviewer with its own context and blocks on the ruling
+(`src/AGENTS.md`, `documentation/agents/code-reviewer.md`). There is no CI job that reviews code.
 
-**It runs on every pull request** (`opened`, `synchronize`, `reopened`, `ready_for_review`), skips drafts,
-cancels a review in flight when a new push supersedes it, and times out at 20 minutes.
+That is deliberate, and it was tried the other way first. A CI reviewer existed briefly (gh#395) and never
+completed a single review: it needed `ANTHROPIC_API_KEY` as a repository secret, failed on workspace
+scoping, then on billing, and sat red on every PR in between. It was removed in gh#402. Two reasons it is
+not coming back on a timer:
 
-Everything above is the gates — lint, build, test, evals, image. This is a separate job. **A green reviewer
-means "nothing blocking to say", not "this builds and its tests pass"**, and a green pipeline does not mean
-anything reviewed the change. Do not read one for the other.
+- **A spawned reviewer needs no API key.** It runs in the operator's own session, so there is no credential
+  in a repository secret — on a public repo — for a job that can silently stop working when a balance runs out.
+- **A review that arrives after the authoring session ends lands in an empty room**, and gets addressed by a
+  session that has to rebuild the reasoning from the diff. Blocking the author is cheaper than re-deriving.
 
-| | GitHub Actions | GitLab |
-|---|---|---|
-| Trigger | PR, and pushes to `main`/`develop` | **MR pipelines only** (`merge_request_event`) |
-| Runs | lint · build · unit · eval · evals · image | the Code Reviewer, and nothing else |
-| Green means | it compiles and the suites pass | no blocking findings |
+`render_review.py` and its self-test — which turned a verdict JSON into a review body, and were host-neutral
+and tested — are in git history rather than gone. If a CI reviewer is ever wanted again, start there rather
+than rewriting them.
 
-**How the verdict is expressed.** GitLab's REST API can approve and unapprove a merge request but has **no
-endpoint for "request changes"**, so the job does not pretend otherwise: it posts its findings as an MR note
-and **fails the job** when any finding is blocking. Where merging requires a green pipeline, that is exactly a
-change request. It **never approves** — a bot approval could satisfy an approval rule a human was meant to,
-and [`documentation/agents/code-reviewer.md`](agents/code-reviewer.md) is explicit that the reviewer changes
-nothing and merges nothing.
-
-**What it needs, one time, before the first run:**
-
-1. **A runner.** The job carries no `tags:`, so an untagged runner picks it up. The workstation runner is a
-   *shell* executor, which means the job uses whatever is on that machine's `PATH` — `claude`, `git`, `curl`
-   and `python`. It must also be running: a runner that only exists in a terminal reviews nothing overnight.
-2. **Two masked CI variables** (Settings → CI/CD → Variables):
-   - `ANTHROPIC_API_KEY` — the model call. Every push to an open MR spends tokens; `interruptible: true`
-     means a superseded review is cancelled rather than paid for twice.
-   - `REVIEW_BOT_TOKEN` — a PAT or project access token with **`api`** scope. `CI_JOB_TOKEN` **cannot create
-     notes**, so there is no substitute, and the job fails with that message rather than half-working.
-3. Nothing else. Draft MRs are skipped by a rule, so a work-in-progress does not get reviewed at you.
-
-**The moving parts.** [`.github/ci/review.sh`](../.github/ci/review.sh) supplies the diff and carries the
-verdict; it picks neither the persona nor the rules — those are the `code-reviewer` subagent and its contract,
-so review rules keep one home. The tool allowlist passed to the CLI (`Read`, `Grep`, `Glob`, `Bash(git *)`,
-with `Edit`/`Write` denied) is what *enforces* "never edits code"; the contract is the explanation.
-[`render_review.py`](../.github/ci/render_review.py) turns the verdict into the comment and rejects a
-malformed one — a verdict nobody can parse fails the job rather than leaving a PR that merely looks reviewed. Its
-self-test (`render_review_test.py`) covers both directions, including the case where the model returns
-`approve` while reporting a blocking finding.
+What makes the ruling *count* is §8.
 
 ## 8. The verdict gate
 
-§7 runs a reviewer in CI; **its output does not reach this gate.** `review.sh` posts to
-`issues/<pr>/comments`, which is precisely the endpoint below that nothing reads — so the CI reviewer is
-advisory, and what feeds the gate is a reviewer **spawned by the authoring agent** (`src/AGENTS.md`),
-posting a review through `post-verdict.sh`. Unifying the two is follow-up work, not done here.
-
-Three scripts, one reader:
+§7 spawns the reviewer; this is what makes its ruling *count*. Three scripts, one reader:
 
 | Script | Who runs it | What it does |
 |---|---|---|
