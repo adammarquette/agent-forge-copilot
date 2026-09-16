@@ -199,10 +199,10 @@ software engineering, it's simply *another* layer of abstraction above the code,
 layer of abstraction above IL/machine instructions. `documentation/` is written at that higher layer on
 purpose - a knowledge base meant to be read and maintained by models, not just humans, favoring dense
 cross-links and explicit context over prose that assumes a reader who already remembers yesterday's session.
-The wiki isn't only that folder, either - it extends into the GitHub issues and PR descriptions too, which
-is why those get cited as heavily as doc sections. (Citations of the form `gitlab#N` address the retired
-pre-migration tracker — historical context, not links; see `INDEX.md` §5.) Together they're the wiki this
-project's agents read to reconstruct state.
+The wiki isn't only that folder, either - it extends into the issue tracker and merge-request descriptions
+too, which is why those get cited as heavily as doc sections. (A bare `#N`/`!N` - and legacy `gitlab#N` -
+addresses the live GitLab tracker; `gh#N` addresses the GitHub mirror, which numbers issues independently.
+See `INDEX.md` §5.) Together they're the wiki this project's agents read to reconstruct state.
 
 ---
 
@@ -335,8 +335,14 @@ them, so they are kept as source documents rather than edited.
 
 Everything else — the architecture, the sidecar design, the implementation, and the docs in
 [`documentation/`](documentation/) — is original work. The codebase was formerly namespaced
-`GauntletAI.AgentForge.*` and hosted on a Gauntlet-run GitLab; both have been retired in favour of
-`AgentForge.*` on GitHub.
+`GauntletAI.AgentForge.*`; that prefix has been dropped in favour of plain `AgentForge.*`.
+
+Hosting is split, deliberately: the **live git remote and issue tracker** is
+[labs.gauntletai.com](https://labs.gauntletai.com/adammarquette/agent-forge-copilot) (GitLab) — that is where
+`origin` points and where issues/MRs are filed — while
+[GitHub](https://github.com/adammarquette/agent-forge-copilot) holds a mirror that also runs CI
+(`.github/workflows/ci.yml`). The two have **separate issue numbering**; see
+[`INDEX.md`](documentation/INDEX.md) §5 for which `#N` belongs to which.
 
 ---
 

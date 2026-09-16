@@ -91,19 +91,28 @@ Read `USERS.md` §4/§5 for the *why*; this is the jump from a use case to the p
 
 ## 5. The external wiki (issue tracker)
 
-The wiki extends beyond this folder into the issue tracker — issues/epics/PRs are cited as heavily as doc
-sections because they carry the same reconstructable context (see `README.md`). Project
-**[`adammarquette/agent-forge-copilot`](https://github.com/adammarquette/agent-forge-copilot)** on GitHub.
+The wiki extends beyond this folder into the issue tracker — issues/epics/MRs are cited as heavily as doc
+sections because they carry the same reconstructable context (see `README.md`). The live tracker and git
+remote is **`adammarquette/agent-forge-copilot`** on
+**[labs.gauntletai.com](https://labs.gauntletai.com/adammarquette/agent-forge-copilot)** (GitLab, project id
+`1464`) — that is where `origin` points, where issues are filed, and where merge requests are opened.
 
-> **Numbering caveat.** The project was migrated off its original GitLab tracker, and issue numbers did **not**
-> survive the move — a `#N` minted on GitLab addresses a *different* issue on GitHub (e.g. old #109 was the
-> click-to-source `Binary.read` scope; GitHub #109 is an unrelated QA-login issue). Historical `gitlab#N`
-> citations throughout the docs and code comments therefore refer to the **retired** tracker and must not be
-> read as GitHub links. The two tracking issues below are pre-migration numbers.
+> **Two hosts, two numbering spaces.** Work moved to GitHub for a period and then came back, so a bare `#N`
+> is ambiguous unless you know which host minted it:
+>
+> - **`#N` / `!N` = the GitLab tracker above** (issues / merge requests). Historical `gitlab#N` citations in
+>   the docs and code are the *same* instance and still resolve — e.g. `gitlab#128` is the click-to-source
+>   `Binary.read` scope, and #140 (this year's deployment-reproducibility issue) continues that same sequence.
+> - **`gh#N` = the [GitHub mirror](https://github.com/adammarquette/agent-forge-copilot)**, whose issues were
+>   numbered independently during the GitHub period — `gh#109` is an unrelated QA-login issue, not the
+>   `Binary.read` one. Cite those as `gh#N` or as a full URL, never as a bare `#N`.
+>
+> **The mirror is behind, and CI lives there.** `.github/workflows/ci.yml` only fires on GitHub pushes and
+> pull requests, and there is no `.gitlab-ci.yml` in the tree — so a branch that exists only on GitLab gets
+> **no pipeline at all**, and its gates have to be run locally (`AGENTS.md` § Build / test).
 
-- **MVP v1** — parent tracking issue **#6** *(legacy GitLab number)*; Epics 1–12 merged (`main`).
-- **Week 2 — Multimodal Evidence Agent** — saga/tracking issue **#71** *(legacy GitLab number)*; see
-  `W2_ARCHITECTURE.md`.
+- **MVP v1** — parent tracking issue **#6**; Epics 1–12 merged (`main`).
+- **Week 2 — Multimodal Evidence Agent** — saga/tracking issue **#71**; see `W2_ARCHITECTURE.md`.
 - **The coupled OpenEMR fork** — [`agent-forge`](https://github.com/adammarquette/agent-forge); read its PHP
   source when diagnosing fork-specific auth/FHIR quirks (`README.md` §Related repositories).
 
