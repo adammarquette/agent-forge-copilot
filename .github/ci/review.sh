@@ -66,7 +66,18 @@ PROMPT_END
 )
 
 # The tool allowlist is the real no-edit boundary; the contract's prose explains it.
-claude -p "$PROMPT" --agent code-reviewer --model opus --allowedTools "Read,Grep,Glob,Bash(git *)" --disallowedTools "Edit,Write,NotebookEdit" --permission-mode dontAsk --output-format json > "$WORK/envelope.json" || die "the reviewer did not complete"
+#
+# On failure, dump BOTH streams before dying. --output-format json puts the CLI's own
+# error object on STDOUT, which is redirected here - so a bare `|| die` throws away the
+# only explanation and leaves "did not complete" with no cause (first live run, gh#398).
+if ! claude -p "$PROMPT" --agent code-reviewer --model opus --allowedTools "Read,Grep,Glob,Bash(git *)" --disallowedTools "Edit,Write,NotebookEdit" --permission-mode dontAsk --output-format json > "$WORK/envelope.json" 2> "$WORK/claude.err"; then
+    echo "code-review: --- claude stderr ---" >&2
+    sed -n '1,40p' "$WORK/claude.err" >&2
+    echo "code-review: --- claude stdout (first 40 lines) ---" >&2
+    sed -n '1,40p' "$WORK/envelope.json" >&2
+    echo "code-review: --- end ---" >&2
+    die "the reviewer did not complete (see the two streams above)"
+fi
 
 # A malformed verdict fails the job: better a red check than a pull request that looks reviewed.
 SUMMARY_LINE=$("$PY" .github/ci/render_review.py "$WORK/envelope.json" "$WORK/note.json" "$HEAD") || die "the reviewer's output was not the agreed JSON shape; no verdict posted"
