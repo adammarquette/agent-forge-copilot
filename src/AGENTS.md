@@ -44,4 +44,4 @@ Checkable expectations:
 
 ## Definition of done
 Failing unit tests written first and now green · standards met · no PHI anywhere · traces to a `USERS.md`
-use case · tool/contract schemas updated if the interface changed · `dotnet format` clean.
+use case · tool/contract schemas updated if the interface changed · **`documentation/` checked for staleness and any stale doc updated in this same change** (root `AGENTS.md`) · `dotnet format` clean.
