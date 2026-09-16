@@ -86,10 +86,13 @@ crash-looping for anyone without them:
    disabled.)
 
 Then run the database half of the bootstrap, which sets the Site Address Override, enables the clients
-it just registered, and writes the module's launch URIs:
+it just registered, and writes the module's launch URIs. It connects to MySQL, which the default stack
+does not publish — bring the stack up with the opt-in overlay (a loopback-only `127.0.0.1:3306` publish)
+first:
 
 ```bash
-MYSQL_HOST=127.0.0.1 MYSQL_ROOT_PASS=<mysql root password>   dotnet run --project tools/BootstrapOpenEmr -- http://localhost:8080
+docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d
+MYSQL_ROOT_PASSWORD=rootpass dotnet run --project tools/BootstrapOpenEmr -- http://localhost:8080
 ```
 
 Without the Site Address Override OpenEMR advertises its own container hostname as the FHIR base, and

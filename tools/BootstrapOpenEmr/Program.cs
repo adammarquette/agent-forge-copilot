@@ -19,8 +19,11 @@
 //   dotnet run --project tools/BootstrapOpenEmr -- <frontDoorBaseUrl>
 //
 // Connection comes from the environment (same names the OpenEMR container itself uses):
-//   MYSQL_HOST (default 127.0.0.1) · MYSQL_PORT (3306) · MYSQL_DATABASE (openemr)
-//   MYSQL_USER / MYSQL_ROOT_PASS or MYSQL_PASS
+//   MYSQL_HOST (default 127.0.0.1) · MYSQL_PORT (3306) · MYSQL_DATABASE (openemr) · MYSQL_USER (root)
+//   password: MYSQL_ROOT_PASS / MYSQL_ROOT_PASSWORD for root, MYSQL_PASS / MYSQL_PASSWORD otherwise.
+//
+// The compose stack publishes only the front door, so MySQL is not reachable from the host by default —
+// bring it up with the docker-compose.bootstrap.yml overlay, which adds a loopback-only publish.
 
 using System.Globalization;
 using MySqlConnector;
@@ -48,16 +51,23 @@ if (frontDoorUri.Host is "openemr" or "agent-forge-api" || frontDoorUri.Host.End
     return 2;
 }
 
+var user = Env("MYSQL_USER", "root");
+
+// compose names the root password MYSQL_ROOT_PASSWORD and the openemr user's MYSQL_PASSWORD, so a shell
+// that sourced the stack's .env would otherwise hand root the wrong one.
+var passwordVars = string.Equals(user, "root", StringComparison.Ordinal)
+    ? new[] { "MYSQL_ROOT_PASS", "MYSQL_ROOT_PASSWORD" }
+    : new[] { "MYSQL_PASS", "MYSQL_PASSWORD" };
+
 var csb = new MySqlConnectionStringBuilder
 {
     Server = Env("MYSQL_HOST", "127.0.0.1"),
     Port = uint.Parse(Env("MYSQL_PORT", "3306"), CultureInfo.InvariantCulture),
     Database = Env("MYSQL_DATABASE", "openemr"),
-    UserID = Env("MYSQL_USER", "root"),
-    Password = Environment.GetEnvironmentVariable("MYSQL_ROOT_PASS")
-               ?? Environment.GetEnvironmentVariable("MYSQL_PASS")
-               ?? Environment.GetEnvironmentVariable("MYSQL_PASSWORD")
-               ?? "",
+    UserID = user,
+    Password = passwordVars
+        .Select(Environment.GetEnvironmentVariable)
+        .FirstOrDefault(v => !string.IsNullOrEmpty(v)) ?? "",
 };
 
 Console.WriteLine($"Bootstrapping OpenEMR at {csb.Server}:{csb.Port}/{csb.Database}");

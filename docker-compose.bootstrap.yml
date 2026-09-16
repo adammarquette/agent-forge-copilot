@@ -1,0 +1,14 @@
+# Opt-in overlay for the first-run bootstrap (documentation/DEPLOYMENT.md §4).
+#
+# The reference stack publishes ONE port — the front door — so MySQL is unreachable from the host,
+# and tools/BootstrapOpenEmr runs on the host. This overlay adds a LOOPBACK-ONLY publish so it can
+# connect, without weakening the default stack for everyone who never runs the bootstrap.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d
+#
+# 127.0.0.1 is deliberate: bound to the interface only, never 0.0.0.0. Set MYSQL_HOST_PORT if 3306 is
+# already taken on the host, and pass the same value to the tool as MYSQL_PORT.
+services:
+  mysql:
+    ports:
+      - "127.0.0.1:${MYSQL_HOST_PORT:-3306}:3306"

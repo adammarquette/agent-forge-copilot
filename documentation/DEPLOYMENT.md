@@ -103,13 +103,26 @@ dotnet run --project tools/RegisterSmartClients -- http://localhost:8080
 # put the printed ids/secrets in .env, then:
 
 # 2. the database half — globals + enabling the clients
-MYSQL_HOST=127.0.0.1 MYSQL_ROOT_PASS=<mysql root password> \
-  dotnet run --project tools/BootstrapOpenEmr -- http://localhost:8080
+MYSQL_ROOT_PASSWORD=rootpass dotnet run --project tools/BootstrapOpenEmr -- http://localhost:8080
 ```
 
-`BootstrapOpenEmr` talks to MySQL directly (the settings have no API), reading the same environment variable
-names the OpenEMR container uses: `MYSQL_HOST` (default `127.0.0.1`), `MYSQL_PORT` (`3306`), `MYSQL_DATABASE`
-(`openemr`), `MYSQL_USER` (`root`), and `MYSQL_ROOT_PASS` / `MYSQL_PASS`. It waits for the schema (OpenEMR's
+**The compose stack publishes only the front door, so step 2 needs MySQL reachable from the host.** Bring the
+stack up with the opt-in overlay — it adds a **loopback-only** `127.0.0.1:3306` publish and changes nothing
+else:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d
+```
+
+`MYSQL_HOST_PORT` moves the host-side port if 3306 is taken; pass the same value to the tool as `MYSQL_PORT`.
+Elsewhere — Railway, any other host — point `MYSQL_HOST` at the database service directly and skip the
+overlay.
+
+`BootstrapOpenEmr` talks to MySQL directly (these settings have no API), reading the same environment variable
+names the containers use: `MYSQL_HOST` (default `127.0.0.1`), `MYSQL_PORT` (`3306`), `MYSQL_DATABASE`
+(`openemr`), `MYSQL_USER` (`root`), and for the password `MYSQL_ROOT_PASS` / `MYSQL_ROOT_PASSWORD` when the
+user is `root`, `MYSQL_PASS` / `MYSQL_PASSWORD` otherwise — compose's own names, so a sourced `.env` cannot
+hand `root` the `openemr` user's password. It waits for the schema (OpenEMR's
 first boot takes minutes on a fresh volume), prints one line per setting — `ok` or `SET` — and refuses a
 service-internal hostname, because that argument becomes `site_addr_oath` and §2's one-origin invariant rests
 on it. Run it on every deploy if you like; a converged stack is all `ok`.
