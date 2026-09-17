@@ -96,21 +96,10 @@ export default defineRailway((ctx) => {
       // Shared, matching the sidecar connection string below. A service-scoped
       // preserve() here would be a DIFFERENT variable, and the sidecar could not connect.
       POSTGRES_PASSWORD: ctx.shared.POSTGRES_PASSWORD,
-      // PGDATA must be a SUBDIRECTORY of the mount point, never the mount point
-      // itself. Railway volumes are ext4 block devices, and ext4 creates
-      // `lost+found` at the filesystem root - so a volume mounted directly at
-      // PGDATA is never empty, and `initdb` refuses it:
-      //
-      //   initdb: error: directory "/var/lib/postgresql/data" exists but is not empty
-      //   initdb: detail: It contains a lost+found directory...
-      //
-      // That crash-loops roughly every 1.5s while Railway still reports the
-      // service SUCCESS/online, because the CONTAINER starts fine. The symptom
-      // surfaces on the sidecar instead, as a Postgres connect TIMEOUT - nothing
-      // is listening - which reads like a network fault and is not one.
-      //
-      // docker-compose.yml does NOT need this: a named Docker volume has no
-      // lost+found, so the identical mount path works locally and fails here.
+      // A subdirectory, never the mount point: a Railway volume is ext4, whose
+      // `lost+found` makes the mount non-empty, and `initdb` refuses that.
+      // Compose needs no equivalent - named volumes have no `lost+found`.
+      // reference: documentation/DEPLOYMENT.md §9 "Railway-specific gotchas"
       PGDATA: "/var/lib/postgresql/data/pgdata",
     },
     volumeMounts: { "/var/lib/postgresql/data": postgresData },
