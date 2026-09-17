@@ -44,8 +44,9 @@ who hasn't got one.
 
 **No service in [`docker-compose.yml`](../docker-compose.yml) publishes its own port.** Only the proxy is
 reachable from the host. That is load-bearing, not cosmetic — see §2. Running observability publishes three
-more ports, and the root overlay puts those containers on this same network —
-[`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) §3. reference: #417
+more ports, and the root overlay puts those containers on this same network — which is why that overlay binds
+all three to `127.0.0.1` and takes Grafana's admin credential from the environment
+([`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) §3). reference: #417
 
 ### Why OpenEMR is pulled, not built
 
@@ -110,7 +111,8 @@ client must be registered with **that flow's** redirect URI (`/agentforge/callba
 
 Options-pattern; `__` is the section separator. This table is the reference for standing the sidecar up
 anywhere. **The compose file sets most but not all of it** — the rows marked **not in compose** are the
-exceptions, and the agenda pair is the one that costs a feature (see the note under the table).
+exceptions, and the agenda pair is the one that costs a feature (see the note under the table). The last row
+is the odd one out — not sidecar config at all, but the one `.env` input the observability overlay reads.
 
 | Variable | Value |
 |---|---|
@@ -128,6 +130,7 @@ exceptions, and the agenda pair is the one that costs a feature (see the note un
 | `Llm__InputPricePerMillionTokensUsd` / `Output…` | real per-million prices, so `agentforge_llm_cost_usd_total` reports actual cost rather than 0 |
 | `AgentForgeData__ConnectionString` | Postgres/pgvector. Optional — the Week 2 flows are additive, and the host boots without it |
 | `Observability__LokiOtlpEndpoint` | **not in `docker-compose.yml`; set for you by [`docker-compose.observability.yml`](../docker-compose.observability.yml)** (to `http://loki:3100/otlp/v1/logs`). OTLP/HTTP log push, fail-open: unset (or unreachable) means console-only logging, so the omission costs nothing until you run the observability stack ([`observability/README.md`](../observability/)) |
+| `GRAFANA_ADMIN_PASSWORD` | **not sidecar config** — a `.env` input read by [`docker-compose.observability.yml`](../docker-compose.observability.yml), which passes it (with `GRAFANA_ADMIN_USER`) to Grafana as `GF_SECURITY_ADMIN_PASSWORD`. Defaults to `admin`, which is defensible only because that overlay publishes on `127.0.0.1`; a wider publish has to change it in the same edit ([`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) § *Observability: two wirings*) |
 
 > **The Daily Agenda is not wired in the reference compose stack.** `docker-compose.yml` passes no
 > `OpenEmrAgenda__*` at all — not even a `${...}` passthrough — so putting an agenda client id/secret in `.env`

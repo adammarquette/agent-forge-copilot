@@ -113,7 +113,7 @@ Everything is reached through the one origin on port 8080 — OpenEMR at `/`, th
 loses its session cookie ("No pending SMART launch"), and `site_addr_oath` must equal the sidecar's
 `OpenEmr:BaseUrl` or the `aud` check fails. It is also why no service in `docker-compose.yml` but the proxy
 publishes a port — the optional observability stack publishes three more, and the root overlay puts them on
-the same network ([`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) §3).
+the same network, bound to `127.0.0.1` ([`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) §3).
 
 > **Demo data only.** This stack is for evaluation on synthetic data — never real PHI. It runs over
 > plain HTTP with local-development escape hatches enabled
@@ -199,8 +199,8 @@ no browser caller — is blocked at the proxy:
 | [`W2_AUDIT.md`](documentation/W2_AUDIT.md) | 7.2K | **(Week 2)** Implementation audit — per-requirement Met/Partial/Gap against the submission gates |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | 5.7K | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
-| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 10.5K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
-| [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 4.1K | Physical/network view of the container stack — what is published vs internal (mermaid) |
+| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 10.7K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
+| [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 4.4K | Physical/network view of the container stack — what is published vs internal (mermaid) |
 | [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.6K | The GitHub build/test/eval gates and the `review-verdict` gate — including why no CI job reviews code (§7) |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
 | [`MR_WORKFLOW.md`](documentation/MR_WORKFLOW.md) | 0.8K | How a change gets from a branch to `main` — the states, and who acts at each |
