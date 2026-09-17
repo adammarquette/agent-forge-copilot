@@ -42,7 +42,7 @@ flowchart TB
             mysql[("<b>mysql</b><br/>mysql:9.4 · :3306<br/>volume")]
         end
 
-        subgraph obs["Observability (optional) — drawn as the root overlay wires it:<br/>same network as net, and publishes 9090 / 3100 / 3000 to the host"]
+        subgraph obs["Observability (optional) — drawn as the root overlay wires it:<br/>same network as net, and publishes 9090 / 3100 / 3000 on 127.0.0.1"]
             prom["<b>prometheus</b> · :9090"]
             loki["<b>loki</b> · :3100"]
             grafana["<b>grafana</b> · :3000 · login-gated"]
@@ -85,14 +85,14 @@ flowchart TB
 
 | Container | Role | Image / build | Port | Reachable from the host | Persists |
 |---|---|---|---|---|---|
-| `reverse-proxy` | Same-origin nginx front door (gitlab#62) | `reverse-proxy/Dockerfile` | 8080 | ✅ **the only published port of `docker-compose.yml`** (`${DEMO_PORT:-8080}`) — with observability up, three more are published; see below | — |
+| `reverse-proxy` | Same-origin nginx front door (gitlab#62) | `reverse-proxy/Dockerfile` | 8080 | ✅ **the only published port of `docker-compose.yml`** (`${DEMO_PORT:-8080}`) — with observability up, three more are published, loopback-only under the overlay; see below | — |
 | `agent-forge-api` | .NET 10 sidecar / BFF (agent, verification, MCP tools, SignalR) | root `Dockerfile`; published as `ghcr.io/adammarquette/agent-forge-copilot` | 8080 | ❌ network-internal only | vol `/keys` |
 | `openemr` | OpenEMR v8 fork (PHP/Apache, `SWARM_MODE`) + `oe-module-agentforge` | pulled: `ghcr.io/adammarquette/agent-forge` (pinned `sha-<12>`) | 80 | ❌ network-internal only | vol `openemr-sites` |
 | `mysql` | OpenEMR's application database | `mysql:9.4` | 3306 | ❌ network-internal only | vol `mysql-data` |
 | `postgres` | Week 2 data tier: pgvector guideline corpus, `DerivedFactStore`, ingestion jobs | `pgvector/pgvector:pg17` | 5432 | ❌ network-internal only | vol `postgres-data` |
-| `prometheus` | Metrics scrape + alert-rule evaluation | `observability/prometheus/` | 9090 | ✅ published by both observability files | (ephemeral) |
-| `loki` | Log aggregation (sidecar logs via OTLP) | `observability/loki/` | 3100 | ✅ published by both observability files | vol `loki-data` — **overlay only**; the separate file mounts nothing at `/loki` |
-| `grafana` | Dashboards + log explore (the AgentForge panels) | `observability/grafana/` | 3000 | ✅ login-gated, published by both | — |
+| `prometheus` | Metrics scrape + alert-rule evaluation | `observability/prometheus/` | 9090 | ✅ published by both — `127.0.0.1` by the overlay, all interfaces by the separate file | (ephemeral) |
+| `loki` | Log aggregation (sidecar logs via OTLP) | `observability/loki/` | 3100 | ✅ published by both — `127.0.0.1` by the overlay, all interfaces by the separate file | vol `loki-data` — **overlay only**; the separate file mounts nothing at `/loki` |
+| `grafana` | Dashboards + log explore (the AgentForge panels) | `observability/grafana/` | 3000 | ✅ login-gated; `127.0.0.1` by the overlay, all interfaces by the separate file | — |
 
 ### Observability: two wirings, and why the choice is topological
 
@@ -129,9 +129,11 @@ network those three published containers sit on**:
 That is a new pivot, not a redrawn arrow: adding a data source and querying it is Grafana's own feature set.
 A caller who reaches `:3000` and gets past the login can point Grafana at `postgres:5432` or `mysql:3306` —
 whose credentials are the compose defaults listed in [`.env.example`](../.env.example) — and read the
-`DerivedFactStore` or the EHR database through Grafana's data-source proxy, and can reach the sidecar's
-`POST /documents/ingest`, whose whole authorization argument is *trusted private-network origin* (W2-D17).
-Under the separate project none of those names resolve.
+`DerivedFactStore` or the EHR database through Grafana's data-source proxy. That much is one step, with the
+shipped datasource plugins. The container is additionally L3-adjacent to the sidecar's `POST /documents/ingest`,
+whose whole authorization argument is *trusted private-network origin* (W2-D17) — driving an arbitrary POST
+body from Grafana's own UI would take a plugin install first, so that one is a widened blast radius rather
+than a one-step pivot. Under the separate project none of those names resolve.
 
 **So with the overlay, Grafana's login is load-bearing infrastructure rather than a convenience** — and the
 overlay is written accordingly, because documenting this was not enough:
@@ -144,7 +146,14 @@ overlay is written accordingly, because documenting this was not enough:
 The default stays `admin`/`admin`, and that is defensible **only** because of the loopback binding — the two
 mitigations are one mitigation. **Republish any of these ports on `0.0.0.0` and the credential has to change
 in the same edit.** [`observability/docker-compose.yml`](../observability/) does neither, which remains
-tolerable only because its containers cannot resolve anything in this stack. reference: #417, #418
+tolerable only because its containers cannot resolve anything in this stack.
+
+**What this does not close.** The three containers are still on the one flat network with `mysql`, `postgres`
+and `agent-forge-api`, so the pivot above is intact for anything already inside: a process on the Docker host,
+another container on `agentforge-demo_default`, or anyone who gets the Grafana password. Loopback binding
+removes the *LAN*, not the boundary — the boundary would need Grafana kept off the application network while
+Prometheus keeps its scrape edge, which this stack does not do. Treat the overlay as a single-host,
+synthetic-data wiring, exactly as the demo posture below says. reference: #417
 
 Verify the claims above rather than trusting them —
 `docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile copilot config` renders
