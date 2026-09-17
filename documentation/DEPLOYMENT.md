@@ -431,7 +431,7 @@ Compose service → Railway service, one for one. The invariants of §2 carry ov
 hand edit. OpenEMR's `site_addr_oath` must still be set to that same value by the bootstrap — that half is
 database state and cannot be derived.
 
-### Two Railway-specific gotchas, both already handled
+### Three Railway-specific gotchas, all already handled
 
 1. **DNS.** The proxy resolves upstreams at request time and needs a `resolver`. Docker's embedded DNS
    (`127.0.0.11`) does not exist on Railway, so `reverse-proxy/10-resolver.envsh` derives the resolver from the
@@ -442,6 +442,21 @@ database state and cannot be derived.
    `0.0.0.0` and the fork's Apache hardcodes `Listen 0.0.0.0:80`. An AAAA answer would yield a connection
    refused on a perfectly healthy stack, so the resolver runs with `ipv6=off` (`RESOLVER_IPV6`, harmless under
    Docker). Set it to `on` only for a legacy IPv6-only Railway environment (pre-2025-10-16).
+3. **`PGDATA` must be a subdirectory of the volume mount, not the mount itself.** Railway volumes are ext4
+   block devices, and ext4 puts a `lost+found` at the filesystem root — so a volume mounted directly at
+   `/var/lib/postgresql/data` is never empty and `initdb` refuses it outright:
+   `initdb: error: directory "/var/lib/postgresql/data" exists but is not empty`. `.railway/railway.ts`
+   therefore sets `PGDATA=/var/lib/postgresql/data/pgdata`.
+
+   **This is the trap shape this section exists for: the message points nowhere near the cause.** Postgres
+   crash-loops about every 1.5 seconds while Railway still reports the service **SUCCESS / online** — the
+   *container* starts fine, the database never does. Nothing listens on 5432, so the failure surfaces on the
+   **sidecar** as `Npgsql … Timeout during connection attempt`, which reads like a private-network fault and
+   is not one. A wrong password would say `28P01`; a timeout means nothing is there at all. **Read the
+   postgres logs before touching networking.**
+
+   `docker-compose.yml` does **not** need this and must not copy it: a named Docker volume has no
+   `lost+found`, so the identical mount path works locally. Found the hard way on 2026-09-16 (gh#404).
 
 ### Secrets
 
