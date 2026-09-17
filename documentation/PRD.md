@@ -405,11 +405,10 @@ DB-fallback per data type; state/memory model for multi-turn.
   up together by the repo-root `docker-compose.yml`, behind one nginx front door. Choose the stack once and
   keep the final agent on the same infrastructure — the images that run in the demo are the images that would
   run in production.
-- **Environments:** one runnable stack that anyone can bring up from the repo. **No hosted/public instance** —
-  an earlier hosted demo was retired; reproducibility (pinned image tags, config in the compose file) replaced
-  it as the way to demonstrate the system. A Railway Infrastructure-as-Code definition exists in source and
-  **has been applied** — an environment is live — but with no generated domain and no §4 bootstrap it is not a
-  usable public instance — `DEPLOYMENT.md` §9.
+- **Environments:** one runnable stack that anyone can bring up from the repo, plus a **hosted demo instance**
+  applied from a Railway Infrastructure-as-Code definition, domain generated and §4-bootstrapped —
+  `DEPLOYMENT.md` §9. Reproducibility (pinned image tags, config in source) is what keeps the two the same
+  system rather than two systems.
 - **Ops requirements:** `/health` + `/ready` (NFR-REL-2), CI/CD for agent updates, a documented rollback path,
   and the dashboard/alerts (FR-OBS-3/4) wired to the deployed service.
 - **HIPAA posture (defensible position):**
@@ -466,7 +465,7 @@ regardless.
 | R5 | PHI leaks into logs/observability backend | Compliance failure | Redact/tokenize telemetry; log-inspection AC (NFR-SEC-1) |
 | R6 | Prompt injection via note/document content | Data exfiltration, safety | Treat record content as data; injection eval cases (NFR-SEC-2) |
 | R7 | Domain constraints wrong or incomplete | False reassurance | Constraints clinically validated + documented limits; flagged as illustrative until validated (FR-VERIF-2/4) |
-| R8 | Host PHI/BAA gap at production | Legal exposure | Demo-only now (synthetic data, no hosted instance); documented migration/BAA path (§11) |
+| R8 | Host PHI/BAA gap at production | Legal exposure | Demo-only now (synthetic data only — no PHI on the hosted instance either); documented migration/BAA path (§11) |
 | R9 | LLM/tool cost scales non-linearly | Unit economics break | Cost tracking from day one; cost analysis at 100/1K/10K/100K users |
 
 ### 13.1 Failure Modes & Graceful Degradation

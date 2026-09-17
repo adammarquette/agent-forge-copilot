@@ -36,12 +36,12 @@ For the full picture, read the docs below in order.
 
 ## Run it
 
-**The Docker stack is the way to see this working.** There is no hosted instance — the containers in
+**There is a live instance** at <https://reverse-proxy-production-395f.up.railway.app> — accounts under
+[Demo access](#demo-access). The Docker stack is how you run it yourself: the containers in
 [`docker-compose.yml`](docker-compose.yml) *are* the system: OpenEMR (this project's fork, module baked in),
 its database, the nginx front door, and — behind a profile — the sidecar and its pgvector store.
-(A Railway deployment is *defined* in [`.railway/railway.ts`](.railway/railway.ts) and **has been applied** —
-an environment is live — but it has no generated domain and has never been bootstrapped, so it is still not an
-instance anyone can be pointed at; see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §9.)
+(The hosted environment is that same shape, defined in [`.railway/railway.ts`](.railway/railway.ts), applied,
+domain generated and §4-bootstrapped; see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §9.)
 
 ```bash
 docker compose up -d          # OpenEMR + the AgentForge module + the front door
@@ -297,9 +297,28 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 ## Deployment
 
-- **Demo / QA:** the Docker stack above — synthetic data only, so no BAA is required. There is **no hosted
-  instance**; the containers are the deployment. Runbook: [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md);
+- **Hosted demo:** <https://reverse-proxy-production-395f.up.railway.app> — synthetic data only, so no
+  BAA is required. Applied from [`.railway/railway.ts`](.railway/railway.ts); accounts under **Demo access**
+  below.
+- **Local demo / QA:** the Docker stack above, running the same images. Runbook:
+  [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md);
   network view: [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md).
+
+### Demo access
+
+| Account | Username | What it is for |
+|---|---|---|
+| Clinician | `dr_cardio` | The demo persona. The Daily Agenda roster filters on this provider, so the copilot walkthrough runs as this user. |
+| Administrator | `admin` | OpenEMR configuration only: module settings, API clients, calendar. |
+
+**Passwords are deliberately not committed here** — the root [`AGENTS.md`](AGENTS.md) rule is *no secrets in
+source*, and a password committed to this repository would outlive its rotation in the history. They are
+supplied with the submission.
+
+The demo cohort is seven synthetic cardiology patients (`AF-DEMO-01` through `AF-DEMO-07`) carrying problems,
+medications, allergies, two back-dated encounters with vital signs and a LOINC-coded lab panel each — HFrEF,
+HFpEF, CAD post-PCI, three atrial-fibrillation phenotypes and resistant hypertension. **Synthetic data only —
+never real PHI.**
 - **Production:** the **same container images** on a HIPAA-eligible cloud under a signed BAA (default **AWS**,
   free self-serve via Artifact); the sidecar is also portable into a practice's own OpenEMR environment. See
   `ARCHITECTURE.md` §13.
