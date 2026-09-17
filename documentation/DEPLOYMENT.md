@@ -125,7 +125,7 @@ exceptions, and the agenda pair is the one that costs a feature (see the note un
 | `Llm__Model` | `claude-sonnet-5` |
 | `Llm__InputPricePerMillionTokensUsd` / `Output…` | real per-million prices, so `agentforge_llm_cost_usd_total` reports actual cost rather than 0 |
 | `AgentForgeData__ConnectionString` | Postgres/pgvector. Optional — the Week 2 flows are additive, and the host boots without it |
-| `Observability__LokiOtlpEndpoint` | **not in compose.** OTLP/HTTP log push. Fail-open: unset (or unreachable) means console-only logging, so the omission costs nothing until you run the observability stack ([`observability/README.md`](../observability/)) |
+| `Observability__LokiOtlpEndpoint` | **not in `docker-compose.yml`; set for you by [`docker-compose.observability.yml`](../docker-compose.observability.yml)** (to `http://loki:3100/otlp/v1/logs`). OTLP/HTTP log push, fail-open: unset (or unreachable) means console-only logging, so the omission costs nothing until you run the observability stack ([`observability/README.md`](../observability/)) |
 
 > **The Daily Agenda is not wired in the reference compose stack.** `docker-compose.yml` passes no
 > `OpenEmrAgenda__*` at all — not even a `${...}` passthrough — so putting an agenda client id/secret in `.env`

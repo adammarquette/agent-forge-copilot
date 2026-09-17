@@ -170,7 +170,8 @@ no browser caller — is blocked at the proxy:
 |---|---|
 | [`documentation/`](documentation/) | All specs & design docs (the substance today — see index below) |
 | [`docker-compose.yml`](docker-compose.yml) · `.env.example` | **The deployment** — OpenEMR + module + front door (keyless) and, behind `--profile copilot`, the sidecar + pgvector. See [Run it](#run-it) |
-| [`observability/`](observability/) | Second compose stack: Prometheus + Loki + Grafana, with the AgentForge dashboard and alert rules pre-provisioned |
+| [`observability/`](observability/) | Second compose stack: Prometheus + Loki + Grafana, with the AgentForge dashboard and alert rules pre-provisioned. Its own compose file is for a host-run sidecar |
+| [`docker-compose.observability.yml`](docker-compose.observability.yml) | Overlay that runs those three *inside* the main stack, for a **containerized** sidecar. Flattens observability onto the application network — see [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) § *Observability: two wirings* |
 | `AgentForge.slnx` | Solution file (repo root) |
 | `src/` | Production projects (`AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
 | `tests/` | Four test projects: `…UnitTests` (mocked), `…IntegrationTests` (real deps in QA), `…EvalTests` (deterministic rubric checks), and `…Evals` (golden-set eval runner; cases in top-level `evals/`) |
@@ -195,7 +196,7 @@ no browser caller — is blocked at the proxy:
 | [`W2_AUDIT.md`](documentation/W2_AUDIT.md) | 7.2K | **(Week 2)** Implementation audit — per-requirement Met/Partial/Gap against the submission gates |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | 5.7K | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
-| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 10.4K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
+| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 10.5K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
 | [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 3.9K | Physical/network view of the container stack — what is published vs internal (mermaid) |
 | [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.6K | The GitHub build/test/eval gates and the `review-verdict` gate — including why no CI job reviews code (§7) |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
