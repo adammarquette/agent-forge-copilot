@@ -36,7 +36,9 @@ required.
 > the project has **no hosted environment**, so "deploy" means pulling the
 > published image into a container stack, which the operator does (see
 > [`DEPLOYMENT.md`](DEPLOYMENT.md)). A Railway IaC definition and its
-> `railway-config.yml` workflow now exist in source but have **not** been applied
+> `railway-config.yml` workflow now exist in source, and that workflow **has
+> applied** it — an environment is live — but with no generated domain and no §4
+> bootstrap it is not a usable hosted environment, so the above still stands
 > — `DEPLOYMENT.md` §9. The retired `.gitlab-ci.yml` and `.gitlab/ci/`
 > have been **deleted from the tree** (the code reviewer that briefly lived there
 > was ported to `.github/` and then deleted outright, §7); the originals — including `deploy.yml`,

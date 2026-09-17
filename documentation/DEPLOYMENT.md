@@ -465,7 +465,8 @@ database state and cannot be derived.
    postgres logs before touching networking.**
 
    `docker-compose.yml` does **not** need this and must not copy it: a named Docker volume has no
-   `lost+found`, so the identical mount path works locally. Found the hard way on 2026-09-16 (gh#404).
+   `lost+found`, so the identical mount path works locally. Found the hard way on 2026-09-16 (gh#405; it
+   surfaced as the sidecar timeout reported in gh#404).
 
 ### Secrets
 

@@ -39,8 +39,9 @@ For the full picture, read the docs below in order.
 **The Docker stack is the way to see this working.** There is no hosted instance — the containers in
 [`docker-compose.yml`](docker-compose.yml) *are* the system: OpenEMR (this project's fork, module baked in),
 its database, the nginx front door, and — behind a profile — the sidecar and its pgvector store.
-(A Railway deployment is *defined* in [`.railway/railway.ts`](.railway/railway.ts) but has not been applied —
-see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §9.)
+(A Railway deployment is *defined* in [`.railway/railway.ts`](.railway/railway.ts) and **has been applied** —
+an environment is live — but it has no generated domain and has never been bootstrapped, so it is still not an
+instance anyone can be pointed at; see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §9.)
 
 ```bash
 docker compose up -d          # OpenEMR + the AgentForge module + the front door
