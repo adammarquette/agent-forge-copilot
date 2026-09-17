@@ -111,7 +111,9 @@ docker compose --profile copilot up -d
 Everything is reached through the one origin on port 8080 — OpenEMR at `/`, the sidecar under
 `/agentforge`. That is not cosmetic: a launch whose `/launch` and `/callback` land on different hosts
 loses its session cookie ("No pending SMART launch"), and `site_addr_oath` must equal the sidecar's
-`OpenEmr:BaseUrl` or the `aud` check fails. It is also why no service but the proxy publishes a port.
+`OpenEmr:BaseUrl` or the `aud` check fails. It is also why no service in `docker-compose.yml` but the proxy
+publishes a port — the optional observability stack publishes three more, and the root overlay puts them on
+the same network ([`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) §3).
 
 > **Demo data only.** This stack is for evaluation on synthetic data — never real PHI. It runs over
 > plain HTTP with local-development escape hatches enabled
@@ -172,7 +174,7 @@ no browser caller — is blocked at the proxy:
 | `AgentForge.slnx` | Solution file (repo root) |
 | `src/` | Production projects (`AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
 | `tests/` | Four test projects: `…UnitTests` (mocked), `…IntegrationTests` (real deps in QA), `…EvalTests` (deterministic rubric checks), and `…Evals` (golden-set eval runner; cases in top-level `evals/`) |
-| `reverse-proxy/` | Nginx front-door container/config for the same-origin front door (issue #62, closed; agent-forge#22) — the `reverse-proxy` service in `docker-compose.yml` and the only published port; its config lint runs in `.github/workflows/ci.yml`; see its own README |
+| `reverse-proxy/` | Nginx front-door container/config for the same-origin front door (issue #62, closed; agent-forge#22) — the `reverse-proxy` service in `docker-compose.yml` and that file's only published port; its config lint runs in `.github/workflows/ci.yml`; see its own README |
 | `AGENTS.md` · `src/AGENTS.md` · `tests/AGENTS.md` | Instructions for AI coding agents — the root file routes, the subtree files govern `src/` and `tests/` and load by proximity |
 | [`documentation/agents/`](documentation/agents/) | The role contracts that are **not** a directory — Code Reviewer, Platform. They never auto-load; `agents/README.md` is the index |
 | `CLAUDE.md` (each level) | One-line shims so Claude Code honors the same `AGENTS.md` rules |
@@ -187,14 +189,14 @@ no browser caller — is blocked at the proxy:
 | [`PRD.md`](documentation/PRD.md) | 11.4K | Product requirements — the problem, functional & non-functional requirements (FR/NFR IDs) |
 | [`USERS.md`](documentation/USERS.md) | 3.4K | The target user, the 90-second workflow, and the use cases everything traces to |
 | [`AUDIT.md`](documentation/AUDIT.md) | 5.1K | Findings from auditing the OpenEMR fork (security / perf / data quality) |
-| [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md) | 11.6K | The design & decision log — topology, trust boundaries, verification, deployment |
+| [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md) | 11.7K | The design & decision log — topology, trust boundaries, verification, deployment |
 | [`W2_PRD.md`](documentation/W2_PRD.md) | 9.1K | **(Week 2)** Week 2 product requirements — the multimodal-evidence delta on top of `PRD.md` |
 | [`W2_ARCHITECTURE.md`](documentation/W2_ARCHITECTURE.md) | 12.6K | **(Week 2)** Multimodal Evidence Agent — document ingestion, the supervisor/worker graph, hybrid RAG, cloud redundancy, the eval gate, and the Week 2 decision log (W2-D1..D14) |
 | [`W2_AUDIT.md`](documentation/W2_AUDIT.md) | 7.2K | **(Week 2)** Implementation audit — per-requirement Met/Partial/Gap against the submission gates |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | 5.7K | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
 | [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 10.4K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
-| [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 3.1K | Physical/network view of the container stack — what is published vs internal (mermaid) |
+| [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 3.9K | Physical/network view of the container stack — what is published vs internal (mermaid) |
 | [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.6K | The GitHub build/test/eval gates and the `review-verdict` gate — including why no CI job reviews code (§7) |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
 | [`MR_WORKFLOW.md`](documentation/MR_WORKFLOW.md) | 0.8K | How a change gets from a branch to `main` — the states, and who acts at each |

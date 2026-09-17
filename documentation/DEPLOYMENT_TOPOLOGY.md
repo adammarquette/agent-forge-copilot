@@ -31,18 +31,18 @@ flowchart TB
     subgraph host["Docker host"]
         direction TB
 
-        subgraph pub["Published port — the ONLY ingress"]
+        subgraph pub["Published port — the only ingress to OpenEMR + the sidecar"]
             proxy["<b>reverse-proxy</b><br/>nginx front door · :8080<br/>published as localhost:${DEMO_PORT:-8080}"]
         end
 
-        subgraph net["Compose network (agentforge-demo) — no published ports"]
+        subgraph net["Compose network (agentforge-demo_default) — these four publish no port"]
             sidecar["<b>agent-forge-api</b><br/>.NET 10 sidecar / BFF · :8080<br/>profile: copilot<br/>volume /keys (DataProtection)"]
             oemr["<b>openemr</b><br/>OpenEMR v8 fork · Apache :80<br/>oe-module-agentforge<br/>volume /…/openemr/sites"]
             pg[("<b>postgres</b><br/>pgvector:pg17 · :5432<br/>profile: copilot · volume")]
             mysql[("<b>mysql</b><br/>mysql:9.4 · :3306<br/>volume")]
         end
 
-        subgraph obs["Observability (optional) — drawn as the root overlay wires it:<br/>same compose network as net"]
+        subgraph obs["Observability (optional) — drawn as the root overlay wires it:<br/>same network as net, and publishes 9090 / 3100 / 3000 to the host"]
             prom["<b>prometheus</b> · :9090"]
             loki["<b>loki</b> · :3100"]
             grafana["<b>grafana</b> · :3000 · login-gated"]
@@ -85,7 +85,7 @@ flowchart TB
 
 | Container | Role | Image / build | Port | Reachable from the host | Persists |
 |---|---|---|---|---|---|
-| `reverse-proxy` | Same-origin nginx front door (gitlab#62) | `reverse-proxy/Dockerfile` | 8080 | ✅ **the only published port** (`${DEMO_PORT:-8080}`) | — |
+| `reverse-proxy` | Same-origin nginx front door (gitlab#62) | `reverse-proxy/Dockerfile` | 8080 | ✅ **the only published port of `docker-compose.yml`** (`${DEMO_PORT:-8080}`) — with observability up, three more are published; see below | — |
 | `agent-forge-api` | .NET 10 sidecar / BFF (agent, verification, MCP tools, SignalR) | root `Dockerfile`; published as `ghcr.io/adammarquette/agent-forge-copilot` | 8080 | ❌ network-internal only | vol `/keys` |
 | `openemr` | OpenEMR v8 fork (PHP/Apache, `SWARM_MODE`) + `oe-module-agentforge` | pulled: `ghcr.io/adammarquette/agent-forge` (pinned `sha-<12>`) | 80 | ❌ network-internal only | vol `openemr-sites` |
 | `mysql` | OpenEMR's application database | `mysql:9.4` | 3306 | ❌ network-internal only | vol `mysql-data` |
@@ -112,21 +112,55 @@ The diagram above draws the **overlay** wiring. Under the separate file the `pro
 the separate file while the sidecar is containerized is the failure this distinction exists to prevent: the
 stack starts clean, Grafana logs in, and every panel is empty. reference: #417
 
-**This does not move the published/internal boundary of the main stack.** Observability publishes 9090 / 3100
-/ 3000 to the host in *both* wirings, exactly as before; the overlay adds no route from those ports into the
-main network beyond the scrape and query edges drawn above, and the proxy remains the only ingress to OpenEMR
-and the sidecar.
+**The overlay moves the published/internal boundary, and this is where that is recorded.** Observability
+publishes 9090 / 3100 / 3000 to the host in *both* wirings — that part is unchanged. What moves is **which
+network those three published containers sit on**:
 
-`agent-forge-api` and `postgres` are behind the **`copilot` compose profile** — the default `docker compose up`
-brings up only the EHR tier (proxy + OpenEMR + MySQL), which needs no secrets at all.
+- Under [`observability/docker-compose.yml`](../observability/) they are their own compose project on their
+  own network. Grafana can reach Prometheus and Loki and **nothing else** — not `postgres`, not `mysql`, not
+  `openemr`, not `agent-forge-api`; the only other thing in reach is the Docker host.
+- Under the overlay they join `agentforge-demo_default`, the one flat network every other service is on —
+  neither compose file declares a network, so the merged config puts all eight services on `default`.
+  `agent-forge-api`, `mysql` and `postgres` still publish no port of their own, so their rows above are
+  unchanged; what changed is that *"reachable only on the compose network"* now includes three containers
+  that **are** reachable from the host, on all interfaces (the merged config sets no `host_ip`).
+
+That is a new pivot, not a redrawn arrow: adding a data source and querying it is Grafana's own feature set.
+A caller who reaches `:3000` and gets past the login can point Grafana at `postgres:5432` or `mysql:3306` —
+whose credentials are the compose defaults listed in [`.env.example`](../.env.example) — and read the
+`DerivedFactStore` or the EHR database through Grafana's data-source proxy, and can reach the sidecar's
+`POST /documents/ingest`, whose whole authorization argument is *trusted private-network origin* (W2-D17).
+Under the separate project none of those names resolve.
+
+**So with the overlay, Grafana's login is load-bearing infrastructure rather than a convenience** — and
+neither compose file sets `GF_SECURITY_ADMIN_PASSWORD`, so it is `admin`/`admin`. That is acceptable only
+for the single-host, synthetic-data local run this overlay is for. Anywhere else: bind the three ports to
+`127.0.0.1`, set `GF_SECURITY_ADMIN_PASSWORD`, or run the separate project and accept blank panels.
+reference: #417
+
+Verify the claims above rather than trusting them —
+`docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile copilot config` renders
+the merged result, including every `networks:` and `ports:` entry.
+
+`agent-forge-api` and `postgres` are behind the **`copilot` compose profile** — as are the overlay's three, so
+they follow the sidecar. The default `docker compose up` brings up only the EHR tier (proxy + OpenEMR + MySQL),
+which needs no secrets at all.
 
 ---
 
 ## 3. Trust boundaries & exposure
 
-- **One ingress.** The **reverse proxy** is the only container that publishes a port. Everything else is
-  reachable only on the compose network. That is the same shape the system is meant to be deployed in
-  anywhere: one front door, everything else private.
+- **One ingress into the application.** Of the services in [`docker-compose.yml`](../docker-compose.yml), the
+  **reverse proxy** is the only container that publishes a port; OpenEMR, the sidecar and both databases are
+  reachable only on the compose network. That is the shape the system is meant to be deployed in anywhere:
+  one front door, everything else private. ([`docker-compose.bootstrap.yml`](../docker-compose.bootstrap.yml)
+  adds one more for the first-run bootstrap, deliberately bound to `127.0.0.1` — `DEPLOYMENT.md` §4.)
+- **Observability breaks that shape, and the overlay breaks it further.** Both wirings publish
+  9090 / 3100 / 3000 on all interfaces, so "the proxy is the only published port" holds only while
+  observability is down. With [`docker-compose.observability.yml`](../docker-compose.observability.yml) those
+  three containers also sit on the *application* network, which puts a Grafana with no
+  `GF_SECURITY_ADMIN_PASSWORD` — so `admin`/`admin` — in L3 reach of `mysql`, `postgres` and
+  `/documents/ingest`. See § *Observability: two wirings* for what that permits and how to close it.
 - **The sidecar is never directly reachable.** The only way in is the proxy under `/agentforge/*`. The
   ingestion path `/agentforge/documents/` is additionally hard-`404`ed at the proxy so it can never be reached
   from outside — it authenticates by *trusted private-network origin* rather than a token (W2-D17), and is

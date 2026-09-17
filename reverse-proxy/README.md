@@ -30,7 +30,9 @@ into the config — same convention as the main sidecar's own `Dockerfile`.
 ## Status
 
 **Live** — this is the `reverse-proxy` service in the repo-root `docker-compose.yml`, and the **only
-container in the stack that publishes a port** (`${DEMO_PORT:-8080}`). The full launch round-trip runs
+container in that file that publishes a port** (`${DEMO_PORT:-8080}`; running observability publishes three
+more, and the root overlay puts them on this network —
+`../documentation/DEPLOYMENT_TOPOLOGY.md` §3). The full launch round-trip runs
 through it: OpenEMR at `/`, the sidecar at `/agentforge/*` (with `Bff__PathBase=/agentforge` set on the
 sidecar so its cookie path, SignalR URLs, and post-launch redirects all carry the prefix), and
 `/agentforge/documents/` explicitly `404`ed so the ingestion endpoint is unreachable from outside the
