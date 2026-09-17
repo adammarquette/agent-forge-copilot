@@ -28,14 +28,14 @@ blank cell means the row routes somewhere that is not one file.
 | [`PRD.md`](PRD.md) | Problem statement, functional & non-functional requirements | 11.4K | `FR-*`, `NFR-*` |
 | [`W2_PRD.md`](W2_PRD.md) | **(Week 2)** Companion to `PRD.md` — what Week 2 adds (ingestion, agent graph, citations, eval gate), same FR-/NFR- shape | 9.1K | `FR-DOC-*`, `FR-GRAPH-*`, `FR-CITE-*`, `FR-EVAL-*` |
 | [`USERS.md`](USERS.md) | The one persona, the 90-second workflow, use cases + capability→UC map (§5) | 3.4K | `UC-1..UC-6` |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Topology, trust boundaries, verification design, deployment; the vMVP decision log | 11.5K | doc §-numbers |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Topology, trust boundaries, verification design, deployment; the vMVP decision log | 11.6K | doc §-numbers |
 | [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) | **(Week 2)** Multimodal Evidence Agent — ingestion, supervisor/worker graph, hybrid RAG, eval gate | 12.6K | `W2-D1..W2-D17` |
 | [`INTERFACE_CONTROL.md`](INTERFACE_CONTROL.md) | The OpenEMR external interface (FHIR R4 / OAuth2 / SMART) — the ICD | 5.7K | ICD sections A, B, … |
 | [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md) | Stack, dependencies, testing tiers, logging/security standards, solution layout (§9) | 6.2K | `§`-numbers |
 | [`AUDIT.md`](AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) | 5.1K | audit finding refs |
 | [`W2_AUDIT.md`](W2_AUDIT.md) | Week 2 implementation audit — per-requirement Met/Partial/Gap coverage, risks, prioritized recommendations vs the submission gates | 7.2K | audit finding refs |
 | [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | 3.8K | — |
-| [`DEPLOYMENT.md`](DEPLOYMENT.md) | The operational runbook for the Docker container stack — bootstrap, config, quirks, rollback; the Railway Infrastructure-as-Code deployment is §9 | 10.1K | — |
+| [`DEPLOYMENT.md`](DEPLOYMENT.md) | The operational runbook for the Docker container stack — bootstrap, config, quirks, rollback; the Railway Infrastructure-as-Code deployment is §9 | 10.2K | — |
 | [`CI-SETUP.md`](CI-SETUP.md) | The GitHub build/test/eval gates and the `review-verdict` gate — including why no CI job reviews code (§7) | 3.6K | — |
 | [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the container stack — services, what is published vs network-internal, flows, trust boundaries (mermaid) | 2.6K | — |
 | [`MR_WORKFLOW.md`](MR_WORKFLOW.md) | The lifecycle a change moves through from branch to `main`, and who acts at each state — what the Coordinator drives | 0.8K | — |
@@ -69,7 +69,7 @@ carries the finer detail; this is the family-level jump table.
 | `tests/…UnitTests` · `…IntegrationTests` · `…EvalTests` · `…Evals` | Mocked unit tests (test-first) · real-dependency QA tests · deterministic rubric xUnit tests · golden-set eval runner (cases in top-level `evals/`) | `FR-EVAL-*` | `ENGINEERING_STANDARDS.md` §8, `tests/AGENTS.md` |
 | `tools/RegisterSmartClients` | CLI utility to register confidential SMART client credentials in OpenEMR | SMART OAuth setup | `README.md` (Adding the copilot) |
 | `tools/BootstrapOpenEmr` | CLI utility that writes the database half of the first-run bootstrap (OpenEMR globals + enabling the registered SMART clients), idempotently | SMART launch bootstrap | `DEPLOYMENT.md` §4 |
-| `tools/SeedDemoPatients` | CLI utility to seed demo synthetic patients & clinical records | Demo data setup | `README.md` (Run it) |
+| `tools/SeedDemoPatients` | CLI utility to seed 20 synthetic patients, demographics only (no charts — [#416](https://github.com/adammarquette/agent-forge-copilot/issues/416)) | Demo data setup | `README.md` (Run it) |
 | `tools/MintQaIdentityToken` | CLI utility to mint test identity/session tokens for QA | Integration testing | `tests/AGENTS.md` |
 | `tools/LoadTestChat` | CLI load-testing tool for SignalR chat endpoints & turn latency | `NFR-PERF-*` verification | `PERFORMANCE_BASELINES.md` |
 | `.github/scripts/verdict-state.sh` · `post-verdict.sh` · `watch-verdict.sh` | The verdict gate — one reader, the reviewer's poster, and the blocking watcher the authoring agent waits on | Review is a gate, not a note | `CI-SETUP.md` §8, `documentation/agents/code-reviewer.md` |

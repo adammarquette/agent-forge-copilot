@@ -36,12 +36,12 @@ For the full picture, read the docs below in order.
 
 ## Run it
 
-**The Docker stack is the way to see this working.** There is no hosted instance — the containers in
+**There is a live instance** at <https://reverse-proxy-production-395f.up.railway.app> — accounts under
+[Demo access](#demo-access). The Docker stack is how you run it yourself: the containers in
 [`docker-compose.yml`](docker-compose.yml) *are* the system: OpenEMR (this project's fork, module baked in),
 its database, the nginx front door, and — behind a profile — the sidecar and its pgvector store.
-(A Railway deployment is *defined* in [`.railway/railway.ts`](.railway/railway.ts) and **has been applied** —
-an environment is live — but it has no generated domain and has never been bootstrapped, so it is still not an
-instance anyone can be pointed at; see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §9.)
+(The hosted environment is that same shape, defined in [`.railway/railway.ts`](.railway/railway.ts), applied,
+domain generated and §4-bootstrapped; see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §9.)
 
 ```bash
 docker compose up -d          # OpenEMR + the AgentForge module + the front door
@@ -61,7 +61,10 @@ before exposing the stack beyond your machine.
 
 > **`admin` is the only login a fresh stack creates.** The `cardio1` demo cardiologist and the demo
 > patients are **not** built in — they need a seed step (create the provider in Admin → Users, run
-> `tools/SeedDemoPatients`). Automating that into the compose bring-up is tracked in
+> `tools/SeedDemoPatients`). Note what that gives you: **20 patients with demographics only** — no
+> problems, medications or labs, so the copilot has nothing to summarise. The charted `AF-DEMO-*` cohort
+> described under Deployment comes from the fork's `seed_cardiology_demo.php` instead ([#416](https://github.com/adammarquette/agent-forge-copilot/issues/416)).
+> Automating a seed into the compose bring-up is tracked in
 > [#375](https://github.com/adammarquette/agent-forge-copilot/issues/375); until then, a fresh stack
 > is a bare OpenEMR + the module.
 
@@ -175,13 +178,13 @@ no browser caller — is blocked at the proxy:
 | [`PRD.md`](documentation/PRD.md) | 11.4K | Product requirements — the problem, functional & non-functional requirements (FR/NFR IDs) |
 | [`USERS.md`](documentation/USERS.md) | 3.4K | The target user, the 90-second workflow, and the use cases everything traces to |
 | [`AUDIT.md`](documentation/AUDIT.md) | 5.1K | Findings from auditing the OpenEMR fork (security / perf / data quality) |
-| [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md) | 11.5K | The design & decision log — topology, trust boundaries, verification, deployment |
+| [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md) | 11.6K | The design & decision log — topology, trust boundaries, verification, deployment |
 | [`W2_PRD.md`](documentation/W2_PRD.md) | 9.1K | **(Week 2)** Week 2 product requirements — the multimodal-evidence delta on top of `PRD.md` |
 | [`W2_ARCHITECTURE.md`](documentation/W2_ARCHITECTURE.md) | 12.6K | **(Week 2)** Multimodal Evidence Agent — document ingestion, the supervisor/worker graph, hybrid RAG, cloud redundancy, the eval gate, and the Week 2 decision log (W2-D1..D14) |
 | [`W2_AUDIT.md`](documentation/W2_AUDIT.md) | 7.2K | **(Week 2)** Implementation audit — per-requirement Met/Partial/Gap against the submission gates |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | 5.7K | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
-| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 10.1K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
+| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 10.2K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
 | [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 2.6K | Physical/network view of the container stack — what is published vs internal (mermaid) |
 | [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.6K | The GitHub build/test/eval gates and the `review-verdict` gate — including why no CI job reviews code (§7) |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
@@ -297,12 +300,36 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 ## Deployment
 
-- **Demo / QA:** the Docker stack above — synthetic data only, so no BAA is required. There is **no hosted
-  instance**; the containers are the deployment. Runbook: [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md);
+- **Hosted demo:** <https://reverse-proxy-production-395f.up.railway.app> — synthetic data only, so no
+  BAA is required. Applied from [`.railway/railway.ts`](.railway/railway.ts); accounts under **Demo access**
+  below.
+- **Local demo / QA:** the Docker stack above — same topology, though compose builds the sidecar and the
+  proxy from source rather than pulling their published images. Runbook:
+  [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md);
   network view: [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md).
 - **Production:** the **same container images** on a HIPAA-eligible cloud under a signed BAA (default **AWS**,
   free self-serve via Artifact); the sidecar is also portable into a practice's own OpenEMR environment. See
   `ARCHITECTURE.md` §13.
+
+### Demo access
+
+| Account | Username | What it is for |
+|---|---|---|
+| Clinician | `dr_cardio` | The demo persona. The Daily Agenda roster filters on this provider, so the copilot walkthrough runs as this user. |
+| Administrator | `admin` | OpenEMR configuration only: module settings, API clients, calendar. |
+
+**Passwords are deliberately not committed here** — the root [`AGENTS.md`](AGENTS.md) rule is *no secrets in
+source*, and a password committed to this repository would outlive its rotation in the history. They are
+supplied with the submission. `dr_cardio` exists on the hosted instance. Locally the same role is called
+`cardio1` by convention, but **nothing creates it** — a fresh compose boot has only `admin`, and the
+provider is made by hand in Admin → Users (see [Run it](#run-it) and
+[#375](https://github.com/adammarquette/agent-forge-copilot/issues/375)).
+
+The demo cohort is seven synthetic cardiology patients (`AF-DEMO-01` through `AF-DEMO-07`) carrying problems,
+medications, allergies, two back-dated encounters with vital signs and a LOINC-coded lab panel each — HFrEF,
+HFpEF, CAD post-PCI, three atrial-fibrillation phenotypes and resistant hypertension. They come from the
+fork's `seed_cardiology_demo.php`, not `tools/SeedDemoPatients` — that one creates 20 demographics-only
+patients with no charts ([#416](https://github.com/adammarquette/agent-forge-copilot/issues/416)). **Synthetic data only — never real PHI.**
 
 ---
 

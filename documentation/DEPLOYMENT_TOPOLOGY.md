@@ -7,12 +7,11 @@ trust boundaries are. For the *logical* architecture (agent graph, verification,
 [`ARCHITECTURE.md`](ARCHITECTURE.md) / [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md); for *operational* runbooks
 (bootstrap, config, quirks, rollback) see [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
-> **One stack, no hosted instance.** There is no public/hosted environment — the previously hosted demo was
-> retired, and the containers below are the whole system. A production deployment would replicate this exact
-> shape on a HIPAA-eligible target with real TLS and a real secret store — see `ARCHITECTURE.md` D15.
-> A Railway Infrastructure-as-Code definition of this same topology exists in source and **has been applied** —
-> an environment is live — but it has no generated domain and no §4 bootstrap, so it is not a usable public
-> instance and the statement above stands — `DEPLOYMENT.md` §9.
+> **One shape, two places it runs.** The containers below are the whole system, and a hosted demo instance
+> runs that same topology on Railway — applied from `.railway/railway.ts`, domain generated, §4 bootstrap
+> complete: <https://reverse-proxy-production-395f.up.railway.app> (`DEPLOYMENT.md` §9). A production
+> deployment would replicate the shape again on a HIPAA-eligible target with real TLS and a real secret
+> store — see `ARCHITECTURE.md` D15.
 >
 > **Synthetic/demo data only.** No real PHI in any service, store, log, or dashboard.
 

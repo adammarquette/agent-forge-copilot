@@ -5,11 +5,10 @@ How AgentForge Clinical Copilot and its OpenEMR dependency are deployed, and wha
 [`docker-compose.yml`](../docker-compose.yml) stack — that is the supported way to stand this system up and see
 it working end to end.
 
-> **There is no hosted/public instance.** The project ran a managed-PaaS demo through mid-2026; it has been
-> retired, and every environment (demo, QA, review) is now the same set of containers brought up locally or on
-> whatever host the operator chooses. A Railway definition now exists in source (§9) and **has been applied** —
-> an environment is live — but no public domain has been generated for it and §4's bootstrap has never run
-> there, so there is still no instance a user can be pointed at. Quick start is in the root
+> **A hosted demo instance is live** at <https://reverse-proxy-production-395f.up.railway.app>: the Railway
+> definition in §9 is applied, its domain is generated and §4's bootstrap has run there. Local, QA and review
+> environments remain the same set of containers, brought up on whatever host the operator chooses. (A
+> managed-PaaS demo ran through mid-2026 and was retired; this replaces it, defined in source.) Quick start is in the root
 > [`README.md`](../README.md#run-it); the physical/network view is
 > [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md); this file is the operational runbook (bootstrap, config,
 > quirks, rollback).
@@ -212,9 +211,13 @@ What the two tools write, and why each value matters:
    iframe modal loses the session cookie. The tool writes these with the same upsert the fork's
    `AgentForgeGlobalConfig::save()` uses, so the result is indistinguishable from an admin saving that page.
 
-4. **Demo data** — *still manual*. `admin` is the only login a fresh stack creates. The `cardio1` demo
-   cardiologist and the demo patients are **not** built in — create the provider in Admin → Users and run
-   `dotnet run --project tools/SeedDemoPatients`. Automating this into the compose bring-up is tracked in
+4. **Demo data** — *still manual*, and **two different seeders do different jobs**. `admin` is the only
+   login a fresh stack creates; the `cardio1` demo cardiologist and the demo patients are **not** built in.
+   `dotnet run --project tools/SeedDemoPatients` creates 20 patients with **demographics only** — no
+   problems, medications or labs, so nothing the copilot can brief on. For charts, the fork's
+   `seed_cardiology_demo.php` runs **inside the OpenEMR container** with `--provider=<username>` and writes
+   the `AF-DEMO-01`…`AF-DEMO-07` cardiology cohort; that is what the hosted instance carries. Which tool
+   belongs in this step is [#416](https://github.com/adammarquette/agent-forge-copilot/issues/416); automating a seed into the compose bring-up is
    [#375](https://github.com/adammarquette/agent-forge-copilot/issues/375).
 
 > **Not covered:** the document-ingestion cron's own globals (`agentforge_ingest_uri`,
@@ -364,16 +367,17 @@ secret store, and the Site-Address-Override / `aud` invariant of §2 pointed at 
 
 ## 9. Railway (Infrastructure as Code)
 
-> **Status: applied — an environment is live.** `.railway/railway.ts` describes the stack, and the plan has
-> been applied to a Railway environment; the gotchas below were found **on it**, not in theory. That is not the
-> same as a usable public instance: no public domain has been generated (the manual step below) and §4's
-> bootstrap has never run there, so §1's "there is no hosted/public instance" still holds for anyone wanting a
-> URL, and the compose stack remains the supported deployment. Tracked by labs.gauntletai.com#140.
+> **Status: applied, bootstrapped and public.** `.railway/railway.ts` describes the stack, the plan is applied,
+> and the gotchas below were found **on it**, not in theory. The domain is generated —
+> <https://reverse-proxy-production-395f.up.railway.app> — and §4's bootstrap has run there: SMART clients
+> registered and a synthetic cardiology cohort seeded. The compose stack remains the local deployment. Drift
+> that re-applies on every run is tracked by #409; remaining bootstrap gaps by #410.
 
 Appended as §9 rather than inserted mid-document **on purpose**: the `§`-numbers are positional, and the
 existing `reference: documentation/DEPLOYMENT.md §4` / `§7` comments (in `docker-compose.yml` and
 `tools/RegisterSmartClients`, not `src/`) would silently point at the wrong section if everything below an
-insertion shifted. See labs.gauntletai.com#141.
+insertion shifted. (That positional-section hazard was raised on the retired GitLab tracker, whose issues
+did not survive its restore — see INDEX.md §5.)
 
 ### Why Railway again, and why it is different this time
 

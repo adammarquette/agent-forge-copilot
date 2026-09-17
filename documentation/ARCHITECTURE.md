@@ -385,16 +385,19 @@ only the host and its compliance controls differ.*
 ### 13.1 Demo / QA — the Docker container stack
 - **Both services run as containers on one Docker host**, brought up by the repo-root `docker-compose.yml`:
   the OpenEMR fork (module baked into the image), its MySQL, an nginx front door, and — behind the `copilot`
-  profile — the sidecar and its pgvector Postgres. **There is no hosted/public instance**; the containers are
-  the deployment. A Railway Infrastructure-as-Code definition now exists in source and **has been applied** —
-  an environment is live — but with no generated domain and no §4 bootstrap it is not a usable public instance,
-  so this still holds — `DEPLOYMENT.md` §9. Runbook: `DEPLOYMENT.md`; network view:
+  profile — the sidecar and its pgvector Postgres. A **hosted demo instance runs this same shape**, applied
+  from the Railway Infrastructure-as-Code definition in source, with its domain generated and §4's bootstrap
+  complete — `DEPLOYMENT.md` §9. The compose stack remains the local deployment. **Same container
+  graph, different boundaries:** TLS termination and the escape hatches below, and the deploy trigger
+  (`DEPLOYMENT.md` §9), all differ between the two. Runbook: `DEPLOYMENT.md`; network view:
   `DEPLOYMENT_TOPOLOGY.md`.
 - **One published port.** Only the front door is reachable from outside; everything else is network-internal.
   That is the same one-origin invariant the SMART launch depends on (`DEPLOYMENT.md` §2), not a convenience.
 - **Synthetic/demo data only → no BAA required** (privacy is not in scope here, by policy). That is the
-  explicit reason this posture is acceptable: no PHI ever touches it. It runs over plain HTTP with
-  local-development escape hatches enabled, which are safe *only* because of that.
+  explicit reason this posture is acceptable: no PHI ever touches it. **The compose stack** runs over plain
+  HTTP with local-development escape hatches enabled, safe *only* because of that; the hosted instance does
+  **not** — Railway terminates TLS at the edge and those escape hatches are deliberately unset
+  (`.railway/railway.ts`).
 - Fast to stand up, reproducible from pinned image tags, and portable to any Docker host — the right call
   when the constraint is iteration speed and reviewability, not compliance.
 - **Hard line:** if this environment cannot hold PHI, then no real PHI is ever introduced to it — enforced by
@@ -463,7 +466,7 @@ only the host and its compliance controls differ.*
 | **D12** | **One LLM provider in v1 behind ILlmProvider** | Build 3-tier model zoo now | Sprint scope; abstraction preserved, others described |
 | **D13** | **No write-back in MVP** | Gated draft write | Removes auth surface + cert questions for zero required credit |
 | **D14** | **Morning Triage batch = Phase-2, not v1** | Build batch triage in v1 | Keeps v1 conversational-agent-first (case-study requirement); batch reuses the v1 pipeline once trusted |
-| **D15** | **A Docker container stack for demo/QA (synthetic data), HIPAA-eligible cloud (AWS) for prod** | Single environment for both; or a managed PaaS demo | Demo/QA optimizes iteration speed and reviewability with zero PHI; prod optimizes compliance under BAA. Same container images both ways — host is a per-env decision, not architectural. A hosted demo was retired in favour of the compose stack: anyone can run the real system, and there is no public surface to secure or pay for |
+| **D15** | **A Docker container stack for demo/QA (synthetic data), HIPAA-eligible cloud (AWS) for prod** | Single environment for both; or a managed PaaS demo | Demo/QA optimizes iteration speed and reviewability with zero PHI; prod optimizes compliance under BAA. Same container images both ways — host is a per-env decision, not architectural. An earlier managed-PaaS demo was retired in favour of the compose stack, which anyone can run; a Railway demo instance now fronts that same stack, its one public surface being the proxy origin (§13.1) |
 | **D16** | **Top-level tab is the default launch mode; modal iframe is a same-site-only option** | iFrame-only launch | A cross-site iframe can't recover the EHR-launch session: the SameSite=Lax bridge cookie's cross-site exception only covers top-level navigations, not iframes (agent-forge#21, `IFRAME_REVERT.md`). The module keeps both modes configurable (Manage Modules); iframe is only reliable when the sidecar is served same-site with OpenEMR. Recorded future direction: restore the embedded same-origin modal behind a reverse proxy (agent-forge#22), at which point OpenEMR's cookie can revert to `Strict` (agent-forge#26) and the sidecar's to `Lax` (#63). |
 
 ---
