@@ -61,7 +61,10 @@ before exposing the stack beyond your machine.
 
 > **`admin` is the only login a fresh stack creates.** The `cardio1` demo cardiologist and the demo
 > patients are **not** built in — they need a seed step (create the provider in Admin → Users, run
-> `tools/SeedDemoPatients`). Automating that into the compose bring-up is tracked in
+> `tools/SeedDemoPatients`). Note what that gives you: **20 patients with demographics only** — no
+> problems, medications or labs, so the copilot has nothing to summarise. The charted `AF-DEMO-*` cohort
+> described under Deployment comes from the fork's `seed_cardiology_demo.php` instead ([#416](https://github.com/adammarquette/agent-forge-copilot/issues/416)).
+> Automating a seed into the compose bring-up is tracked in
 > [#375](https://github.com/adammarquette/agent-forge-copilot/issues/375); until then, a fresh stack
 > is a bare OpenEMR + the module.
 
@@ -181,7 +184,7 @@ no browser caller — is blocked at the proxy:
 | [`W2_AUDIT.md`](documentation/W2_AUDIT.md) | 7.2K | **(Week 2)** Implementation audit — per-requirement Met/Partial/Gap against the submission gates |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | 5.7K | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
-| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 10.1K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
+| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 10.2K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
 | [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 2.6K | Physical/network view of the container stack — what is published vs internal (mermaid) |
 | [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.6K | The GitHub build/test/eval gates and the `review-verdict` gate — including why no CI job reviews code (§7) |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
@@ -323,9 +326,8 @@ equivalent clinician as `cardio1` ([`docker-compose.yml`](docker-compose.yml)).
 The demo cohort is seven synthetic cardiology patients (`AF-DEMO-01` through `AF-DEMO-07`) carrying problems,
 medications, allergies, two back-dated encounters with vital signs and a LOINC-coded lab panel each — HFrEF,
 HFpEF, CAD post-PCI, three atrial-fibrillation phenotypes and resistant hypertension. They come from the
-fork's `seed_cardiology_demo.php`, not the `tools/SeedDemoPatients` that `DEPLOYMENT.md` §4 step 4 still
-prescribes — that one creates 20 demographics-only patients with no charts (gh#410). **Synthetic data
-only — never real PHI.**
+fork's `seed_cardiology_demo.php`, not `tools/SeedDemoPatients` — that one creates 20 demographics-only
+patients with no charts ([#416](https://github.com/adammarquette/agent-forge-copilot/issues/416)). **Synthetic data only — never real PHI.**
 
 ---
 

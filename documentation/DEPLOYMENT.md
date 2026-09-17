@@ -211,9 +211,13 @@ What the two tools write, and why each value matters:
    iframe modal loses the session cookie. The tool writes these with the same upsert the fork's
    `AgentForgeGlobalConfig::save()` uses, so the result is indistinguishable from an admin saving that page.
 
-4. **Demo data** — *still manual*. `admin` is the only login a fresh stack creates. The `cardio1` demo
-   cardiologist and the demo patients are **not** built in — create the provider in Admin → Users and run
-   `dotnet run --project tools/SeedDemoPatients`. Automating this into the compose bring-up is tracked in
+4. **Demo data** — *still manual*, and **two different seeders do different jobs**. `admin` is the only
+   login a fresh stack creates; the `cardio1` demo cardiologist and the demo patients are **not** built in.
+   `dotnet run --project tools/SeedDemoPatients` creates 20 patients with **demographics only** — no
+   problems, medications or labs, so nothing the copilot can brief on. For charts, the fork's
+   `seed_cardiology_demo.php` runs **inside the OpenEMR container** with `--provider=<username>` and writes
+   the `AF-DEMO-01`…`AF-DEMO-07` cardiology cohort; that is what the hosted instance carries. Which tool
+   belongs in this step is [#416](https://github.com/adammarquette/agent-forge-copilot/issues/416); automating a seed into the compose bring-up is
    [#375](https://github.com/adammarquette/agent-forge-copilot/issues/375).
 
 > **Not covered:** the document-ingestion cron's own globals (`agentforge_ingest_uri`,

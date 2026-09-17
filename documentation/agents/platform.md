@@ -16,7 +16,8 @@ live**, not just a directory.
 ## Role
 
 Keep the pipeline and the runtime boring, reproducible, and honest about what it is doing. **Compose is the
-deployment** for local work, and a hosted environment runs the same images. **Merging deploys it**: `.railway/**`
+deployment** for local work, and a hosted environment runs the same topology (it pins the published sidecar
+image; compose builds it from source). **Merging deploys it**: `.railway/**`
 is applied on merge and the proxy rebuilds from `develop`, so a proxy change reaches the live front door with no
 operator step (`DEPLOYMENT.md` §9). Every other service is pinned to an image tag — the proxy alone follows a
 branch — so promoting a new sidecar build stays a deliberate re-pin. The runbook is the product. **Configuration that exists only on someone's workstation does not
