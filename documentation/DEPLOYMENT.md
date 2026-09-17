@@ -431,7 +431,7 @@ Compose service → Railway service, one for one. The invariants of §2 carry ov
 hand edit. OpenEMR's `site_addr_oath` must still be set to that same value by the bootstrap — that half is
 database state and cannot be derived.
 
-### Two Railway-specific gotchas, both already handled
+### Three Railway-specific gotchas, all already handled
 
 1. **DNS.** The proxy resolves upstreams at request time and needs a `resolver`. Docker's embedded DNS
    (`127.0.0.11`) does not exist on Railway, so `reverse-proxy/10-resolver.envsh` derives the resolver from the
@@ -442,6 +442,12 @@ database state and cannot be derived.
    `0.0.0.0` and the fork's Apache hardcodes `Listen 0.0.0.0:80`. An AAAA answer would yield a connection
    refused on a perfectly healthy stack, so the resolver runs with `ipv6=off` (`RESOLVER_IPV6`, harmless under
    Docker). Set it to `on` only for a legacy IPv6-only Railway environment (pre-2025-10-16).
+3. **The proxy's Dockerfile has to be named explicitly.** Railway did not auto-detect
+   `reverse-proxy/Dockerfile` — the build log never printed its `Using detected Dockerfile!` banner and the
+   deploy failed at `BUILD_IMAGE` under the `RAILPACK` builder, with an otherwise empty log. The IaC DSL has
+   no `builder` or `dockerfilePath` field, so `.railway/railway.ts` sets the documented service variable
+   `RAILWAY_DOCKERFILE_PATH=Dockerfile` instead. Keeping it in the file rather than the dashboard matters:
+   a dashboard-only build setting is invisible to the drift job. reference: gh#407
 
 ### Secrets
 

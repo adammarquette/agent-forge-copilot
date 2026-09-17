@@ -218,6 +218,14 @@ export default defineRailway((ctx) => {
       rootDirectory: "reverse-proxy",
     }),
     env: {
+      // Force the Dockerfile builder. Railway's auto-detection did NOT pick up
+      // reverse-proxy/Dockerfile - the build log never printed its
+      // "Using detected Dockerfile!" banner and the deploy failed at BUILD_IMAGE
+      // with builder RAILPACK (gh#407). The IaC DSL has no `builder` or
+      // `dockerfilePath` field, so this documented service variable is the only
+      // way to express it here rather than as a dashboard edit the drift job
+      // cannot see. Path is relative to rootDirectory below.
+      RAILWAY_DOCKERFILE_PATH: "Dockerfile",
       // Railway injects PORT; the nginx template listens on it directly.
       OPENEMR_UPSTREAM: OPENEMR_HOST + ":80",
       SIDECAR_UPSTREAM: SIDECAR_HOST + ":8080",

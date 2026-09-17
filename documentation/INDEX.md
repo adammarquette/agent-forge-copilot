@@ -35,7 +35,7 @@ blank cell means the row routes somewhere that is not one file.
 | [`AUDIT.md`](AUDIT.md) | Findings from auditing the OpenEMR fork (security / perf / data quality) | 5.1K | audit finding refs |
 | [`W2_AUDIT.md`](W2_AUDIT.md) | Week 2 implementation audit — per-requirement Met/Partial/Gap coverage, risks, prioritized recommendations vs the submission gates | 7.2K | audit finding refs |
 | [`PERFORMANCE_BASELINES.md`](PERFORMANCE_BASELINES.md) | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets (Epic 12) | 3.8K | — |
-| [`DEPLOYMENT.md`](DEPLOYMENT.md) | The operational runbook for the Docker container stack — bootstrap, config, quirks, rollback; the Railway Infrastructure-as-Code deployment is §9 | 8.9K | — |
+| [`DEPLOYMENT.md`](DEPLOYMENT.md) | The operational runbook for the Docker container stack — bootstrap, config, quirks, rollback; the Railway Infrastructure-as-Code deployment is §9 | 9.1K | — |
 | [`CI-SETUP.md`](CI-SETUP.md) | The GitHub build/test/eval gates and the `review-verdict` gate — including why no CI job reviews code (§7) | 3.6K | — |
 | [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) | Physical/network view of the container stack — services, what is published vs network-internal, flows, trust boundaries (mermaid) | 2.6K | — |
 | [`MR_WORKFLOW.md`](MR_WORKFLOW.md) | The lifecycle a change moves through from branch to `main`, and who acts at each state — what the Coordinator drives | 0.8K | — |
