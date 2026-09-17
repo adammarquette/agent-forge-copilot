@@ -7,10 +7,12 @@ it working end to end.
 
 > **There is no hosted/public instance.** The project ran a managed-PaaS demo through mid-2026; it has been
 > retired, and every environment (demo, QA, review) is now the same set of containers brought up locally or on
-> whatever host the operator chooses. A Railway definition now exists in source (§9) but has **not** been
-> applied, so this remains true today. Quick start is in the root [`README.md`](../README.md#run-it); the
-> physical/network view is [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md); this file is the operational
-> runbook (bootstrap, config, quirks, rollback).
+> whatever host the operator chooses. A Railway definition now exists in source (§9) and **has been applied** —
+> an environment is live — but no public domain has been generated for it and §4's bootstrap has never run
+> there, so there is still no instance a user can be pointed at. Quick start is in the root
+> [`README.md`](../README.md#run-it); the physical/network view is
+> [`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md); this file is the operational runbook (bootstrap, config,
+> quirks, rollback).
 
 ## 1. What runs
 
@@ -346,6 +348,11 @@ sidecar build is bad.
   `copilot` profile.
 - **Demo patient ids change on reseed.** Anything pinned to a FHIR patient id (integration-test variables,
   saved requests) has to be refreshed after a reseed or a volume reset.
+- **Railway-only quirks are listed in §9, not here** — the proxy's DNS resolver, IPv6, `PGDATA` having to
+  be a *subdirectory* of the volume mount (a Railway volume is ext4, so it is never empty and `initdb` refuses
+  it; a postgres that never starts surfaces as an `Npgsql` connect **timeout** on the sidecar), and the
+  proxy's Dockerfile having to be named explicitly. None of them reproduce under compose, so they sit with the
+  definition that causes them.
 
 ## 8. Production
 
@@ -357,9 +364,11 @@ secret store, and the Site-Address-Override / `aud` invariant of §2 pointed at 
 
 ## 9. Railway (Infrastructure as Code)
 
-> **Status: defined, not yet applied.** `.railway/railway.ts` describes the stack, but no Railway project has
-> been created from it. Until it is applied, §1's "there is no hosted/public instance" still holds — the
-> compose stack remains the deployment. Tracked by labs.gauntletai.com#140.
+> **Status: applied — an environment is live.** `.railway/railway.ts` describes the stack, and the plan has
+> been applied to a Railway environment; the gotchas below were found **on it**, not in theory. That is not the
+> same as a usable public instance: no public domain has been generated (the manual step below) and §4's
+> bootstrap has never run there, so §1's "there is no hosted/public instance" still holds for anyone wanting a
+> URL, and the compose stack remains the supported deployment. Tracked by labs.gauntletai.com#140.
 
 Appended as §9 rather than inserted mid-document **on purpose**: the `§`-numbers are positional, and the
 existing `reference: documentation/DEPLOYMENT.md §4` / `§7` comments (in `docker-compose.yml` and
@@ -411,8 +420,9 @@ deploy-time self-heal jobs for exactly this (`a0dc176`, `60c969f`); that tree wa
 `tools/BootstrapOpenEmr` (the database half) are idempotent and environment-agnostic — they take the front
 door as an argument, so the same two commands bootstrap compose, Railway, or anything else. A deploy job that
 wants self-heal invokes them; nothing about them is CI-specific. What is left genuinely manual is feeding the
-generated client ids/secrets back into the service variables, and demo seeding (#375) — which is why this
-section still says "not yet applied" rather than "run this".
+generated client ids/secrets back into the service variables, and demo seeding (#375) — which is why applying
+the plan is still not "run this": the stack comes up, and no SMART launch works until those steps are done by
+hand.
 
 ### Topology mapping
 
@@ -431,7 +441,7 @@ Compose service → Railway service, one for one. The invariants of §2 carry ov
 hand edit. OpenEMR's `site_addr_oath` must still be set to that same value by the bootstrap — that half is
 database state and cannot be derived.
 
-### Three Railway-specific gotchas, all already handled
+### Four Railway-specific gotchas, all already handled
 
 1. **DNS.** The proxy resolves upstreams at request time and needs a `resolver`. Docker's embedded DNS
    (`127.0.0.11`) does not exist on Railway, so `reverse-proxy/10-resolver.envsh` derives the resolver from the
@@ -442,7 +452,23 @@ database state and cannot be derived.
    `0.0.0.0` and the fork's Apache hardcodes `Listen 0.0.0.0:80`. An AAAA answer would yield a connection
    refused on a perfectly healthy stack, so the resolver runs with `ipv6=off` (`RESOLVER_IPV6`, harmless under
    Docker). Set it to `on` only for a legacy IPv6-only Railway environment (pre-2025-10-16).
-3. **The proxy's Dockerfile has to be named explicitly.** Railway did not auto-detect
+3. **`PGDATA` must be a subdirectory of the volume mount, not the mount itself.** Railway volumes are ext4
+   block devices, and ext4 puts a `lost+found` at the filesystem root — so a volume mounted directly at
+   `/var/lib/postgresql/data` is never empty and `initdb` refuses it outright:
+   `initdb: error: directory "/var/lib/postgresql/data" exists but is not empty`. `.railway/railway.ts`
+   therefore sets `PGDATA=/var/lib/postgresql/data/pgdata`.
+
+   **This is the trap shape this section exists for: the message points nowhere near the cause.** Postgres
+   crash-loops about every 1.5 seconds while Railway still reports the service **SUCCESS / online** — the
+   *container* starts fine, the database never does. Nothing listens on 5432, so the failure surfaces on the
+   **sidecar** as `Npgsql … Timeout during connection attempt`, which reads like a private-network fault and
+   is not one. A wrong password would say `28P01`; a timeout means nothing is there at all. **Read the
+   postgres logs before touching networking.**
+
+   `docker-compose.yml` does **not** need this and must not copy it: a named Docker volume has no
+   `lost+found`, so the identical mount path works locally. Found the hard way on 2026-09-16 (gh#405; it
+   surfaced as the sidecar timeout reported in gh#404).
+4. **The proxy's Dockerfile has to be named explicitly.** Railway did not auto-detect
    `reverse-proxy/Dockerfile` — the build log never printed its `Using detected Dockerfile!` banner and the
    deploy failed at `BUILD_IMAGE` under the `RAILPACK` builder, with an otherwise empty log. The IaC DSL has
    no `builder` or `dockerfilePath` field, so `.railway/railway.ts` sets the documented service variable

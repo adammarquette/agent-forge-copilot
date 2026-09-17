@@ -39,8 +39,9 @@ For the full picture, read the docs below in order.
 **The Docker stack is the way to see this working.** There is no hosted instance — the containers in
 [`docker-compose.yml`](docker-compose.yml) *are* the system: OpenEMR (this project's fork, module baked in),
 its database, the nginx front door, and — behind a profile — the sidecar and its pgvector store.
-(A Railway deployment is *defined* in [`.railway/railway.ts`](.railway/railway.ts) but has not been applied —
-see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §9.)
+(A Railway deployment is *defined* in [`.railway/railway.ts`](.railway/railway.ts) and **has been applied** —
+an environment is live — but it has no generated domain and has never been bootstrapped, so it is still not an
+instance anyone can be pointed at; see [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) §9.)
 
 ```bash
 docker compose up -d          # OpenEMR + the AgentForge module + the front door
@@ -180,7 +181,7 @@ no browser caller — is blocked at the proxy:
 | [`W2_AUDIT.md`](documentation/W2_AUDIT.md) | 7.2K | **(Week 2)** Implementation audit — per-requirement Met/Partial/Gap against the submission gates |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | 5.7K | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
-| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 9.1K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
+| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 9.6K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
 | [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 2.6K | Physical/network view of the container stack — what is published vs internal (mermaid) |
 | [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.6K | The GitHub build/test/eval gates and the `review-verdict` gate — including why no CI job reviews code (§7) |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |

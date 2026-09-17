@@ -96,6 +96,11 @@ export default defineRailway((ctx) => {
       // Shared, matching the sidecar connection string below. A service-scoped
       // preserve() here would be a DIFFERENT variable, and the sidecar could not connect.
       POSTGRES_PASSWORD: ctx.shared.POSTGRES_PASSWORD,
+      // A subdirectory, never the mount point: a Railway volume is ext4, whose
+      // `lost+found` makes the mount non-empty, and `initdb` refuses that.
+      // Compose needs no equivalent - named volumes have no `lost+found`.
+      // reference: documentation/DEPLOYMENT.md §9 "Railway-specific gotchas"
+      PGDATA: "/var/lib/postgresql/data/pgdata",
     },
     volumeMounts: { "/var/lib/postgresql/data": postgresData },
   });
