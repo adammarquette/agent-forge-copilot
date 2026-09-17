@@ -348,10 +348,11 @@ sidecar build is bad.
   `copilot` profile.
 - **Demo patient ids change on reseed.** Anything pinned to a FHIR patient id (integration-test variables,
   saved requests) has to be refreshed after a reseed or a volume reset.
-- **Railway-only quirks are listed in §9, not here** — the proxy's DNS resolver, IPv6, and `PGDATA` having to
+- **Railway-only quirks are listed in §9, not here** — the proxy's DNS resolver, IPv6, `PGDATA` having to
   be a *subdirectory* of the volume mount (a Railway volume is ext4, so it is never empty and `initdb` refuses
-  it; a postgres that never starts surfaces as an `Npgsql` connect **timeout** on the sidecar). None of them
-  reproduce under compose, so they sit with the definition that causes them.
+  it; a postgres that never starts surfaces as an `Npgsql` connect **timeout** on the sidecar), and the
+  proxy's Dockerfile having to be named explicitly. None of them reproduce under compose, so they sit with the
+  definition that causes them.
 
 ## 8. Production
 
@@ -429,7 +430,7 @@ Compose service → Railway service, one for one. The invariants of §2 carry ov
 
 | compose | Railway | notes |
 |---|---|---|
-| `reverse-proxy` | built from GitHub, `rootDirectory: reverse-proxy` | **the only service with a public domain** |
+| `reverse-proxy` | built from GitHub, `branch: develop`, `rootDirectory: reverse-proxy` | **the only service with a public domain**; the only one built from a branch rather than a pinned image, so it rebuilds when `develop` moves (gotcha 4) |
 | `openemr` | pinned fork image | `SWARM_MODE=yes` still required — volumes mount empty (§7) |
 | `mysql` | `mysql:9.4` image | image, not the managed helper, for parity with compose |
 | `agent-forge-api` | pinned GHCR sidecar image | published by CI on merge to `main` (§5) |
@@ -440,7 +441,7 @@ Compose service → Railway service, one for one. The invariants of §2 carry ov
 hand edit. OpenEMR's `site_addr_oath` must still be set to that same value by the bootstrap — that half is
 database state and cannot be derived.
 
-### Three Railway-specific gotchas, all already handled
+### Four Railway-specific gotchas, all already handled
 
 1. **DNS.** The proxy resolves upstreams at request time and needs a `resolver`. Docker's embedded DNS
    (`127.0.0.11`) does not exist on Railway, so `reverse-proxy/10-resolver.envsh` derives the resolver from the
@@ -467,6 +468,33 @@ database state and cannot be derived.
    `docker-compose.yml` does **not** need this and must not copy it: a named Docker volume has no
    `lost+found`, so the identical mount path works locally. Found the hard way on 2026-09-16 (gh#405; it
    surfaced as the sidecar timeout reported in gh#404).
+4. **The proxy builds from a *branch*, so the branch is its version pin — and a branch whose Dockerfile was
+   written for a different build context cannot build.** Every other service consumes an immutable
+   `sha-<12>` image; `reverse-proxy` is built from source, so whatever `branch:` says is the tree that ships.
+   It said `main`. At `main`'s tip (`60c9495`) `reverse-proxy/Dockerfile` still carries
+   `COPY reverse-proxy/nginx.conf.template` — a **repo-root-relative** path from when the build context was
+   the repo root — and `reverse-proxy/10-resolver.envsh` does not exist on that branch at all. Under
+   `rootDirectory: reverse-proxy` the context *is* that directory, so the `COPY` cannot resolve and
+   `docker build` fails. The rewrite to directory-relative `COPY`s landed on `develop` (`0a4c729`) and was
+   never promoted to `main`. `.railway/railway.ts` therefore tracks **`branch: "develop"`**, whose tree
+   matches the `rootDirectory` and the `DNS_RESOLVER`/`RESOLVER_IPV6` wiring the file sets.
+
+   **This is the trap shape again: the symptom points nowhere near the cause.** Railway reports
+   `BUILD_IMAGE` under builder `RAILPACK` with a build log holding one line — `scheduling build on Metal
+   builder` — and no `==== Using detected Dockerfile! ====` banner. That reads like a *detection* failure,
+   and this entry originally said so: it claimed Railway had not found the Dockerfile, and the file set
+   `RAILWAY_DOCKERFILE_PATH=Dockerfile` to force it. That variable is resolved **relative to the service's
+   root directory**, where `Dockerfile` is already the default — so it asserted the default and changed
+   nothing, while any other reading of the path would have pointed the front door at some *other*
+   Dockerfile in the tree. It is gone. The build was failing *after* detection, inside the first `COPY`.
+   **Nothing in the failure names a stale deploy branch — check what the branch's Dockerfile expects of
+   its build context before reaching for a builder override.**
+
+   **Consequence, by design:** the proxy now rebuilds every time `develop` moves, with no image tag to bump
+   — and *any* merge to `develop` rebuilds it, not only one that touches `reverse-proxy/`. That matches the
+   intent that merging deploys, but it is the one service where the live front door follows a branch instead
+   of a re-pin. Roll back by pointing `branch:` at a branch holding the tree you want; there is no tag to
+   revert to (§6). reference: gh#407
 
 ### Secrets
 
