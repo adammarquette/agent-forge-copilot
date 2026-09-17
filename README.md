@@ -111,7 +111,9 @@ docker compose --profile copilot up -d
 Everything is reached through the one origin on port 8080 — OpenEMR at `/`, the sidecar under
 `/agentforge`. That is not cosmetic: a launch whose `/launch` and `/callback` land on different hosts
 loses its session cookie ("No pending SMART launch"), and `site_addr_oath` must equal the sidecar's
-`OpenEmr:BaseUrl` or the `aud` check fails. It is also why no service but the proxy publishes a port.
+`OpenEmr:BaseUrl` or the `aud` check fails. It is also why no service in `docker-compose.yml` but the proxy
+publishes a port — the optional observability stack publishes three more, and the root overlay puts them on
+the same network ([`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) §3).
 
 > **Demo data only.** This stack is for evaluation on synthetic data — never real PHI. It runs over
 > plain HTTP with local-development escape hatches enabled
@@ -120,13 +122,23 @@ loses its session cookie ("No pending SMART launch"), and `site_addr_oath` must 
 ### Observability dashboard (Grafana)
 
 The Prometheus + Loki + Grafana stack (Epic 9, issue #57; Loki added by Epic 107, issue #107) is a **second
-container stack**, in [`observability/docker-compose.yml`](observability/):
+container stack**. Which file you run depends on **where the sidecar is**, because that is what decides
+whether Prometheus can reach it — the wrong one starts cleanly and leaves every panel blank:
 
 ```bash
+# Sidecar in a container (the usual case - `--profile copilot`):
+docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile copilot up -d
+
+# Sidecar on the host via `dotnet run` (fixed dev port 5113):
 docker compose -f observability/docker-compose.yml up -d
 ```
 
-Grafana comes up on **<http://localhost:3000>** (`admin`/`admin` — change on first login) with the
+The first is an **overlay on the main stack**, so Prometheus/Loki/Grafana join its network and can resolve
+`agent-forge-api`; it also gives the sidecar the `Observability__LokiOtlpEndpoint` it needs to ship logs.
+The second is a **separate compose project** and scrapes `host.docker.internal:5113`.
+
+Grafana comes up on **<http://localhost:3000>** (`admin`/`admin`; the overlay publishes it on `127.0.0.1`
+only and reads `GRAFANA_ADMIN_USER`/`GRAFANA_ADMIN_PASSWORD` from `.env`) with the
 **AgentForge Clinical Copilot** dashboard pre-provisioned: agent-turn rate, error rate, p50/p95 latency,
 tool-call rate + failure rate by tool, verification pass/fail rate, LLM tokens/cost, and a raw Polly panel.
 Sidecar **logs** are searchable in **Grafana → Explore → Loki** (`{service_name="agentforge-api"}`); OpenEMR's
@@ -134,9 +146,11 @@ own logs are not shipped (backlog #108). Metrics and logs are **operational only
 `NFR-SEC-W2-1`). Details, alert rules, and how to repoint Prometheus at a containerized sidecar are in
 [`observability/README.md`](observability/README.md).
 
-> Prometheus and Loki have **no auth of their own** — Grafana is the single login-gated surface. Never front
-> them on an untrusted network, and replace the default Grafana credential
-> (`GF_SECURITY_ADMIN_USER`/`GF_SECURITY_ADMIN_PASSWORD`, kept out of source) for anything beyond a local run.
+> Prometheus and Loki have **no auth of their own** — Grafana is the single login-gated surface. The overlay
+> binds all three to `127.0.0.1`, because it also puts them on the same network as the databases; that
+> loopback binding is what makes the default credential defensible, so **publish these ports anywhere else and
+> change `GRAFANA_ADMIN_PASSWORD` in the same edit**. See
+> [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) § *Observability: two wirings*.
 
 ### Front-door surface (what's reachable, and how it's protected)
 
@@ -159,11 +173,12 @@ no browser caller — is blocked at the proxy:
 |---|---|
 | [`documentation/`](documentation/) | All specs & design docs (the substance today — see index below) |
 | [`docker-compose.yml`](docker-compose.yml) · `.env.example` | **The deployment** — OpenEMR + module + front door (keyless) and, behind `--profile copilot`, the sidecar + pgvector. See [Run it](#run-it) |
-| [`observability/`](observability/) | Second compose stack: Prometheus + Loki + Grafana, with the AgentForge dashboard and alert rules pre-provisioned |
+| [`observability/`](observability/) | Second compose stack: Prometheus + Loki + Grafana, with the AgentForge dashboard and alert rules pre-provisioned. Its own compose file is for a host-run sidecar |
+| [`docker-compose.observability.yml`](docker-compose.observability.yml) | Overlay that runs those three *inside* the main stack, for a **containerized** sidecar. Flattens observability onto the application network — see [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) § *Observability: two wirings* |
 | `AgentForge.slnx` | Solution file (repo root) |
 | `src/` | Production projects (`AgentForge.*`) — see layout in `ENGINEERING_STANDARDS.md` §9 |
 | `tests/` | Four test projects: `…UnitTests` (mocked), `…IntegrationTests` (real deps in QA), `…EvalTests` (deterministic rubric checks), and `…Evals` (golden-set eval runner; cases in top-level `evals/`) |
-| `reverse-proxy/` | Nginx front-door container/config for the same-origin front door (issue #62, closed; agent-forge#22) — the `reverse-proxy` service in `docker-compose.yml` and the only published port; its config lint runs in `.github/workflows/ci.yml`; see its own README |
+| `reverse-proxy/` | Nginx front-door container/config for the same-origin front door (issue #62, closed; agent-forge#22) — the `reverse-proxy` service in `docker-compose.yml` and that file's only published port; its config lint runs in `.github/workflows/ci.yml`; see its own README |
 | `AGENTS.md` · `src/AGENTS.md` · `tests/AGENTS.md` | Instructions for AI coding agents — the root file routes, the subtree files govern `src/` and `tests/` and load by proximity |
 | [`documentation/agents/`](documentation/agents/) | The role contracts that are **not** a directory — Code Reviewer, Platform. They never auto-load; `agents/README.md` is the index |
 | `CLAUDE.md` (each level) | One-line shims so Claude Code honors the same `AGENTS.md` rules |
@@ -178,14 +193,14 @@ no browser caller — is blocked at the proxy:
 | [`PRD.md`](documentation/PRD.md) | 11.4K | Product requirements — the problem, functional & non-functional requirements (FR/NFR IDs) |
 | [`USERS.md`](documentation/USERS.md) | 3.4K | The target user, the 90-second workflow, and the use cases everything traces to |
 | [`AUDIT.md`](documentation/AUDIT.md) | 5.1K | Findings from auditing the OpenEMR fork (security / perf / data quality) |
-| [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md) | 11.6K | The design & decision log — topology, trust boundaries, verification, deployment |
+| [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md) | 11.7K | The design & decision log — topology, trust boundaries, verification, deployment |
 | [`W2_PRD.md`](documentation/W2_PRD.md) | 9.1K | **(Week 2)** Week 2 product requirements — the multimodal-evidence delta on top of `PRD.md` |
 | [`W2_ARCHITECTURE.md`](documentation/W2_ARCHITECTURE.md) | 12.6K | **(Week 2)** Multimodal Evidence Agent — document ingestion, the supervisor/worker graph, hybrid RAG, cloud redundancy, the eval gate, and the Week 2 decision log (W2-D1..D14) |
 | [`W2_AUDIT.md`](documentation/W2_AUDIT.md) | 7.2K | **(Week 2)** Implementation audit — per-requirement Met/Partial/Gap against the submission gates |
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | 5.7K | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
-| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 10.2K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
-| [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 2.6K | Physical/network view of the container stack — what is published vs internal (mermaid) |
+| [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 10.5K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
+| [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 4.1K | Physical/network view of the container stack — what is published vs internal (mermaid) |
 | [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.6K | The GitHub build/test/eval gates and the `review-verdict` gate — including why no CI job reviews code (§7) |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
 | [`MR_WORKFLOW.md`](documentation/MR_WORKFLOW.md) | 0.8K | How a change gets from a branch to `main` — the states, and who acts at each |

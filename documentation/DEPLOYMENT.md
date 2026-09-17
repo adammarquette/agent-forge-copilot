@@ -23,8 +23,18 @@ it working end to end.
 | `agent-forge-api` *(profile `copilot`)* | built from the repo-root [`Dockerfile`](../Dockerfile); the same artifact is published as `ghcr.io/adammarquette/agent-forge-copilot` | The .NET 10 sidecar / BFF. | 8080 (internal) |
 | `postgres` *(profile `copilot`)* | `pgvector/pgvector:pg17` | Week 2 data tier — hybrid-RAG corpus + `DerivedFactStore`. pgvector, not stock Postgres. | 5432 (internal) |
 
-The observability containers (Prometheus, Loki, Grafana) live in a **separate** compose file,
-[`observability/docker-compose.yml`](../observability/) — see [`observability/README.md`](../observability/README.md).
+The observability containers (Prometheus, Loki, Grafana) are **not** in the table above — they come from one
+of two files, and which one is load-bearing rather than cosmetic:
+
+| Sidecar runs… | Use | Prometheus target |
+|---|---|---|
+| in a container (`--profile copilot`) | [`docker-compose.observability.yml`](../docker-compose.observability.yml), an **overlay** on this stack: `docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile copilot up -d` | `agent-forge-api:8080` |
+| on the host (`dotnet run`) | [`observability/docker-compose.yml`](../observability/), a **separate** compose project | `host.docker.internal:5113` |
+
+The overlay exists because the separate project lands on its own Docker network and cannot resolve
+`agent-forge-api`; it also sets `Observability__LokiOtlpEndpoint` on the sidecar, which compose otherwise
+leaves unset. Run the separate project against a containerized sidecar and it starts clean with every panel
+blank and no logs. See [`observability/README.md`](../observability/README.md).
 
 **Two tiers, by design.** `docker compose up -d` brings up OpenEMR + module + front door and needs **no secrets
 at all**; `docker compose --profile copilot up -d` adds the sidecar and its Postgres, which need an Anthropic
@@ -32,8 +42,10 @@ key and a registered SMART client. The sidecar's `Llm:ApiKey` is `[Required]` wi
 cannot boot without a real key — the profile split exists so the keyless tier doesn't crash-loop for anyone
 who hasn't got one.
 
-**No service publishes its own port.** Only the proxy is reachable from the host. That is load-bearing, not
-cosmetic — see §2.
+**No service in [`docker-compose.yml`](../docker-compose.yml) publishes its own port.** Only the proxy is
+reachable from the host. That is load-bearing, not cosmetic — see §2. Running observability publishes three
+more ports, and the root overlay puts those containers on this same network —
+[`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) §3. reference: #417
 
 ### Why OpenEMR is pulled, not built
 
@@ -115,7 +127,7 @@ exceptions, and the agenda pair is the one that costs a feature (see the note un
 | `Llm__Model` | `claude-sonnet-5` |
 | `Llm__InputPricePerMillionTokensUsd` / `Output…` | real per-million prices, so `agentforge_llm_cost_usd_total` reports actual cost rather than 0 |
 | `AgentForgeData__ConnectionString` | Postgres/pgvector. Optional — the Week 2 flows are additive, and the host boots without it |
-| `Observability__LokiOtlpEndpoint` | **not in compose.** OTLP/HTTP log push. Fail-open: unset (or unreachable) means console-only logging, so the omission costs nothing until you run the observability stack ([`observability/README.md`](../observability/)) |
+| `Observability__LokiOtlpEndpoint` | **not in `docker-compose.yml`; set for you by [`docker-compose.observability.yml`](../docker-compose.observability.yml)** (to `http://loki:3100/otlp/v1/logs`). OTLP/HTTP log push, fail-open: unset (or unreachable) means console-only logging, so the omission costs nothing until you run the observability stack ([`observability/README.md`](../observability/)) |
 
 > **The Daily Agenda is not wired in the reference compose stack.** `docker-compose.yml` passes no
 > `OpenEmrAgenda__*` at all — not even a `${...}` passthrough — so putting an agenda client id/secret in `.env`
@@ -147,9 +159,9 @@ dotnet run --project tools/RegisterSmartClients -- http://localhost:8080
 MYSQL_ROOT_PASSWORD=rootpass dotnet run --project tools/BootstrapOpenEmr -- http://localhost:8080
 ```
 
-**The compose stack publishes only the front door, so step 2 needs MySQL reachable from the host.** Bring the
-stack up with the opt-in overlay — it adds a **loopback-only** `127.0.0.1:3306` publish and changes nothing
-else:
+**`docker-compose.yml` publishes only the front door, so step 2 needs MySQL reachable from the host.**
+Bring the stack up with the opt-in overlay — it adds a **loopback-only** `127.0.0.1:3306` publish and
+changes nothing else:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d

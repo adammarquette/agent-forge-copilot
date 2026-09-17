@@ -1,0 +1,80 @@
+# -----------------------------------------------------------------------------
+# Observability INSIDE the main compose project, so Prometheus/Loki/Grafana share its network and can
+# reach the sidecar container by service name. Use this instead of observability/docker-compose.yml
+# whenever the sidecar runs under `--profile copilot`.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile copilot up -d
+#
+# Why it exists: observability/docker-compose.yml is a SEPARATE compose project, so it lands on its own
+# network, and its prometheus.yml scrapes host.docker.internal:5113 - a sidecar run on the host via
+# `dotnet run`. Against a containerized sidecar that target is dead and every dashboard panel is blank.
+# This overlay fixes both halves:
+#   - Prometheus mounts prometheus.deployed.yml (target: agent-forge-api:8080).
+#   - agent-forge-api gets Observability__LokiOtlpEndpoint, so the CONTAINER ships logs to Loki
+#     (compose sets no such variable; only appsettings.Development.json does, and that points at
+#     localhost:3100, which inside a container is the container itself).
+#
+# Grafana's provisioned datasources already address `prometheus:9090` / `loki:3100` by service name,
+# so one shared network is all they need.
+#
+# TRUST BOUNDARY: sharing that network is not free. Under observability/docker-compose.yml these three are
+# their own compose project and Grafana can reach Prometheus and Loki and nothing else. Here it is L3-adjacent
+# to postgres, mysql, openemr and the sidecar - and adding a data source and querying it is precisely what
+# Grafana is for, so its login is the only thing between :3000 and the databases. Hence both of the below:
+#   - all three publish on 127.0.0.1, so they are reachable from this host and not from the network it is on;
+#   - Grafana's admin credential is a passthrough, so it can be changed without editing this file.
+# See documentation/DEPLOYMENT_TOPOLOGY.md § "Observability: two wirings".
+#
+# reference: documentation/DEPLOYMENT.md §1, #417
+# -----------------------------------------------------------------------------
+
+services:
+  agent-forge-api:
+    environment:
+      Observability__LokiOtlpEndpoint: http://loki:3100/otlp/v1/logs
+
+  prometheus:
+    profiles: [copilot]
+    image: prom/prometheus:v3.1.0
+    container_name: agentforge-prometheus
+    volumes:
+      - ./observability/prometheus/prometheus.deployed.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts/agentforge-alerts.yml:/etc/prometheus/alerts/agentforge-alerts.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+
+  loki:
+    profiles: [copilot]
+    image: grafana/loki:3.3.0
+    container_name: agentforge-loki
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./observability/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      # Loki's default storage lives under /loki; without a durable mount every ingested log is lost
+      # on restart. reference: observability/README.md
+      - loki-data:/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+    restart: unless-stopped
+
+  grafana:
+    profiles: [copilot]
+    image: grafana/grafana:11.4.0
+    container_name: agentforge-grafana
+    depends_on:
+      - prometheus
+      - loki
+    environment:
+      # Never baked into the image; the login is what guards the shared network described above.
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+
+volumes:
+  loki-data:

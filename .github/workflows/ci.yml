@@ -189,7 +189,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          PATHS='^(src/|reverse-proxy/|docker-compose[.]yml|[.]env[.]example)'
+          PATHS='^(src/|reverse-proxy/|docker-compose[.]yml|docker-compose[.]observability[.]yml|[.]env[.]example)'
 
           CHANGED=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
           CODE=$(echo "$CHANGED" | grep -E "$PATHS" || true)

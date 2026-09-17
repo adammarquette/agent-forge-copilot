@@ -391,8 +391,11 @@ only the host and its compliance controls differ.*
   graph, different boundaries:** TLS termination and the escape hatches below, and the deploy trigger
   (`DEPLOYMENT.md` §9), all differ between the two. Runbook: `DEPLOYMENT.md`; network view:
   `DEPLOYMENT_TOPOLOGY.md`.
-- **One published port.** Only the front door is reachable from outside; everything else is network-internal.
-  That is the same one-origin invariant the SMART launch depends on (`DEPLOYMENT.md` §2), not a convenience.
+- **One published port** — of `docker-compose.yml`. Only the front door is reachable from outside; OpenEMR,
+  the sidecar and both databases are network-internal. That is the same one-origin invariant the SMART launch
+  depends on (`DEPLOYMENT.md` §2), not a convenience. Running observability publishes three more ports, and
+  the root overlay puts those containers on this same network — `DEPLOYMENT_TOPOLOGY.md`
+  § *Observability: two wirings*.
 - **Synthetic/demo data only → no BAA required** (privacy is not in scope here, by policy). That is the
   explicit reason this posture is acceptable: no PHI ever touches it. **The compose stack** runs over plain
   HTTP with local-development escape hatches enabled, safe *only* because of that; the hosted instance does
