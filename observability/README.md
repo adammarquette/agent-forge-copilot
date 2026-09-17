@@ -29,18 +29,23 @@ docker compose -f observability/docker-compose.yml up
 docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile copilot up -d
 ```
 
-Either way Grafana is on <http://localhost:3000> with the same dashboard and datasources.
+Either way Grafana is on <http://localhost:3000> with the same dashboard and datasources. **What feeds
+them is not the same**, so each bullet below says which run mode it describes.
 
-- Grafana: <http://localhost:3000> (`admin`/`admin` - change on first login). The **AgentForge
-  Clinical Copilot** dashboard is pre-provisioned (`grafana/dashboards/agentforge.json`):
+- Grafana (**A and B**): <http://localhost:3000> (`admin`/`admin` - change on first login). The
+  **AgentForge Clinical Copilot** dashboard is pre-provisioned (`grafana/dashboards/agentforge.json`):
   agent-turn rate, error rate, p50/p95 latency, tool-call rate + failure rate by tool,
   verification pass/fail rate, LLM tokens/cost, and a raw Polly (resilience/retry) panel.
-- Prometheus: <http://localhost:9090> - scrapes `host.docker.internal:5113/metrics` every 15s
-  (`prometheus/prometheus.yml`) and evaluates `alerts/agentforge-alerts.yml`.
-- Loki: <http://localhost:3100> - query logs from **Grafana → Explore → Loki**, e.g.
-  `{service_name="agentforge-api"}`. The sidecar pushes here automatically in Development
-  (`appsettings.Development.json` sets `Observability:LokiOtlpEndpoint` to
-  `http://localhost:3100/otlp/v1/logs`); if Loki isn't running, the sidecar just logs to console
+- Prometheus (**A and B**): <http://localhost:9090> - evaluates `alerts/agentforge-alerts.yml` in both
+  modes. The scrape target is what differs: under **A** it scrapes `host.docker.internal:5113/metrics`
+  every 15s (`prometheus/prometheus.yml`); under **B** the overlay mounts
+  `prometheus/prometheus.deployed.yml` instead, whose target is `agent-forge-api:8080`. reference: #417
+- Loki (**A and B**): <http://localhost:3100> - query logs from **Grafana → Explore → Loki**, e.g.
+  `{service_name="agentforge-api"}`. How the sidecar reaches it is what differs: under **A** it pushes
+  automatically in Development (`appsettings.Development.json` sets `Observability:LokiOtlpEndpoint` to
+  `http://localhost:3100/otlp/v1/logs`); under **B** that same value would mean the sidecar's *own*
+  container, so the overlay sets `Observability__LokiOtlpEndpoint=http://loki:3100/otlp/v1/logs` on
+  `agent-forge-api` instead. Either way, if Loki isn't running the sidecar just logs to console
   (fail-open). Config in `loki/loki-config.yaml`.
 
 ## Pointing it at the containerized sidecar

@@ -42,8 +42,10 @@ key and a registered SMART client. The sidecar's `Llm:ApiKey` is `[Required]` wi
 cannot boot without a real key — the profile split exists so the keyless tier doesn't crash-loop for anyone
 who hasn't got one.
 
-**No service publishes its own port.** Only the proxy is reachable from the host. That is load-bearing, not
-cosmetic — see §2.
+**No service in [`docker-compose.yml`](../docker-compose.yml) publishes its own port.** Only the proxy is
+reachable from the host. That is load-bearing, not cosmetic — see §2. Running observability publishes three
+more ports, and the root overlay puts those containers on this same network —
+[`DEPLOYMENT_TOPOLOGY.md`](DEPLOYMENT_TOPOLOGY.md) §3. reference: #417
 
 ### Why OpenEMR is pulled, not built
 
@@ -157,9 +159,9 @@ dotnet run --project tools/RegisterSmartClients -- http://localhost:8080
 MYSQL_ROOT_PASSWORD=rootpass dotnet run --project tools/BootstrapOpenEmr -- http://localhost:8080
 ```
 
-**The compose stack publishes only the front door, so step 2 needs MySQL reachable from the host.** Bring the
-stack up with the opt-in overlay — it adds a **loopback-only** `127.0.0.1:3306` publish and changes nothing
-else:
+**`docker-compose.yml` publishes only the front door, so step 2 needs MySQL reachable from the host.**
+Bring the stack up with the opt-in overlay — it adds a **loopback-only** `127.0.0.1:3306` publish and
+changes nothing else:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d
