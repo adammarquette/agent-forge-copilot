@@ -5,10 +5,12 @@
 #
 # The lint/build/test/evals gates run with NO secrets. The `publish-image` job
 # (bottom of this file) builds the sidecar once and pushes it to GHCR using the
-# built-in GITHUB_TOKEN - still no repo secret. There is no deploy job: a hosted
-# environment exists, but deploying to it is still an operator promoting the
-# published image into the stack, as it is with docker compose locally
-# (documentation/DEPLOYMENT.md).
+# built-in GITHUB_TOKEN - still no repo secret. There is no deploy job in THIS
+# file, but merging does deploy: railway-config.yml applies .railway/** on merge
+# and the proxy rebuilds from the develop branch, so a proxy change reaches the
+# live front door with no operator step. The sidecar is pinned to an image tag,
+# so promoting a sidecar build is still a deliberate re-pin
+# (documentation/DEPLOYMENT.md section 9).
 #
 # Three things changed shape in the port rather than being copied across:
 #

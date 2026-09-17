@@ -175,7 +175,7 @@ no browser caller — is blocked at the proxy:
 | [`PRD.md`](documentation/PRD.md) | 11.4K | Product requirements — the problem, functional & non-functional requirements (FR/NFR IDs) |
 | [`USERS.md`](documentation/USERS.md) | 3.4K | The target user, the 90-second workflow, and the use cases everything traces to |
 | [`AUDIT.md`](documentation/AUDIT.md) | 5.1K | Findings from auditing the OpenEMR fork (security / perf / data quality) |
-| [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md) | 11.5K | The design & decision log — topology, trust boundaries, verification, deployment |
+| [`ARCHITECTURE.md`](documentation/ARCHITECTURE.md) | 11.6K | The design & decision log — topology, trust boundaries, verification, deployment |
 | [`W2_PRD.md`](documentation/W2_PRD.md) | 9.1K | **(Week 2)** Week 2 product requirements — the multimodal-evidence delta on top of `PRD.md` |
 | [`W2_ARCHITECTURE.md`](documentation/W2_ARCHITECTURE.md) | 12.6K | **(Week 2)** Multimodal Evidence Agent — document ingestion, the supervisor/worker graph, hybrid RAG, cloud redundancy, the eval gate, and the Week 2 decision log (W2-D1..D14) |
 | [`W2_AUDIT.md`](documentation/W2_AUDIT.md) | 7.2K | **(Week 2)** Implementation audit — per-requirement Met/Partial/Gap against the submission gates |

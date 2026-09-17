@@ -32,12 +32,13 @@ required.
 > image is now published to GHCR** on merge to `main` (`publish-image`, below).
 > Still **not ported**: the post-deploy `/health` + `/ready` smoke tests and the
 > health-gated integration suite — they need repository secrets that do not exist
-> yet and a running stack to point at. There is no CD half to port beyond that:
-> a hosted environment now exists — applied by the `railway-config.yml`
-> workflow from `.railway/railway.ts`, with its domain generated and §4's
-> bootstrap complete (`DEPLOYMENT.md` §9) — but "deploy" is still an operator
-> promoting a published image into the stack (see
-> [`DEPLOYMENT.md`](DEPLOYMENT.md)). The retired `.gitlab-ci.yml` and `.gitlab/ci/`
+> yet and a running stack to point at. The CD half did not need porting so much
+> as relocating: a hosted environment now exists, applied by the
+> `railway-config.yml` workflow from `.railway/railway.ts` (`DEPLOYMENT.md`
+> §9). **Merging deploys** — that workflow applies `.railway/**` on merge and
+> the proxy rebuilds from `develop`, with no operator step. Only the sidecar is
+> pinned to an image tag, so promoting a sidecar build stays a deliberate re-pin
+> (see [`DEPLOYMENT.md`](DEPLOYMENT.md)). The retired `.gitlab-ci.yml` and `.gitlab/ci/`
 > have been **deleted from the tree** (the code reviewer that briefly lived there
 > was ported to `.github/` and then deleted outright, §7); the originals — including `deploy.yml`,
 > whose comments encode the deploy incidents any future CD job should honor (the

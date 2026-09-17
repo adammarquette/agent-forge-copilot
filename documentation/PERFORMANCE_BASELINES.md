@@ -7,7 +7,8 @@ across many concurrent SignalR connections, each repeatedly invoking `ChatHub.Re
 
 > **Note:** this run predates the retirement of the project's earlier hosted environment — it was measured
 > on a managed host that no longer exists, and neither the Docker container stack nor the current Railway
-> demo instance has been re-baselined since (`documentation/DEPLOYMENT.md`). The numbers below remain valid as a compute/latency baseline — the run
+> demo instance has been re-baselined since (`documentation/DEPLOYMENT.md`). The numbers below remain valid
+> as a compute/latency baseline — the run
 > measured `agent-forge-api`'s own processing characteristics, which aren't environment-specific — but the
 > URLs and deployment ids in this document are **historical, not live**.
 

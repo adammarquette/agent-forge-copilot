@@ -387,13 +387,17 @@ only the host and its compliance controls differ.*
   the OpenEMR fork (module baked into the image), its MySQL, an nginx front door, and — behind the `copilot`
   profile — the sidecar and its pgvector Postgres. A **hosted demo instance runs this same shape**, applied
   from the Railway Infrastructure-as-Code definition in source, with its domain generated and §4's bootstrap
-  complete — `DEPLOYMENT.md` §9. The compose stack remains the local deployment. Runbook: `DEPLOYMENT.md`; network view:
+  complete — `DEPLOYMENT.md` §9. The compose stack remains the local deployment. **Same container
+  graph, different boundaries:** TLS termination and the escape hatches below, and the deploy trigger
+  (`DEPLOYMENT.md` §9), all differ between the two. Runbook: `DEPLOYMENT.md`; network view:
   `DEPLOYMENT_TOPOLOGY.md`.
 - **One published port.** Only the front door is reachable from outside; everything else is network-internal.
   That is the same one-origin invariant the SMART launch depends on (`DEPLOYMENT.md` §2), not a convenience.
 - **Synthetic/demo data only → no BAA required** (privacy is not in scope here, by policy). That is the
-  explicit reason this posture is acceptable: no PHI ever touches it. It runs over plain HTTP with
-  local-development escape hatches enabled, which are safe *only* because of that.
+  explicit reason this posture is acceptable: no PHI ever touches it. **The compose stack** runs over plain
+  HTTP with local-development escape hatches enabled, safe *only* because of that; the hosted instance does
+  **not** — Railway terminates TLS at the edge and those escape hatches are deliberately unset
+  (`.railway/railway.ts`).
 - Fast to stand up, reproducible from pinned image tags, and portable to any Docker host — the right call
   when the constraint is iteration speed and reviewability, not compliance.
 - **Hard line:** if this environment cannot hold PHI, then no real PHI is ever introduced to it — enforced by
