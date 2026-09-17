@@ -123,7 +123,8 @@ network those three published containers sit on**:
   neither compose file declares a network, so the merged config puts all eight services on `default`.
   `agent-forge-api`, `mysql` and `postgres` still publish no port of their own, so their rows above are
   unchanged; what changed is that *"reachable only on the compose network"* now includes three containers
-  that **are** reachable from the host, on all interfaces (the merged config sets no `host_ip`).
+  that **are** reachable from the host — from *this* host only, because the overlay publishes all three with
+  `host_ip` `127.0.0.1` (the separate file binds `0.0.0.0`, which it can afford to).
 
 That is a new pivot, not a redrawn arrow: adding a data source and querying it is Grafana's own feature set.
 A caller who reaches `:3000` and gets past the login can point Grafana at `postgres:5432` or `mysql:3306` —
@@ -132,11 +133,18 @@ whose credentials are the compose defaults listed in [`.env.example`](../.env.ex
 `POST /documents/ingest`, whose whole authorization argument is *trusted private-network origin* (W2-D17).
 Under the separate project none of those names resolve.
 
-**So with the overlay, Grafana's login is load-bearing infrastructure rather than a convenience** — and
-neither compose file sets `GF_SECURITY_ADMIN_PASSWORD`, so it is `admin`/`admin`. That is acceptable only
-for the single-host, synthetic-data local run this overlay is for. Anywhere else: bind the three ports to
-`127.0.0.1`, set `GF_SECURITY_ADMIN_PASSWORD`, or run the separate project and accept blank panels.
-reference: #417
+**So with the overlay, Grafana's login is load-bearing infrastructure rather than a convenience** — and the
+overlay is written accordingly, because documenting this was not enough:
+
+| Mitigation | How |
+|---|---|
+| The three ports are **loopback-only** | published as `127.0.0.1:9090`, `127.0.0.1:3100`, `127.0.0.1:3000`, so the pivot above needs a foothold on this host, not merely on its network. Same device as [`docker-compose.bootstrap.yml`](../docker-compose.bootstrap.yml)'s `127.0.0.1:3306` (§3) |
+| Grafana's admin credential is a **passthrough** | `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` → `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD` ([`.env.example`](../.env.example)), so it changes without editing a compose file and is never baked into an image |
+
+The default stays `admin`/`admin`, and that is defensible **only** because of the loopback binding — the two
+mitigations are one mitigation. **Republish any of these ports on `0.0.0.0` and the credential has to change
+in the same edit.** [`observability/docker-compose.yml`](../observability/) does neither, which remains
+tolerable only because its containers cannot resolve anything in this stack. reference: #417, #418
 
 Verify the claims above rather than trusting them —
 `docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile copilot config` renders
@@ -155,12 +163,13 @@ which needs no secrets at all.
   reachable only on the compose network. That is the shape the system is meant to be deployed in anywhere:
   one front door, everything else private. ([`docker-compose.bootstrap.yml`](../docker-compose.bootstrap.yml)
   adds one more for the first-run bootstrap, deliberately bound to `127.0.0.1` — `DEPLOYMENT.md` §4.)
-- **Observability breaks that shape, and the overlay breaks it further.** Both wirings publish
-  9090 / 3100 / 3000 on all interfaces, so "the proxy is the only published port" holds only while
-  observability is down. With [`docker-compose.observability.yml`](../docker-compose.observability.yml) those
-  three containers also sit on the *application* network, which puts a Grafana with no
-  `GF_SECURITY_ADMIN_PASSWORD` — so `admin`/`admin` — in L3 reach of `mysql`, `postgres` and
-  `/documents/ingest`. See § *Observability: two wirings* for what that permits and how to close it.
+- **Observability breaks that shape; the overlay narrows the break.** Both wirings publish 9090 / 3100 / 3000,
+  so "the proxy is the only published port" holds only while observability is down. With
+  [`docker-compose.observability.yml`](../docker-compose.observability.yml) those three containers also sit on
+  the *application* network, in L3 reach of `mysql`, `postgres` and `/documents/ingest` — so that overlay
+  binds all three to **`127.0.0.1`** and takes Grafana's admin credential from the environment.
+  [`observability/docker-compose.yml`](../observability/) publishes on all interfaces and sets no credential.
+  See § *Observability: two wirings* for what the flat network permits and why the two mitigations are one.
 - **The sidecar is never directly reachable.** The only way in is the proxy under `/agentforge/*`. The
   ingestion path `/agentforge/documents/` is additionally hard-`404`ed at the proxy so it can never be reached
   from outside — it authenticates by *trusted private-network origin* rather than a token (W2-D17), and is

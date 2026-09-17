@@ -32,7 +32,10 @@ docker compose -f docker-compose.yml -f docker-compose.observability.yml --profi
 Either way Grafana is on <http://localhost:3000> with the same dashboard and datasources. **What feeds
 them is not the same**, so each bullet below says which run mode it describes.
 
-- Grafana (**A and B**): <http://localhost:3000> (`admin`/`admin` - change on first login). The
+- Grafana (**A and B**): <http://localhost:3000> (`admin`/`admin` by default). Under **B** the overlay
+  publishes it on `127.0.0.1` only and takes the credential from `GRAFANA_ADMIN_USER` /
+  `GRAFANA_ADMIN_PASSWORD` (`.env`), because there Grafana shares a network with the databases; under **A**
+  it binds all interfaces and there is no passthrough, so change it on first login. The
   **AgentForge Clinical Copilot** dashboard is pre-provisioned (`grafana/dashboards/agentforge.json`):
   agent-turn rate, error rate, p50/p95 latency, tool-call rate + failure rate by tool,
   verification pass/fail rate, LLM tokens/cost, and a raw Polly (resilience/retry) panel.
@@ -75,7 +78,9 @@ the reference wiring, not a special local-only mode. Two things travel with them
 - **Grafana is the only surface that should ever be reachable.** Prometheus and Loki have **no auth of their
   own**; keep them on the private network. Grafana's admin credentials come from `GF_SECURITY_ADMIN_USER` /
   `GF_SECURITY_ADMIN_PASSWORD` in the environment — **never baked into the image**, and never left at the
-  `admin`/`admin` default outside a local run.
+  `admin`/`admin` default outside a local run. The root overlay already wires that passthrough
+  (`GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD`); **this folder's compose file does not**, so a deployment
+  built from it must add one.
 - **Loki needs a durable mount at `/loki`** so ingested logs survive a container restart, the same way the
   sidecar needs one at `/keys`. The root overlay provides one (the `loki-data` volume); **this folder's
   compose file does not**, so a restart there discards whatever Loki had ingested.

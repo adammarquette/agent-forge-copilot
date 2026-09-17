@@ -137,7 +137,8 @@ The first is an **overlay on the main stack**, so Prometheus/Loki/Grafana join i
 `agent-forge-api`; it also gives the sidecar the `Observability__LokiOtlpEndpoint` it needs to ship logs.
 The second is a **separate compose project** and scrapes `host.docker.internal:5113`.
 
-Grafana comes up on **<http://localhost:3000>** (`admin`/`admin` — change on first login) with the
+Grafana comes up on **<http://localhost:3000>** (`admin`/`admin`; the overlay publishes it on `127.0.0.1`
+only and reads `GRAFANA_ADMIN_USER`/`GRAFANA_ADMIN_PASSWORD` from `.env`) with the
 **AgentForge Clinical Copilot** dashboard pre-provisioned: agent-turn rate, error rate, p50/p95 latency,
 tool-call rate + failure rate by tool, verification pass/fail rate, LLM tokens/cost, and a raw Polly panel.
 Sidecar **logs** are searchable in **Grafana → Explore → Loki** (`{service_name="agentforge-api"}`); OpenEMR's
@@ -145,9 +146,11 @@ own logs are not shipped (backlog #108). Metrics and logs are **operational only
 `NFR-SEC-W2-1`). Details, alert rules, and how to repoint Prometheus at a containerized sidecar are in
 [`observability/README.md`](observability/README.md).
 
-> Prometheus and Loki have **no auth of their own** — Grafana is the single login-gated surface. Never front
-> them on an untrusted network, and replace the default Grafana credential
-> (`GF_SECURITY_ADMIN_USER`/`GF_SECURITY_ADMIN_PASSWORD`, kept out of source) for anything beyond a local run.
+> Prometheus and Loki have **no auth of their own** — Grafana is the single login-gated surface. The overlay
+> binds all three to `127.0.0.1`, because it also puts them on the same network as the databases; that
+> loopback binding is what makes the default credential defensible, so **publish these ports anywhere else and
+> change `GRAFANA_ADMIN_PASSWORD` in the same edit**. See
+> [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) § *Observability: two wirings*.
 
 ### Front-door surface (what's reachable, and how it's protected)
 
@@ -197,7 +200,7 @@ no browser caller — is blocked at the proxy:
 | [`INTERFACE_CONTROL.md`](documentation/INTERFACE_CONTROL.md) | 5.7K | Interface Control Document (ICD) — the OpenEMR external interface (FHIR/OAuth/SMART) |
 | [`ENGINEERING_STANDARDS.md`](documentation/ENGINEERING_STANDARDS.md) | 6.2K | Stack, dependencies, coding/testing/security/logging standards |
 | [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md) | 10.5K | The container stack — operational runbook (bootstrap, config, quirks, rollback) and the physical/network view |
-| [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 3.9K | Physical/network view of the container stack — what is published vs internal (mermaid) |
+| [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md) | 4.1K | Physical/network view of the container stack — what is published vs internal (mermaid) |
 | [`CI-SETUP.md`](documentation/CI-SETUP.md) | 3.6K | The GitHub build/test/eval gates and the `review-verdict` gate — including why no CI job reviews code (§7) |
 | [`PERFORMANCE_BASELINES.md`](documentation/PERFORMANCE_BASELINES.md) | 3.8K | Measured latency/throughput baselines behind the `NFR-PERF-*` budgets |
 | [`MR_WORKFLOW.md`](documentation/MR_WORKFLOW.md) | 0.8K | How a change gets from a branch to `main` — the states, and who acts at each |

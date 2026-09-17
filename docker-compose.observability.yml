@@ -17,6 +17,14 @@
 # Grafana's provisioned datasources already address `prometheus:9090` / `loki:3100` by service name,
 # so one shared network is all they need.
 #
+# TRUST BOUNDARY: sharing that network is not free. Under observability/docker-compose.yml these three are
+# their own compose project and Grafana can reach Prometheus and Loki and nothing else. Here it is L3-adjacent
+# to postgres, mysql, openemr and the sidecar - and adding a data source and querying it is precisely what
+# Grafana is for, so its login is the only thing between :3000 and the databases. Hence both of the below:
+#   - all three publish on 127.0.0.1, so they are reachable from this host and not from the network it is on;
+#   - Grafana's admin credential is a passthrough, so it can be changed without editing this file.
+# See documentation/DEPLOYMENT_TOPOLOGY.md § "Observability: two wirings".
+#
 # reference: documentation/DEPLOYMENT.md §1, #417
 # -----------------------------------------------------------------------------
 
@@ -33,7 +41,7 @@ services:
       - ./observability/prometheus/prometheus.deployed.yml:/etc/prometheus/prometheus.yml:ro
       - ./observability/alerts/agentforge-alerts.yml:/etc/prometheus/alerts/agentforge-alerts.yml:ro
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     restart: unless-stopped
 
   loki:
@@ -47,7 +55,7 @@ services:
       # on restart. reference: observability/README.md
       - loki-data:/loki
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     restart: unless-stopped
 
   grafana:
@@ -57,11 +65,15 @@ services:
     depends_on:
       - prometheus
       - loki
+    environment:
+      # Never baked into the image; the login is what guards the shared network described above.
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     restart: unless-stopped
 
 volumes:
