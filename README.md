@@ -320,8 +320,10 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 **Passwords are deliberately not committed here** — the root [`AGENTS.md`](AGENTS.md) rule is *no secrets in
 source*, and a password committed to this repository would outlive its rotation in the history. They are
-supplied with the submission. `dr_cardio` exists on the hosted instance; the compose stack seeds the
-equivalent clinician as `cardio1` ([`docker-compose.yml`](docker-compose.yml)).
+supplied with the submission. `dr_cardio` exists on the hosted instance. Locally the same role is called
+`cardio1` by convention, but **nothing creates it** — a fresh compose boot has only `admin`, and the
+provider is made by hand in Admin → Users (see [Run it](#run-it) and
+[#375](https://github.com/adammarquette/agent-forge-copilot/issues/375)).
 
 The demo cohort is seven synthetic cardiology patients (`AF-DEMO-01` through `AF-DEMO-07`) carrying problems,
 medications, allergies, two back-dated encounters with vital signs and a LOINC-coded lab panel each — HFrEF,
