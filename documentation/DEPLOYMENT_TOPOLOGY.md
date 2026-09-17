@@ -1,7 +1,8 @@
 # DEPLOYMENT_TOPOLOGY.md — the container stack (physical / network architecture)
 
 **Scope:** the deployed **container stack** defined by the repo-root [`docker-compose.yml`](../docker-compose.yml)
-(plus the optional [`observability/docker-compose.yml`](../observability/)). This is the *physical/network*
+(plus optional observability, from either [`docker-compose.observability.yml`](../docker-compose.observability.yml)
+or [`observability/docker-compose.yml`](../observability/) — § *Observability: two wirings* below). This is the *physical/network*
 view — which processes run where, what is reachable from outside, how they reach each other, and where the
 trust boundaries are. For the *logical* architecture (agent graph, verification, RAG) see
 [`ARCHITECTURE.md`](ARCHITECTURE.md) / [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md); for *operational* runbooks
@@ -41,7 +42,7 @@ flowchart TB
             mysql[("<b>mysql</b><br/>mysql:9.4 · :3306<br/>volume")]
         end
 
-        subgraph obs["observability/docker-compose.yml (separate, optional)"]
+        subgraph obs["Observability (optional) — drawn as the root overlay wires it:<br/>same compose network as net"]
             prom["<b>prometheus</b> · :9090"]
             loki["<b>loki</b> · :3100"]
             grafana["<b>grafana</b> · :3000 · login-gated"]
@@ -89,9 +90,32 @@ flowchart TB
 | `openemr` | OpenEMR v8 fork (PHP/Apache, `SWARM_MODE`) + `oe-module-agentforge` | pulled: `ghcr.io/adammarquette/agent-forge` (pinned `sha-<12>`) | 80 | ❌ network-internal only | vol `openemr-sites` |
 | `mysql` | OpenEMR's application database | `mysql:9.4` | 3306 | ❌ network-internal only | vol `mysql-data` |
 | `postgres` | Week 2 data tier: pgvector guideline corpus, `DerivedFactStore`, ingestion jobs | `pgvector/pgvector:pg17` | 5432 | ❌ network-internal only | vol `postgres-data` |
-| `prometheus` | Metrics scrape + alert-rule evaluation | `observability/prometheus/` | 9090 | ✅ (separate compose file) | (ephemeral) |
-| `loki` | Log aggregation (sidecar logs via OTLP) | `observability/loki/` | 3100 | ✅ (separate compose file) | vol |
-| `grafana` | Dashboards + log explore (the AgentForge panels) | `observability/grafana/` | 3000 | ✅ login-gated (separate compose file) | — |
+| `prometheus` | Metrics scrape + alert-rule evaluation | `observability/prometheus/` | 9090 | ✅ published by both observability files | (ephemeral) |
+| `loki` | Log aggregation (sidecar logs via OTLP) | `observability/loki/` | 3100 | ✅ published by both observability files | vol `loki-data` — **overlay only**; the separate file mounts nothing at `/loki` |
+| `grafana` | Dashboards + log explore (the AgentForge panels) | `observability/grafana/` | 3000 | ✅ login-gated, published by both | — |
+
+### Observability: two wirings, and why the choice is topological
+
+The three observability containers are the same images either way; **what differs is the network they land
+on**, which decides whether the arrows in the diagram above exist at all.
+
+| | [`docker-compose.observability.yml`](../docker-compose.observability.yml) (overlay) | [`observability/docker-compose.yml`](../observability/) (separate) |
+|---|---|---|
+| Compose project | the **same** one (`agentforge-demo`) | its **own** |
+| Network | shared with `net` — resolves `agent-forge-api` | isolated — **cannot** resolve it |
+| Prometheus target | `agent-forge-api:8080` (`prometheus.deployed.yml`) | `host.docker.internal:5113` (a `dotnet run` sidecar) |
+| Sidecar → Loki | overlay sets `Observability__LokiOtlpEndpoint` on the container | relies on `appsettings.Development.json`, i.e. a host-run sidecar |
+| Use when | the sidecar is a container (`--profile copilot`) | the sidecar is on the host |
+
+The diagram above draws the **overlay** wiring. Under the separate file the `prom → sidecar` and
+`sidecar → loki` edges do not exist between containers; both instead terminate on the Docker host. Choosing
+the separate file while the sidecar is containerized is the failure this distinction exists to prevent: the
+stack starts clean, Grafana logs in, and every panel is empty. reference: #417
+
+**This does not move the published/internal boundary of the main stack.** Observability publishes 9090 / 3100
+/ 3000 to the host in *both* wirings, exactly as before; the overlay adds no route from those ports into the
+main network beyond the scrape and query edges drawn above, and the proxy remains the only ingress to OpenEMR
+and the sidecar.
 
 `agent-forge-api` and `postgres` are behind the **`copilot` compose profile** — the default `docker compose up`
 brings up only the EHR tier (proxy + OpenEMR + MySQL), which needs no secrets at all.
@@ -163,7 +187,8 @@ brings up only the EHR tier (proxy + OpenEMR + MySQL), which needs no secrets at
 
 ---
 
-*Reflects the container stack as of 2026-09-04, verified against `docker-compose.yml` and
-`observability/docker-compose.yml`. Related: gitlab#57 (observability), gitlab#107 (Loki log aggregation),
+*Reflects the container stack as of 2026-09-17, verified against `docker-compose.yml`,
+`docker-compose.observability.yml` and `observability/docker-compose.yml`. Related: #417 (containerized-sidecar
+observability wiring), gitlab#57 (observability), gitlab#107 (Loki log aggregation),
 gitlab#108 (OpenEMR logs → Loki, backlogged), gitlab#62 (reverse proxy), gitlab#92 (sidecar not directly
 exposed), W2-D17 (private-origin ingestion).*

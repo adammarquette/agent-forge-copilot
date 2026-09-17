@@ -10,7 +10,7 @@ live**, not just a directory.
 | Sidecar image (the **same** artifact local and deployed) | [`Dockerfile`](../../Dockerfile), published to `ghcr.io/adammarquette/agent-forge-copilot` on `main` |
 | The stack — OpenEMR, MySQL, the proxy, the sidecar | [`docker-compose.yml`](../../docker-compose.yml), [`.env.example`](../../.env.example) |
 | The front door | [`reverse-proxy/`](../../reverse-proxy/) — `nginx.conf.template`, linted in CI |
-| Observability — a **second**, separate stack | [`observability/`](../../observability/) |
+| Observability — a **second** stack, in two wirings | [`observability/`](../../observability/) (separate project) · [`docker-compose.observability.yml`](../../docker-compose.observability.yml) (overlay, for a containerized sidecar) |
 | Pipeline reference · runbook · physical view | [`CI-SETUP.md`](../CI-SETUP.md) · [`DEPLOYMENT.md`](../DEPLOYMENT.md) · [`DEPLOYMENT_TOPOLOGY.md`](../DEPLOYMENT_TOPOLOGY.md) |
 
 ## Role

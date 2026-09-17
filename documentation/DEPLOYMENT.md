@@ -23,8 +23,18 @@ it working end to end.
 | `agent-forge-api` *(profile `copilot`)* | built from the repo-root [`Dockerfile`](../Dockerfile); the same artifact is published as `ghcr.io/adammarquette/agent-forge-copilot` | The .NET 10 sidecar / BFF. | 8080 (internal) |
 | `postgres` *(profile `copilot`)* | `pgvector/pgvector:pg17` | Week 2 data tier — hybrid-RAG corpus + `DerivedFactStore`. pgvector, not stock Postgres. | 5432 (internal) |
 
-The observability containers (Prometheus, Loki, Grafana) live in a **separate** compose file,
-[`observability/docker-compose.yml`](../observability/) — see [`observability/README.md`](../observability/README.md).
+The observability containers (Prometheus, Loki, Grafana) are **not** in the table above — they come from one
+of two files, and which one is load-bearing rather than cosmetic:
+
+| Sidecar runs… | Use | Prometheus target |
+|---|---|---|
+| in a container (`--profile copilot`) | [`docker-compose.observability.yml`](../docker-compose.observability.yml), an **overlay** on this stack: `docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile copilot up -d` | `agent-forge-api:8080` |
+| on the host (`dotnet run`) | [`observability/docker-compose.yml`](../observability/), a **separate** compose project | `host.docker.internal:5113` |
+
+The overlay exists because the separate project lands on its own Docker network and cannot resolve
+`agent-forge-api`; it also sets `Observability__LokiOtlpEndpoint` on the sidecar, which compose otherwise
+leaves unset. Run the separate project against a containerized sidecar and it starts clean with every panel
+blank and no logs. See [`observability/README.md`](../observability/README.md).
 
 **Two tiers, by design.** `docker compose up -d` brings up OpenEMR + module + front door and needs **no secrets
 at all**; `docker compose --profile copilot up -d` adds the sidecar and its Postgres, which need an Anthropic

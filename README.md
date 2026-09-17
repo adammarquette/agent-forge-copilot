@@ -120,11 +120,20 @@ loses its session cookie ("No pending SMART launch"), and `site_addr_oath` must 
 ### Observability dashboard (Grafana)
 
 The Prometheus + Loki + Grafana stack (Epic 9, issue #57; Loki added by Epic 107, issue #107) is a **second
-container stack**, in [`observability/docker-compose.yml`](observability/):
+container stack**. Which file you run depends on **where the sidecar is**, because that is what decides
+whether Prometheus can reach it — the wrong one starts cleanly and leaves every panel blank:
 
 ```bash
+# Sidecar in a container (the usual case - `--profile copilot`):
+docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile copilot up -d
+
+# Sidecar on the host via `dotnet run` (fixed dev port 5113):
 docker compose -f observability/docker-compose.yml up -d
 ```
+
+The first is an **overlay on the main stack**, so Prometheus/Loki/Grafana join its network and can resolve
+`agent-forge-api`; it also gives the sidecar the `Observability__LokiOtlpEndpoint` it needs to ship logs.
+The second is a **separate compose project** and scrapes `host.docker.internal:5113`.
 
 Grafana comes up on **<http://localhost:3000>** (`admin`/`admin` — change on first login) with the
 **AgentForge Clinical Copilot** dashboard pre-provisioned: agent-turn rate, error rate, p50/p95 latency,
