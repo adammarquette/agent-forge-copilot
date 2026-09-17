@@ -18,8 +18,8 @@ live**, not just a directory.
 Keep the pipeline and the runtime boring, reproducible, and honest about what it is doing. **Compose is the
 deployment** for local work, and a hosted environment runs the same images. **Merging deploys it**: `.railway/**`
 is applied on merge and the proxy rebuilds from `develop`, so a proxy change reaches the live front door with no
-operator step (`DEPLOYMENT.md` §9). Only the sidecar is pinned to an image tag, so promoting a sidecar build
-stays a deliberate re-pin. The runbook is the product. **Configuration that exists only on someone's workstation does not
+operator step (`DEPLOYMENT.md` §9). Every other service is pinned to an image tag — the proxy alone follows a
+branch — so promoting a new sidecar build stays a deliberate re-pin. The runbook is the product. **Configuration that exists only on someone's workstation does not
 exist**: record it in [`DEPLOYMENT.md`](../DEPLOYMENT.md) and [`.env.example`](../../.env.example) in the same
 change, or the next person reading the stack cannot see it.
 

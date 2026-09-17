@@ -31,14 +31,15 @@ required.
 > **CI half** (lint, build, test, evals) is ported and live, and the **sidecar
 > image is now published to GHCR** on merge to `main` (`publish-image`, below).
 > Still **not ported**: the post-deploy `/health` + `/ready` smoke tests and the
-> health-gated integration suite — they need repository secrets that do not exist
-> yet and a running stack to point at. The CD half did not need porting so much
+> health-gated integration suite. The smoke tests are no longer blocked — both
+> endpoints answer 200 on the public front door with no secret — so only the
+> integration suite still waits on credentials. The CD half did not need porting so much
 > as relocating: a hosted environment now exists, applied by the
 > `railway-config.yml` workflow from `.railway/railway.ts` (`DEPLOYMENT.md`
 > §9). **Merging deploys** — that workflow applies `.railway/**` on merge and
-> the proxy rebuilds from `develop`, with no operator step. Only the sidecar is
-> pinned to an image tag, so promoting a sidecar build stays a deliberate re-pin
-> (see [`DEPLOYMENT.md`](DEPLOYMENT.md)). The retired `.gitlab-ci.yml` and `.gitlab/ci/`
+> the proxy rebuilds from `develop`, with no operator step. Every other service is pinned
+> to an image tag — the proxy alone follows a branch — so promoting a new
+> sidecar build stays a deliberate re-pin (see [`DEPLOYMENT.md`](DEPLOYMENT.md)). The retired `.gitlab-ci.yml` and `.gitlab/ci/`
 > have been **deleted from the tree** (the code reviewer that briefly lived there
 > was ported to `.github/` and then deleted outright, §7); the originals — including `deploy.yml`,
 > whose comments encode the deploy incidents any future CD job should honor (the

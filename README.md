@@ -300,7 +300,8 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 - **Hosted demo:** <https://reverse-proxy-production-395f.up.railway.app> — synthetic data only, so no
   BAA is required. Applied from [`.railway/railway.ts`](.railway/railway.ts); accounts under **Demo access**
   below.
-- **Local demo / QA:** the Docker stack above, running the same images. Runbook:
+- **Local demo / QA:** the Docker stack above — same topology, though compose builds the sidecar and the
+  proxy from source rather than pulling their published images. Runbook:
   [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md);
   network view: [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md).
 - **Production:** the **same container images** on a HIPAA-eligible cloud under a signed BAA (default **AWS**,
@@ -316,12 +317,15 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 
 **Passwords are deliberately not committed here** — the root [`AGENTS.md`](AGENTS.md) rule is *no secrets in
 source*, and a password committed to this repository would outlive its rotation in the history. They are
-supplied with the submission.
+supplied with the submission. `dr_cardio` exists on the hosted instance; the compose stack seeds the
+equivalent clinician as `cardio1` ([`docker-compose.yml`](docker-compose.yml)).
 
 The demo cohort is seven synthetic cardiology patients (`AF-DEMO-01` through `AF-DEMO-07`) carrying problems,
 medications, allergies, two back-dated encounters with vital signs and a LOINC-coded lab panel each — HFrEF,
-HFpEF, CAD post-PCI, three atrial-fibrillation phenotypes and resistant hypertension. **Synthetic data only —
-never real PHI.**
+HFpEF, CAD post-PCI, three atrial-fibrillation phenotypes and resistant hypertension. They come from the
+fork's `seed_cardiology_demo.php`, not the `tools/SeedDemoPatients` that `DEPLOYMENT.md` §4 step 4 still
+prescribes — that one creates 20 demographics-only patients with no charts (gh#410). **Synthetic data
+only — never real PHI.**
 
 ---
 
