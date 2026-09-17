@@ -216,21 +216,23 @@ export default defineRailway((ctx) => {
   //
   // Built from source (reverse-proxy/Dockerfile) rather than pulled: the image is
   // a few lines over stock nginx and is not published to any registry.
+  //
+  // BRANCH `develop`, NOT `main`, AND THAT IS THE LOAD-BEARING LINE. This is the
+  // only service that builds from a branch instead of a pinned image, so the
+  // branch IS its version pin. `main`'s reverse-proxy/Dockerfile still COPYs
+  // `reverse-proxy/nginx.conf.template` - a REPO-ROOT-relative path written when
+  // the build context was the repo root - and does not contain 10-resolver.envsh
+  // at all; under `rootDirectory: "reverse-proxy"` that COPY cannot resolve and
+  // the build dies at BUILD_IMAGE with a near-empty log (gh#407). The DNS_RESOLVER
+  // and RESOLVER_IPV6 wiring below is likewise written against develop's template.
+  // CONSEQUENCE: the proxy rebuilds whenever `develop` moves - see DEPLOYMENT.md §9.
   // -------------------------------------------------------------------------
   const proxy = service("reverse-proxy", {
     source: github("adammarquette/agent-forge-copilot", {
-      branch: "main",
+      branch: "develop",
       rootDirectory: "reverse-proxy",
     }),
     env: {
-      // Force the Dockerfile builder. Railway's auto-detection did NOT pick up
-      // reverse-proxy/Dockerfile - the build log never printed its
-      // "Using detected Dockerfile!" banner and the deploy failed at BUILD_IMAGE
-      // with builder RAILPACK (gh#407). The IaC DSL has no `builder` or
-      // `dockerfilePath` field, so this documented service variable is the only
-      // way to express it here rather than as a dashboard edit the drift job
-      // cannot see. Path is relative to rootDirectory below.
-      RAILWAY_DOCKERFILE_PATH: "Dockerfile",
       // Railway injects PORT; the nginx template listens on it directly.
       OPENEMR_UPSTREAM: OPENEMR_HOST + ":80",
       SIDECAR_UPSTREAM: SIDECAR_HOST + ":8080",

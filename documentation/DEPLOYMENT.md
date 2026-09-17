@@ -430,7 +430,7 @@ Compose service → Railway service, one for one. The invariants of §2 carry ov
 
 | compose | Railway | notes |
 |---|---|---|
-| `reverse-proxy` | built from GitHub, `rootDirectory: reverse-proxy` | **the only service with a public domain** |
+| `reverse-proxy` | built from GitHub, `branch: develop`, `rootDirectory: reverse-proxy` | **the only service with a public domain**; the only one built from a branch rather than a pinned image, so it rebuilds when `develop` moves (gotcha 4) |
 | `openemr` | pinned fork image | `SWARM_MODE=yes` still required — volumes mount empty (§7) |
 | `mysql` | `mysql:9.4` image | image, not the managed helper, for parity with compose |
 | `agent-forge-api` | pinned GHCR sidecar image | published by CI on merge to `main` (§5) |
@@ -468,12 +468,33 @@ database state and cannot be derived.
    `docker-compose.yml` does **not** need this and must not copy it: a named Docker volume has no
    `lost+found`, so the identical mount path works locally. Found the hard way on 2026-09-16 (gh#405; it
    surfaced as the sidecar timeout reported in gh#404).
-4. **The proxy's Dockerfile has to be named explicitly.** Railway did not auto-detect
-   `reverse-proxy/Dockerfile` — the build log never printed its `Using detected Dockerfile!` banner and the
-   deploy failed at `BUILD_IMAGE` under the `RAILPACK` builder, with an otherwise empty log. The IaC DSL has
-   no `builder` or `dockerfilePath` field, so `.railway/railway.ts` sets the documented service variable
-   `RAILWAY_DOCKERFILE_PATH=Dockerfile` instead. Keeping it in the file rather than the dashboard matters:
-   a dashboard-only build setting is invisible to the drift job. reference: gh#407
+4. **The proxy builds from a *branch*, so the branch is its version pin — and a branch whose Dockerfile was
+   written for a different build context cannot build.** Every other service consumes an immutable
+   `sha-<12>` image; `reverse-proxy` is built from source, so whatever `branch:` says is the tree that ships.
+   It said `main`. At `main`'s tip (`60c9495`) `reverse-proxy/Dockerfile` still carries
+   `COPY reverse-proxy/nginx.conf.template` — a **repo-root-relative** path from when the build context was
+   the repo root — and `reverse-proxy/10-resolver.envsh` does not exist on that branch at all. Under
+   `rootDirectory: reverse-proxy` the context *is* that directory, so the `COPY` cannot resolve and
+   `docker build` fails. The rewrite to directory-relative `COPY`s landed on `develop` (`0a4c729`) and was
+   never promoted to `main`. `.railway/railway.ts` therefore tracks **`branch: "develop"`**, whose tree
+   matches the `rootDirectory` and the `DNS_RESOLVER`/`RESOLVER_IPV6` wiring the file sets.
+
+   **This is the trap shape again: the symptom points nowhere near the cause.** Railway reports
+   `BUILD_IMAGE` under builder `RAILPACK` with a build log holding one line — `scheduling build on Metal
+   builder` — and no `==== Using detected Dockerfile! ====` banner. That reads like a *detection* failure,
+   and this entry originally said so: it claimed Railway had not found the Dockerfile, and the file set
+   `RAILWAY_DOCKERFILE_PATH=Dockerfile` to force it. That variable is resolved **relative to the service's
+   root directory**, where `Dockerfile` is already the default — so it asserted the default and changed
+   nothing, while any other reading of the path would have pointed the front door at some *other*
+   Dockerfile in the tree. It is gone. The build was failing *after* detection, inside the first `COPY`.
+   **Nothing in the failure names a stale deploy branch — check what the branch's Dockerfile expects of
+   its build context before reaching for a builder override.**
+
+   **Consequence, by design:** the proxy now rebuilds every time `develop` moves, with no image tag to bump
+   — and *any* merge to `develop` rebuilds it, not only one that touches `reverse-proxy/`. That matches the
+   intent that merging deploys, but it is the one service where the live front door follows a branch instead
+   of a re-pin. Roll back by pointing `branch:` at a branch holding the tree you want; there is no tag to
+   revert to (§6). reference: gh#407
 
 ### Secrets
 
