@@ -5,9 +5,9 @@ Epic 12 (issue #20) load/stress-test results — PRD.md NFR-PERF-2/3/4. Run agai
 (README.md there explains the harness: a small pool of real, browser-obtained session cookies multiplexed
 across many concurrent SignalR connections, each repeatedly invoking `ChatHub.RequestBrief`).
 
-> **Note:** this run predates the retirement of the project's hosted environments — it was measured on a
-> managed host that no longer exists, and the project now deploys only as the Docker container stack
-> (`documentation/DEPLOYMENT.md`). The numbers below remain valid as a compute/latency baseline — the run
+> **Note:** this run predates the retirement of the project's earlier hosted environment — it was measured
+> on a managed host that no longer exists, and neither the Docker container stack nor the current Railway
+> demo instance has been re-baselined since (`documentation/DEPLOYMENT.md`). The numbers below remain valid as a compute/latency baseline — the run
 > measured `agent-forge-api`'s own processing characteristics, which aren't environment-specific — but the
 > URLs and deployment ids in this document are **historical, not live**.
 

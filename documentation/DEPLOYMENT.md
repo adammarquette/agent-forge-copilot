@@ -372,7 +372,8 @@ secret store, and the Site-Address-Override / `aud` invariant of §2 pointed at 
 Appended as §9 rather than inserted mid-document **on purpose**: the `§`-numbers are positional, and the
 existing `reference: documentation/DEPLOYMENT.md §4` / `§7` comments (in `docker-compose.yml` and
 `tools/RegisterSmartClients`, not `src/`) would silently point at the wrong section if everything below an
-insertion shifted. See labs.gauntletai.com#141.
+insertion shifted. (That positional-section hazard was raised on the retired GitLab tracker, whose issues
+did not survive its restore — see INDEX.md §5.)
 
 ### Why Railway again, and why it is different this time
 

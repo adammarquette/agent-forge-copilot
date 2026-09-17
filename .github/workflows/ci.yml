@@ -5,9 +5,9 @@
 #
 # The lint/build/test/evals gates run with NO secrets. The `publish-image` job
 # (bottom of this file) builds the sidecar once and pushes it to GHCR using the
-# built-in GITHUB_TOKEN - still no repo secret. There is no deploy job: the
-# project has no hosted environment, so deploying means pulling the published
-# image into a container stack, which the operator does with docker compose
+# built-in GITHUB_TOKEN - still no repo secret. There is no deploy job: a hosted
+# environment exists, but deploying to it is still an operator promoting the
+# published image into the stack, as it is with docker compose locally
 # (documentation/DEPLOYMENT.md).
 #
 # Three things changed shape in the port rather than being copied across:

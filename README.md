@@ -303,6 +303,9 @@ is encrypted at rest (`ENGINEERING_STANDARDS.md` §6, §11).
 - **Local demo / QA:** the Docker stack above, running the same images. Runbook:
   [`DEPLOYMENT.md`](documentation/DEPLOYMENT.md);
   network view: [`DEPLOYMENT_TOPOLOGY.md`](documentation/DEPLOYMENT_TOPOLOGY.md).
+- **Production:** the **same container images** on a HIPAA-eligible cloud under a signed BAA (default **AWS**,
+  free self-serve via Artifact); the sidecar is also portable into a practice's own OpenEMR environment. See
+  `ARCHITECTURE.md` §13.
 
 ### Demo access
 
@@ -319,9 +322,6 @@ The demo cohort is seven synthetic cardiology patients (`AF-DEMO-01` through `AF
 medications, allergies, two back-dated encounters with vital signs and a LOINC-coded lab panel each — HFrEF,
 HFpEF, CAD post-PCI, three atrial-fibrillation phenotypes and resistant hypertension. **Synthetic data only —
 never real PHI.**
-- **Production:** the **same container images** on a HIPAA-eligible cloud under a signed BAA (default **AWS**,
-  free self-serve via Artifact); the sidecar is also portable into a practice's own OpenEMR environment. See
-  `ARCHITECTURE.md` §13.
 
 ---
 
